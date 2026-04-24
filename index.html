@@ -134,7 +134,7 @@
     if (!username) return alert('请输入用户名');
 
     try {
-      const response = await fetch(`${API_BASE}/users`, {
+      const response = await fetch(`${API_BASE}/user`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username })
@@ -145,17 +145,8 @@
         currentUserId = data.id;
         document.getElementById('userStatus').innerText = `✅ 用户: ${username} (ID: ${data.id})`;
         loadHistory();
-      } else if (response.status === 409) {
-        // 用户已存在，尝试查询
-        const users = await fetch(`${API_BASE}/users`).then(r => r.json());
-        const user = users.find(u => u.username === username);
-        if (user) {
-          currentUserId = user.id;
-          document.getElementById('userStatus').innerText = `✅ 用户: ${username} (ID: ${user.id})`;
-          loadHistory();
-        }
       } else {
-        alert('创建用户失败: ' + data.error);
+        alert('设置用户失败: ' + data.error);
       }
     } catch (err) {
       alert('错误: ' + err.message);
@@ -216,7 +207,7 @@
         const formData = new FormData();
         formData.append('file', currentAudioBlob, `audio-${Date.now()}.webm`);
 
-        const uploadRes = await fetch(`${API_BASE}/upload-audio`, {
+        const uploadRes = await fetch(`${API_BASE}/save`, {
           method: 'POST',
           body: formData
         });
@@ -228,7 +219,7 @@
       }
 
       // 2. 创建数据库记录
-      const response = await fetch(`${API_BASE}/records`, {
+      const response = await fetch(`${API_BASE}/save`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -264,7 +255,7 @@
     container.innerHTML = '<div class="loading">加载中...</div>';
 
     try {
-      const response = await fetch(`${API_BASE}/users/${currentUserId}/records`);
+      const response = await fetch(`${API_BASE}/history?user_id=${currentUserId}`);
       const records = await response.json();
 
       container.innerHTML = '';
@@ -291,9 +282,7 @@
     
     let audioHTML = '';
     if (record.audio_key) {
-      // 使用 API 获取音频，路径需要去掉 'audio/' 前缀
-      const audioPath = record.audio_key.replace('audio/', '');
-      const audioUrl = `${API_BASE}/audio/${audioPath}`;
+      const audioUrl = `${API_BASE}/audio?key=${encodeURIComponent(record.audio_key)}`;
       audioHTML = `<audio controls style="width: 100%; height: 30px; margin-bottom: 10px; filter: invert(1) hue-rotate(180deg);" src="${audioUrl}"></audio>`;
     }
 
@@ -324,8 +313,7 @@
   // --- 播放 R2 音频 ---
   function playAudio(audioKey) {
     if (!audioKey) return alert('无音频文件');
-    const audioPath = audioKey.replace('audio/', '');
-    const audioUrl = `${API_BASE}/audio/${audioPath}`;
+    const audioUrl = `${API_BASE}/audio?key=${encodeURIComponent(audioKey)}`;
     const audio = new Audio(audioUrl);
     audio.play().catch(err => alert('播放失败: ' + err.message));
   }
