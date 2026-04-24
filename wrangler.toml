@@ -1,9 +1,6 @@
 name = "steplistening"
-main = "src/index.ts"
 compatibility_date = "2024-01-01"
-
-[env.production]
-vars = { ENVIRONMENT = "production" }
+pages_build_output_dir = "."
 
 [[d1_databases]]
 binding = "DB"
@@ -13,7 +10,3 @@ database_id = "aeb4e5bf-a460-448a-bf34-091c97c5076d"
 [[r2_buckets]]
 binding = "BUCKET"
 bucket_name = "dictation-audio"
-
-[build]
-command = "npm run build"
-cwd = "."

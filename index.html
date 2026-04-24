@@ -19,8 +19,15 @@
     /* 控制栏 */
     .file-ops { display: flex; gap: 10px; justify-content: flex-end; margin-bottom: 15px; }
     .btn-secondary { background: #0f3460; color: white; border: 1px solid #444; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-size: 0.8rem; }
+    /* 链接栏 */
     .link-section { display: flex; gap: 10px; margin-bottom: 20px; }
     .link-section input { flex: 1; padding: 12px; border-radius: 8px; border: none; background: var(--card); color: white; }
+    
+    /* 用户选择区 */
+    .user-section { background: var(--card); padding: 15px; border-radius: 12px; margin-bottom: 20px; display: flex; gap: 10px; align-items: center; }
+    .user-section select { flex: 1; padding: 10px; border-radius: 5px; background: var(--bg); color: white; border: 1px solid #444; }
+    .user-section input { flex: 1; padding: 10px; border-radius: 5px; background: var(--bg); color: white; border: 1px solid #444; }
+    
     .btn-main { background: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; }
 
     /* 播放器 */
@@ -97,7 +104,7 @@
 </div>
 
 <script>
-  const API_BASE = 'https://steplistening.jinkexue.workers.dev/api'; // 替换为你的 Worker 域名
+  const API_BASE = '/api';
   
   let player, recognition, mediaRecorder;
   let audioChunks = [];
@@ -284,9 +291,10 @@
     
     let audioHTML = '';
     if (record.audio_key) {
-      // R2 音频链接
-      const audioUrl = `https://dictation-audio.${new URL(API_BASE).hostname}/audio/${record.audio_key}`;
-      audioHTML = `<audio controls style="width: 100%; height: 30px; margin-bottom: 10px; filter: invert(1) hue-rotate(180deg);"></audio>`;
+      // 使用 API 获取音频，路径需要去掉 'audio/' 前缀
+      const audioPath = record.audio_key.replace('audio/', '');
+      const audioUrl = `${API_BASE}/audio/${audioPath}`;
+      audioHTML = `<audio controls style="width: 100%; height: 30px; margin-bottom: 10px; filter: invert(1) hue-rotate(180deg);" src="${audioUrl}"></audio>`;
     }
 
     div.innerHTML = `
@@ -302,13 +310,6 @@
       <div class="manual-text">${record.text}</div>
     `;
 
-    // 如果有音频，添加音频元素
-    if (record.audio_key) {
-      const audioElem = div.querySelector('audio');
-      const audioUrl = `https://dictation-audio.${new URL(API_BASE).hostname}/audio/${record.audio_key}`;
-      audioElem.src = audioUrl;
-    }
-
     container.insertBefore(div, container.firstChild);
   }
 
@@ -323,7 +324,8 @@
   // --- 播放 R2 音频 ---
   function playAudio(audioKey) {
     if (!audioKey) return alert('无音频文件');
-    const audioUrl = `https://dictation-audio.${new URL(API_BASE).hostname}/audio/${audioKey}`;
+    const audioPath = audioKey.replace('audio/', '');
+    const audioUrl = `${API_BASE}/audio/${audioPath}`;
     const audio = new Audio(audioUrl);
     audio.play().catch(err => alert('播放失败: ' + err.message));
   }

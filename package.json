@@ -4,9 +4,9 @@
   "description": "A full-stack dictation tool with Cloudflare Workers, D1, and R2",
   "main": "src/index.ts",
   "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
-    "build": "esbuild src/index.ts --bundle --minify --sourcemap --outfile=dist/index.js --external:__STATIC_CONTENT_MANIFEST"
+    "dev": "wrangler pages dev . --d1 DB --r2 BUCKET",
+    "deploy": "wrangler pages deploy .",
+    "build": "echo 'No build step needed for static files'"
   },
   "dependencies": {
     "hono": "^4.0.0"
