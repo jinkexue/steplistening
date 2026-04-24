@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>听写助手 Pro - 带录音回放版</title>
+  <style>
+    :root { --primary: #e94560; --bg: #1a1a2e; --card: #16213e; --text: #eee; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: sans-serif; background: var(--bg); color: var(--text); padding-bottom: 50px; }
+    .container { max-width: 900px; margin: 0 auto; padding: 20px; }
+    h1 { text-align: center; color: var(--primary); margin-bottom: 20px; }
+
+    /* 用户栏 */
+    .user-bar { display: flex; gap: 10px; align-items: center; margin-bottom: 20px; padding: 15px; background: var(--card); border-radius: 8px; }
+    .user-bar input { flex: 1; padding: 10px; border-radius: 5px; border: none; background: #1a1a2e; color: white; }
+    .user-status { font-size: 0.9rem; color: #aaa; min-width: 150px; }
+
+    /* 控制栏 */
+    .file-ops { display: flex; gap: 10px; justify-content: flex-end; margin-bottom: 15px; }
+    .btn-secondary { background: #0f3460; color: white; border: 1px solid #444; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-size: 0.8rem; }
+    .link-section { display: flex; gap: 10px; margin-bottom: 20px; }
+    .link-section input { flex: 1; padding: 12px; border-radius: 8px; border: none; background: var(--card); color: white; }
+    .btn-main { background: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; }
+
+    /* 播放器 */
+    .video-wrapper { position: relative; width: 100%; padding-bottom: 56.25%; background: #000; border-radius: 12px; overflow: hidden; margin-bottom: 20px; }
+    #player { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+
+    /* 结果显示区 */
+    .results-display { display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px; }
+    .record-item { background: var(--card); padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary); }
+    .record-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .record-time { cursor: pointer; color: var(--primary); font-weight: bold; text-decoration: underline; }
+    .record-time:hover { color: #ff6b7a; }
+    .record-actions { display: flex; gap: 10px; }
+    .audio-icon { cursor: pointer; font-size: 1.2rem; }
+    .audio-icon:hover { opacity: 0.7; }
+    .stt-text { color: #888; font-style: italic; font-size: 0.85rem; margin-bottom: 8px; display: block; }
+    .manual-text { font-size: 1rem; line-height: 1.4; color: #fff; word-break: break-all; }
+
+    /* 输入区布局 */
+    .input-area { display: flex; gap: 10px; align-items: stretch; background: var(--card); padding: 15px; border-radius: 12px; position: sticky; bottom: 20px; box-shadow: 0 -5px 20px rgba(0,0,0,0.5); }
+    .mic-btn { width: 70px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #0f3460; border: none; border-radius: 8px; cursor: pointer; transition: 0.3s; }
+    .mic-btn.recording { background: var(--primary); animation: pulse 1.5s infinite; }
+    .mic-icon { font-size: 24px; }
+    .mic-status { font-size: 10px; color: #aaa; margin-top: 4px; }
+
+    .text-box { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+    textarea { width: 100%; background: #1a1a2e; color: white; border: 1px solid #333; border-radius: 5px; padding: 10px; resize: none; font-size: 1rem; }
+    
+    @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(233, 69, 96, 0.7); } 70% { box-shadow: 0 0 0 15px rgba(233, 69, 96, 0); } 100% { box-shadow: 0 0 0 0 rgba(233, 69, 96, 0); } }
+
+    /* 加载状态 */
+    .loading { color: #aaa; font-style: italic; text-align: center; padding: 20px; }
+    .error { color: #ff6b7a; padding: 10px; background: rgba(255, 107, 122, 0.1); border-radius: 5px; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="file-ops">
+    <button class="btn-secondary" onclick="exportData()">💾 保存记录</button>
+    <button class="btn-secondary" onclick="document.getElementById('fileInput').click()">📂 加载记录</button>
+    <input type="file" id="fileInput" style="display:none" accept=".json" onchange="importData(event)">
+  </div>
+
+  <h1>🎧 听写助手 Pro (API 版)</h1>
+
+  <!-- 用户输入栏 -->
+  <div class="user-bar">
+    <input type="text" id="username" placeholder="输入用户名..." />
+    <button class="btn-main" onclick="setUsername()">设置用户</button>
+    <div class="user-status" id="userStatus">未登录</div>
+  </div>
+
+  <div class="link-section">
+    <input type="text" id="videoUrl" placeholder="粘贴 YouTube 视频链接...">
+    <button class="btn-main" onclick="loadVideo()">加载视频</button>
+  </div>
+
+  <div class="video-wrapper"><div id="player"></div></div>
+
+  <div id="resultsDisplay" class="results-display"></div>
+
+  <div class="input-area">
+    <button id="micBtn" class="mic-btn" onclick="toggleRecording()">
+      <span class="mic-icon">🎤</span>
+      <span id="micStatus" class="mic-status">点击录音</span>
+    </button>
+    
+    <div class="text-box">
+      <textarea id="manualInput" rows="2" placeholder="先点录音，录完后在这里更正/输入最终文字..."></textarea>
+      <button class="btn-main" onclick="submitEntry()">提交听写记录</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const API_BASE = 'https://steplistening.jinkexue.workers.dev/api'; // 替换为你的 Worker 域名
+  
+  let player, recognition, mediaRecorder;
+  let audioChunks = [];
+  let isRecording = false;
+  let currentSTTText = ""; 
+  let currentAudioBlob = null;
+  let currentUserId = null;
+  let videoId = null;
+
+  // --- YouTube API ---
+  const tag = document.createElement('script');
+  tag.src = "https://www.youtube.com/iframe_api";
+  document.head.appendChild(tag);
+
+  function loadVideo() {
+    const url = document.getElementById('videoUrl').value;
+    const vid = url.match(/(?:v=|be\/|embed\/)([a-zA-Z0-9_-]{11})/)?.[1];
+    if (!vid) return alert("链接无效");
+    videoId = vid;
+    if (player) player.destroy();
+    player = new YT.Player('player', { videoId: vid });
+  }
+
+  // --- 用户管理 ---
+  async function setUsername() {
+    const username = document.getElementById('username').value.trim();
+    if (!username) return alert('请输入用户名');
+
+    try {
+      const response = await fetch(`${API_BASE}/users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username })
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        currentUserId = data.id;
+        document.getElementById('userStatus').innerText = `✅ 用户: ${username} (ID: ${data.id})`;
+        loadHistory();
+      } else if (response.status === 409) {
+        // 用户已存在，尝试查询
+        const users = await fetch(`${API_BASE}/users`).then(r => r.json());
+        const user = users.find(u => u.username === username);
+        if (user) {
+          currentUserId = user.id;
+          document.getElementById('userStatus').innerText = `✅ 用户: ${username} (ID: ${user.id})`;
+          loadHistory();
+        }
+      } else {
+        alert('创建用户失败: ' + data.error);
+      }
+    } catch (err) {
+      alert('错误: ' + err.message);
+    }
+  }
+
+  // --- 核心逻辑：录音 + 识别 ---
+  async function initRecorder() {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+    mediaRecorder.onstop = () => {
+      currentAudioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+      audioChunks = [];
+    };
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    recognition = new SpeechRecognition();
+    recognition.lang = 'en-US';
+    recognition.onresult = (e) => { currentSTTText = e.results[0][0].transcript; };
+  }
+
+  async function toggleRecording() {
+    if (!mediaRecorder) await initRecorder();
+
+    if (isRecording) {
+      mediaRecorder.stop();
+      recognition.stop();
+      isRecording = false;
+      document.getElementById('micBtn').classList.remove('recording');
+      document.getElementById('micStatus').innerText = "录音结束";
+    } else {
+      audioChunks = [];
+      currentSTTText = "";
+      mediaRecorder.start();
+      recognition.start();
+      isRecording = true;
+      document.getElementById('micBtn').classList.add('recording');
+      document.getElementById('micStatus').innerText = "录音中...";
+    }
+  }
+
+  // --- 提交记录到 API ---
+  async function submitEntry() {
+    if (!currentUserId) return alert('请先设置用户名');
+    if (!videoId) return alert('请先加载视频');
+
+    const manualText = document.getElementById('manualInput').value.trim();
+    if (!manualText && !currentSTTText) return alert('请输入或录音内容');
+
+    const timestamp = player ? Math.floor(player.getCurrentTime()) : 0;
+
+    try {
+      // 1. 上传音频到 R2
+      let audioKey = null;
+      if (currentAudioBlob) {
+        const formData = new FormData();
+        formData.append('file', currentAudioBlob, `audio-${Date.now()}.webm`);
+
+        const uploadRes = await fetch(`${API_BASE}/upload-audio`, {
+          method: 'POST',
+          body: formData
+        });
+
+        if (uploadRes.ok) {
+          const uploadData = await uploadRes.json();
+          audioKey = uploadData.key;
+        }
+      }
+
+      // 2. 创建数据库记录
+      const response = await fetch(`${API_BASE}/records`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: currentUserId,
+          video_id: videoId,
+          timestamp: timestamp,
+          text: manualText || currentSTTText,
+          audio_key: audioKey
+        })
+      });
+
+      if (response.ok) {
+        const record = await response.json();
+        renderRecord(record);
+        document.getElementById('manualInput').value = "";
+        currentAudioBlob = null;
+        document.getElementById('micStatus').innerText = "点击录音";
+        alert('✅ 记录已保存');
+      } else {
+        const data = await response.json();
+        alert('保存失败: ' + data.error);
+      }
+    } catch (err) {
+      alert('错误: ' + err.message);
+    }
+  }
+
+  // --- 加载历史记录 ---
+  async function loadHistory() {
+    if (!currentUserId) return;
+
+    const container = document.getElementById('resultsDisplay');
+    container.innerHTML = '<div class="loading">加载中...</div>';
+
+    try {
+      const response = await fetch(`${API_BASE}/users/${currentUserId}/records`);
+      const records = await response.json();
+
+      container.innerHTML = '';
+      if (records.length === 0) {
+        container.innerHTML = '<div class="loading">暂无记录</div>';
+        return;
+      }
+
+      // 反向排序，最新的在上面
+      records.reverse().forEach(record => renderRecord(record));
+    } catch (err) {
+      container.innerHTML = `<div class="error">加载失败: ${err.message}</div>`;
+    }
+  }
+
+  // --- 渲染单条记录 ---
+  function renderRecord(record) {
+    const container = document.getElementById('resultsDisplay');
+    const div = document.createElement('div');
+    div.className = 'record-item';
+    
+    const timeDisplay = new Date(record.created_at).toLocaleString('zh-CN');
+    const audioIcon = record.audio_key ? '🔊' : '❌';
+    
+    let audioHTML = '';
+    if (record.audio_key) {
+      // R2 音频链接
+      const audioUrl = `https://dictation-audio.${new URL(API_BASE).hostname}/audio/${record.audio_key}`;
+      audioHTML = `<audio controls style="width: 100%; height: 30px; margin-bottom: 10px; filter: invert(1) hue-rotate(180deg);"></audio>`;
+    }
+
+    div.innerHTML = `
+      <div class="record-header">
+        <span class="record-time" onclick="seekVideo(${record.timestamp})" title="点击跳转">⏱️ ${record.timestamp}s</span>
+        <div class="record-actions">
+          <span class="audio-icon" onclick="playAudio('${record.audio_key}')" title="播放音频">${audioIcon}</span>
+          <span onclick="copyText('${record.text.replace(/'/g, "\\'")}')" style="cursor: pointer;" title="复制文字">📋</span>
+        </div>
+      </div>
+      <small class="stt-text">识别结果: ${record.text}</small>
+      ${audioHTML}
+      <div class="manual-text">${record.text}</div>
+    `;
+
+    // 如果有音频，添加音频元素
+    if (record.audio_key) {
+      const audioElem = div.querySelector('audio');
+      const audioUrl = `https://dictation-audio.${new URL(API_BASE).hostname}/audio/${record.audio_key}`;
+      audioElem.src = audioUrl;
+    }
+
+    container.insertBefore(div, container.firstChild);
+  }
+
+  // --- 跳转视频时间戳 ---
+  function seekVideo(timestamp) {
+    if (player && player.seekTo) {
+      player.seekTo(timestamp);
+      player.playVideo();
+    }
+  }
+
+  // --- 播放 R2 音频 ---
+  function playAudio(audioKey) {
+    if (!audioKey) return alert('无音频文件');
+    const audioUrl = `https://dictation-audio.${new URL(API_BASE).hostname}/audio/${audioKey}`;
+    const audio = new Audio(audioUrl);
+    audio.play().catch(err => alert('播放失败: ' + err.message));
+  }
+
+  // --- 复制文字 ---
+  function copyText(text) {
+    navigator.clipboard.writeText(text).then(() => alert('✅ 已复制')).catch(() => alert('复制失败'));
+  }
+
+  // --- 导入导出 ---
+  function exportData() {
+    if (!currentUserId) return alert('请先设置用户');
+    // 可以导出当前用户的所有记录到 JSON
+    alert('导出功能可由服务端实现');
+  }
+
+  function importData(event) {
+    // 可以导入 JSON 文件
+    alert('导入功能可由服务端实现');
+  }
+</script>
+
+</body>
+</html>
