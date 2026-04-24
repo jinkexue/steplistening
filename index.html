@@ -232,8 +232,17 @@
       });
 
       if (response.ok) {
-        const record = await response.json();
-        renderRecord(record);
+        const resData = await response.json();
+        const fullRecord = {
+          id: resData.id,
+          user_id: currentUserId,
+          video_id: videoId,
+          timestamp: timestamp,
+          text: manualText || currentSTTText,
+          audio_key: audioKey,
+          created_at: resData.created_at
+        };
+        renderRecord(fullRecord);
         document.getElementById('manualInput').value = "";
         currentAudioBlob = null;
         document.getElementById('micStatus').innerText = "点击录音";
@@ -273,12 +282,14 @@
 
   // --- 渲染单条记录 ---
   function renderRecord(record) {
+    if (!record || !record.text) return;
+
     const container = document.getElementById('resultsDisplay');
     const div = document.createElement('div');
     div.className = 'record-item';
     
-    const timeDisplay = new Date(record.created_at).toLocaleString('zh-CN');
     const audioIcon = record.audio_key ? '🔊' : '❌';
+    const safeText = record.text.replace(/'/g, "\\'").replace(/"/g, '&quot;');
     
     let audioHTML = '';
     if (record.audio_key) {
@@ -288,10 +299,10 @@
 
     div.innerHTML = `
       <div class="record-header">
-        <span class="record-time" onclick="seekVideo(${record.timestamp})" title="点击跳转">⏱️ ${record.timestamp}s</span>
+        <span class="record-time" onclick="seekVideo(${record.timestamp || 0})" title="点击跳转">⏱️ ${record.timestamp || 0}s</span>
         <div class="record-actions">
-          <span class="audio-icon" onclick="playAudio('${record.audio_key}')" title="播放音频">${audioIcon}</span>
-          <span onclick="copyText('${record.text.replace(/'/g, "\\'")}')" style="cursor: pointer;" title="复制文字">📋</span>
+          ${record.audio_key ? `<span class="audio-icon" onclick="playAudio('${record.audio_key}')" title="播放音频">🔊</span>` : '<span class="audio-icon" title="无音频">❌</span>'}
+          <span onclick="copyText('${safeText}')" style="cursor: pointer;" title="复制文字">📋</span>
         </div>
       </div>
       <small class="stt-text">识别结果: ${record.text}</small>
