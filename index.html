@@ -100,7 +100,8 @@
     .results-display { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
 
     /* 记录项样式 */
-    .record-item { background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 6px; border-left: 3px solid var(--primary); display: flex; gap: 10px; align-items: flex-start; }
+    .record-item { background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 6px; border-left: 3px solid var(--primary); display: flex; gap: 10px; align-items: flex-start; cursor: pointer; transition: background 0.2s; }
+    .record-item:hover { background: rgba(255,255,255,0.06); }
     .record-actions-col { display: flex; flex-direction: column; gap: 6px; align-items: center; min-width: 25px; }
     .record-info { flex: 1; display: flex; flex-direction: column; gap: 4px; }
     .record-meta { display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: #888; }
@@ -920,6 +921,12 @@
     div.className = `record-item ${record.source === 'auto' ? 'source-auto' : ''}`;
     div.id = `record-${record.id}`;
     
+    // 点击片段跳转到对应时间，但排除按钮和输入框
+    div.onclick = (e) => {
+      if (e.target.closest('button, textarea, input')) return;
+      seekVideo(record.timestamp);
+    };
+    
     // 区分文字来源颜色
     const textClass = record.source === 'auto' ? 'source-auto' : 'source-manual';
     
@@ -999,6 +1006,19 @@
     }
     if (e.code === 'Space') { e.preventDefault(); if (player) { const s = player.getPlayerState(); s === 1 ? player.pauseVideo() : player.playVideo(); } }
     if (e.code === 'KeyR') { e.preventDefault(); toggleRecording(); }
+    
+    // 视频步进快捷键
+    if (player && player.getCurrentTime) {
+      const cur = player.getCurrentTime();
+      if (e.code === 'ArrowLeft') {
+        e.preventDefault();
+        player.seekTo(Math.max(0, cur - (e.ctrlKey ? 2 : 5)));
+      }
+      if (e.code === 'ArrowRight') {
+        e.preventDefault();
+        player.seekTo(cur + (e.ctrlKey ? 2 : 5));
+      }
+    }
   });
 </script>
 </body>
