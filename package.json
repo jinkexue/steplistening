@@ -1,20 +1,18 @@
 {
   "name": "steplistening",
   "version": "1.0.0",
-  "description": "A full-stack dictation tool with Cloudflare Workers, D1, and R2",
-  "main": "src/index.ts",
+  "description": "A full-stack dictation tool with Cloudflare Pages, D1, and R2",
   "scripts": {
     "dev": "wrangler pages dev . --d1 DB --r2 BUCKET",
     "deploy": "wrangler pages deploy .",
     "build": "echo 'No build step needed for static files'"
   },
   "dependencies": {
-    "hono": "^4.0.0"
+    "hono": "^4.12.15"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
-    "esbuild": "^0.19.0",
+    "@types/node": "^20.17.0",
     "typescript": "^5.0.0",
-    "wrangler": "^3.0.0"
+    "wrangler": "^3.114.17"
   }
 }
