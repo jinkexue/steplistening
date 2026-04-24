@@ -238,6 +238,7 @@
 <div class="top-bar">
   <div class="user-info" id="userInfo">未登录</div>
   <div style="display: flex; gap: 15px; align-items: center;">
+    <button class="btn-secondary" onclick="showView('main')" style="background: var(--accent);">🏠 听写主页</button>
     <button class="btn-secondary" onclick="openTasks()" style="background: var(--accent);">📂 任务列表</button>
     <div id="adminLink" style="display: none;">
       <button class="btn-secondary" onclick="openAdmin()" style="background: #444;">⚙️ 管理后台</button>
@@ -249,14 +250,22 @@
 <div class="main-layout">
   <div class="content-grid">
     <div class="video-pane">
+      <div class="link-section">
+        <input type="text" id="videoUrlMain" placeholder="输入 YouTube 链接快速开始听写任务...">
+        <button class="btn-main" onclick="addTaskFromMain()">🚀 添加并开始</button>
+      </div>
       <div id="currentTaskTitle" style="font-weight: bold; font-size: 1.1rem; color: var(--primary); min-height: 1.5rem; margin-bottom: 5px;"></div>
       <div class="video-wrapper"><div id="player"></div></div>
     </div>
 
     <div class="record-pane">
       <div class="results-header">
-        <div style="font-weight: bold; color: var(--primary);">📜 听写片段 (<span id="recordCount">0</span>)</div>
-        <div style="display: flex; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <input type="checkbox" id="selectAllRecords" onclick="toggleSelectAll(this)">
+          <div style="font-weight: bold; color: var(--primary);">📜 听写片段 (<span id="recordCount">0</span>)</div>
+        </div>
+        <div style="display: flex; gap: 10px; align-items: center;">
+          <button id="batchDeleteBtn" class="btn-secondary btn-danger" onclick="batchDelete()" style="font-size: 0.7rem; padding: 4px 10px; display: none;">批量删除</button>
           <button id="playAllBtn" class="btn-secondary" onclick="playAllRecords()" style="font-size: 0.75rem;">▶️ 全部播放</button>
           <button id="pauseAllBtn" class="btn-secondary" onclick="pauseAllRecords()" style="font-size: 0.75rem; display: none;">⏸️ 停止</button>
           <label style="font-size: 0.75rem; color: #888; cursor: pointer; display: flex; align-items: center; gap: 4px;">
@@ -505,6 +514,76 @@
     loadVideo(vid, title);
   }
 
+  async function addTaskFromMain() {
+    const url = document.getElementById('videoUrlMain').value.trim();
+    const vid = url.match(/(?:v=|be\/|embed\/)([a-zA-Z0-9_-]{11})/)?.[1];
+    if (!vid) return alert("链接无效");
+    
+    // 清空输入框
+    document.getElementById('videoUrlMain').value = "";
+    
+    // 立即加载视频
+    loadVideo(vid, "正在获取标题...");
+    
+    // 创建一个占位记录以确保出现在“我的任务”中（或者由 loadVideo 中的 saveVideoMeta 处理）
+    // 目前 saveVideoMeta 已经会保存到 videos_meta，但任务列表是查 records 表。
+    // 我们在这里提交一个空的占位片段来初始化任务
+    const res = await fetch(`${API_BASE}/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        user_id: currentUser.id, 
+        video_id: vid, 
+        video_title: "新任务: " + vid, 
+        timestamp: 0, 
+        duration: 0, 
+        order_index: 1, 
+        text: "开始你的听写吧！" 
+      })
+    });
+    
+    if (res.ok) {
+      loadHistory();
+    }
+  }
+
+  // --- 批量删除逻辑 ---
+  function toggleSelectAll(master) {
+    const boxes = document.querySelectorAll('.record-checkbox');
+    boxes.forEach(b => b.checked = master.checked);
+    updateBatchBtn();
+  }
+
+  function updateBatchBtn() {
+    const checkedCount = document.querySelectorAll('.record-checkbox:checked').length;
+    document.getElementById('batchDeleteBtn').style.display = checkedCount > 0 ? 'block' : 'none';
+  }
+
+  async function batchDelete() {
+    const checked = document.querySelectorAll('.record-checkbox:checked');
+    if (!checked.length || !confirm(`确定要删除选中的 ${checked.length} 个片段吗？`)) return;
+
+    const ids = Array.from(checked).map(c => parseInt(c.value));
+    
+    // 循环调用删除接口（为了简单，复用单个删除逻辑）
+    // 实际项目中建议增加批量删除 API
+    for (const id of ids) {
+      const record = historyRecords.find(r => r.id === id);
+      if (record) {
+        await fetch(`${API_BASE}/save`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'delete', id: record.id, video_id: videoId, user_id: currentUser.id, order_index: record.order_index })
+        });
+      }
+    }
+    
+    // 重新排序并加载
+    loadHistory();
+    document.getElementById('selectAllRecords').checked = false;
+    updateBatchBtn();
+  }
+
   async function loadUsers() {
     const tbody = document.querySelector('#userTable tbody');
     tbody.innerHTML = '<tr><td colspan="5" style="text-align:center">加载中...</td></tr>';
@@ -698,6 +777,9 @@
     div.className = 'record-item';
     div.id = `record-${record.id}`;
     div.innerHTML = `
+      <div style="display: flex; align-items: center; align-self: stretch; padding-right: 5px;">
+        <input type="checkbox" class="record-checkbox" value="${record.id}" onclick="updateBatchBtn()">
+      </div>
       <div class="record-actions-col">
         <button class="action-btn" onclick="playAudio('${record.audio_key || ""}', ${record.id})">${record.audio_key ? '🔊' : '❌'}</button>
         <button class="action-btn" onclick="reRecordDirect(${record.id}, '${record.audio_key || ""}')">🎤</button>
