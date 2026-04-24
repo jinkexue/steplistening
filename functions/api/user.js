@@ -3,7 +3,7 @@ export async function onRequestPost(context) {
 
   try {
     const data = await request.json();
-    const { username, password, action, id } = data;
+    const { username, password, action, id, is_admin } = data;
 
     // 1. 登录逻辑
     if (action === 'login') {
@@ -30,12 +30,34 @@ export async function onRequestPost(context) {
     // 3. 注册/添加用户
     if (action === 'register') {
       const result = await env.DB.prepare("INSERT INTO users (username, password, is_admin) VALUES (?, ?, ?)")
-        .bind(username, password, 0)
+        .bind(username, password, is_admin || 0)
         .run();
       return new Response(JSON.stringify({ id: result.meta.last_row_id, success: true }));
     }
 
-    // 4. 删除用户
+    // 4. 更新用户信息/修改密码
+    if (action === 'update') {
+      let query = "UPDATE users SET username = ?";
+      const params = [username];
+      
+      if (password) {
+        query += ", password = ?";
+        params.push(password);
+      }
+      
+      if (typeof is_admin !== 'undefined') {
+        query += ", is_admin = ?";
+        params.push(is_admin);
+      }
+      
+      query += " WHERE id = ?";
+      params.push(id);
+      
+      await env.DB.prepare(query).bind(...params).run();
+      return new Response(JSON.stringify({ success: true }));
+    }
+
+    // 5. 删除用户
     if (action === 'delete') {
       await env.DB.prepare("DELETE FROM users WHERE id = ?").bind(id).run();
       return new Response(JSON.stringify({ success: true }));

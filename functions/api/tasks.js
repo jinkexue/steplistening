@@ -8,8 +8,6 @@ export async function onRequestGet(context) {
   }
 
   try {
-    // 获取用户所有的视频任务列表，并统计每个视频的片段数量和录音总时长
-    // 同时关联 videos_meta 获取视频总时长以计算完成度
     const result = await env.DB.prepare(`
       SELECT 
         r.video_id, 
@@ -30,6 +28,27 @@ export async function onRequestGet(context) {
     return new Response(JSON.stringify(result.results), {
       headers: { "Content-Type": "application/json" },
     });
+  } catch (err) {
+    return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+  }
+}
+
+export async function onRequestPost(context) {
+  const { request, env } = context;
+  
+  try {
+    const data = await request.json();
+    const { action, userId, videoId } = data;
+
+    if (action === 'delete') {
+      // 删除该用户该视频的所有记录
+      await env.DB.prepare("DELETE FROM records WHERE user_id = ? AND video_id = ?")
+        .bind(userId, videoId)
+        .run();
+      return new Response(JSON.stringify({ success: true }));
+    }
+
+    return new Response(JSON.stringify({ error: "未知操作" }), { status: 400 });
   } catch (err) {
     return new Response(JSON.stringify({ error: err.message }), { status: 500 });
   }

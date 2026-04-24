@@ -10,3 +10,6 @@ database_id = "aeb4e5bf-a460-448a-bf34-091c97c5076d"
 [[r2_buckets]]
 binding = "BUCKET"
 bucket_name = "dictation-audio"
+
+[ai]
+binding = "AI"

@@ -17,11 +17,29 @@ export async function onRequestPost(context) {
       const filename = existingKey || `audio/${timestamp}-${file.name || "recording.mp3"}`;
       const arrayBuffer = await file.arrayBuffer();
 
+      // 保存到 R2
       await env.BUCKET.put(filename, arrayBuffer, {
         httpMetadata: { contentType: file.type || "audio/mpeg" },
       });
 
-      return new Response(JSON.stringify({ success: true, key: filename }), {
+      // --- 自动识别文字 (AI) ---
+      let autoText = "";
+      try {
+        if (env.AI) {
+          const aiResponse = await env.AI.run("@cf/openai/whisper", {
+            audio: [...new Uint8Array(arrayBuffer)],
+          });
+          autoText = aiResponse.text || "";
+        }
+      } catch (aiErr) {
+        console.error("AI Transcription failed:", aiErr);
+      }
+
+      return new Response(JSON.stringify({ 
+        success: true, 
+        key: filename, 
+        autoText: autoText 
+      }), {
         status: 201,
         headers: { "Content-Type": "application/json" },
       });
@@ -30,7 +48,7 @@ export async function onRequestPost(context) {
     // 2. 处理记录保存/更新/删除/插入 (application/json)
     if (contentType.includes("application/json")) {
       const data = await request.json();
-      const { action, id, user_id, video_id, video_title, timestamp, duration, order_index, text, audio_key, total_duration } = data;
+      const { action, id, user_id, video_id, video_title, timestamp, duration, order_index, text, audio_key, total_duration, source } = data;
 
       // 保存视频元数据 (总时长)
       if (video_id && total_duration) {
@@ -41,7 +59,7 @@ export async function onRequestPost(context) {
 
       if (action === 'delete') {
         await env.DB.prepare("DELETE FROM records WHERE id = ?").bind(id).run();
-        // 重新排序索引 (可选，但为了保持连续性)
+        // 重新排序索引
         await env.DB.prepare("UPDATE records SET order_index = order_index - 1 WHERE video_id = ? AND user_id = ? AND order_index > ?")
           .bind(video_id, user_id, order_index)
           .run();
@@ -49,15 +67,14 @@ export async function onRequestPost(context) {
       }
 
       if (action === 'insert') {
-        // 先腾出位置
         await env.DB.prepare("UPDATE records SET order_index = order_index + 1 WHERE video_id = ? AND user_id = ? AND order_index >= ?")
           .bind(video_id, user_id, order_index)
           .run();
         
         const result = await env.DB.prepare(
-          "INSERT INTO records (user_id, video_id, video_title, timestamp, duration, order_index, text, audio_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+          "INSERT INTO records (user_id, video_id, video_title, timestamp, duration, order_index, text, audio_key, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
         )
-          .bind(user_id, video_id, video_title, timestamp, duration || 0, order_index, text || "", audio_key || null)
+          .bind(user_id, video_id, video_title, timestamp, duration || 0, order_index, text || "", audio_key || null, source || 'manual')
           .run();
           
         return new Response(JSON.stringify({ id: result.meta.last_row_id, success: true, created_at: new Date().toISOString() }), { status: 201 });
@@ -65,16 +82,16 @@ export async function onRequestPost(context) {
 
       if (id) {
         // 更新现有记录
-        await env.DB.prepare("UPDATE records SET text = ?, audio_key = ? WHERE id = ?")
-          .bind(text, audio_key || null, id)
+        await env.DB.prepare("UPDATE records SET text = ?, audio_key = ?, source = ? WHERE id = ?")
+          .bind(text, audio_key || null, source || 'manual', id)
           .run();
         return new Response(JSON.stringify({ success: true, id, created_at: new Date().toISOString() }));
       } else {
-        // 创建新记录 (正常追加)
+        // 创建新记录
         const result = await env.DB.prepare(
-          "INSERT INTO records (user_id, video_id, video_title, timestamp, duration, order_index, text, audio_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+          "INSERT INTO records (user_id, video_id, video_title, timestamp, duration, order_index, text, audio_key, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
         )
-          .bind(user_id, video_id, video_title, timestamp, duration, order_index, text, audio_key)
+          .bind(user_id, video_id, video_title, timestamp, duration, order_index, text, audio_key, source || 'manual')
           .run();
 
         return new Response(JSON.stringify({ id: result.meta.last_row_id, success: true, created_at: new Date().toISOString() }), { status: 201 });

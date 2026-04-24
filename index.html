@@ -249,6 +249,7 @@
     <div id="adminLink" style="display: none;">
       <button class="btn-secondary" onclick="openAdmin()" style="background: #444;">⚙️ 管理后台</button>
     </div>
+    <button class="btn-secondary" onclick="changePassword()" style="background: #555;">🔑 修改密码</button>
     <button onclick="handleLogout()" style="background:none; border:none; color:#888; cursor:pointer">退出</button>
   </div>
 </div>
@@ -411,6 +412,19 @@
     if (player) player.stopVideo();
   }
 
+  async function changePassword() {
+    const newPass = prompt("请输入新密码:");
+    if (!newPass) return;
+    try {
+      const res = await fetch(`${API_BASE}/user`, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'update', id: currentUser.id, username: currentUser.username, password: newPass })
+      });
+      if (res.ok) alert("密码修改成功！");
+      else alert("修改失败");
+    } catch (e) { alert("网络错误"); }
+  }
+
   // --- 导航控制 ---
   function showView(viewId) {
     // 隐藏所有面板
@@ -471,10 +485,27 @@
               <span>${progress}%</span>
             </div>
           </td>
-          <td><button class="btn-secondary" onclick="selectTask('${t.video_id}', '${t.video_title.replace(/'/g, "\\'")}')">🚀 复习</button></td>
+          <td>
+            <div style="display:flex; gap:8px">
+              <button class="btn-secondary" onclick="selectTask('${t.video_id}', '${t.video_title.replace(/'/g, "\\'")}')">🚀 复习</button>
+              <button class="btn-secondary btn-danger" style="padding:8px 16px" onclick="deleteTask('${t.video_id}')">🗑️ 删除</button>
+            </div>
+          </td>
         </tr>
       `;
     }).join('');
+  }
+
+  async function deleteTask(vid) {
+    if (!confirm("确定要删除该任务及其所有记录吗？")) return;
+    try {
+      const res = await fetch(`${API_BASE}/tasks`, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'delete', userId: currentUser.id, videoId: vid })
+      });
+      if (res.ok) loadMyTasks();
+      else alert("删除失败");
+    } catch (e) { alert("网络错误"); }
   }
 
   async function loadPlannedTasks() {
@@ -624,7 +655,10 @@
           <td>${u.is_admin ? '<span class="admin-tag">管理员</span>' : '普通用户'}</td>
           <td>${new Date(u.created_at).toLocaleDateString()}</td>
           <td>
-            <button class="btn-secondary btn-danger" style="padding:4px 10px; font-size:0.7rem" onclick="deleteUser(${u.id})">删除</button>
+            <div style="display:flex; gap:5px">
+              <button class="btn-secondary" style="padding:4px 10px; font-size:0.7rem" onclick="editUser(${u.id}, '${u.username}', ${u.is_admin})">编辑</button>
+              <button class="btn-secondary btn-danger" style="padding:4px 10px; font-size:0.7rem" onclick="deleteUser(${u.id})">删除</button>
+            </div>
           </td>
         </tr>
       `).join('');
@@ -670,6 +704,32 @@
     } catch (e) { alert("网络错误"); }
   }
 
+  async function editUser(id, username, isAdmin) {
+    const newName = prompt("修改用户名:", username);
+    if (newName === null) return;
+    const newPass = prompt("重置密码 (留空则不修改):");
+    const role = confirm("设置为管理员吗？") ? 1 : 0;
+
+    try {
+      const res = await fetch(`${API_BASE}/user`, {
+        method: 'POST',
+        body: JSON.stringify({ 
+          action: 'update', 
+          id, 
+          username: newName || username, 
+          password: newPass || undefined, 
+          is_admin: role 
+        })
+      });
+      if (res.ok) {
+        alert("修改成功");
+        loadUsers();
+      } else {
+        alert("修改失败");
+      }
+    } catch (e) { alert("网络错误"); }
+  }
+
   // --- 录音逻辑 ---
   async function toggleRecording() {
     if (!currentUser || !videoId) return;
@@ -706,17 +766,47 @@
           const upRes = await fetch(`${API_BASE}/save`, { method: 'POST', body: formData });
           const upData = await upRes.json();
           const record = historyRecords.find(r => r.id === currentUser.replaceId);
+          
+          // 如果有识别文字且用户没手动改过文字，或者用户想要使用识别文字
+          let newText = record.text;
+          let newSource = record.source;
+          if (upData.autoText && (!record.text || record.text === "新片段" || record.source === 'auto')) {
+            newText = upData.autoText;
+            newSource = 'auto';
+          }
+
           await fetch(`${API_BASE}/save`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: currentUser.replaceId, text: record.text, audio_key: upData.key })
+            body: JSON.stringify({ 
+              id: currentUser.replaceId, 
+              text: newText, 
+              audio_key: upData.key,
+              source: newSource
+            })
           });
           record.audio_key = upData.key;
-          refreshDisplay(); // 刷新显示
+          record.text = newText;
+          record.source = newSource;
+          refreshDisplay(); 
           currentUser.replaceId = null;
         } else {
           currentUser.lastBlob = blob;
           currentUser.lastDuration = duration;
+          // 预上传并获取识别文字
+          const formData = new FormData();
+          formData.append('file', blob, `temp-${Date.now()}.mp3`);
+          const upRes = await fetch(`${API_BASE}/save`, { method: 'POST', body: formData });
+          const upData = await upRes.json();
+          currentUser.lastAudioKey = upData.key;
+          if (upData.autoText) {
+             const inputEl = document.getElementById('manualInput');
+             inputEl.value = upData.autoText;
+             inputEl.setAttribute('data-auto', upData.autoText);
+             currentUser.lastSource = 'auto';
+           } else {
+            currentUser.lastSource = 'manual';
+          }
         }
       };
       mediaRecorder.start();
@@ -741,20 +831,36 @@
     const timestamp = player ? Math.floor(player.getCurrentTime()) : 0;
     const duration = currentUser.lastDuration || 0;
     const orderIndex = historyRecords.length + 1;
-    saveRecord(timestamp, duration, orderIndex, text);
+    
+    // 如果文字被手动修改过，则标记为 manual
+    const source = (currentUser.lastSource === 'auto' && text === document.getElementById('manualInput').getAttribute('data-auto')) ? 'auto' : 'manual';
+    
+    saveRecord(timestamp, duration, orderIndex, text, source);
   }
 
-  async function saveRecord(timestamp, duration, orderIndex, text, audioBlob = currentUser.lastBlob) {
+  async function saveRecord(timestamp, duration, orderIndex, text, source = 'manual') {
     try {
-      let audio_key = null;
-      if (audioBlob) {
+      let audio_key = currentUser.lastAudioKey || null;
+      // 如果没有预上传的 key (比如手动输入没录音)，且有 blob，则上传
+      if (!audio_key && currentUser.lastBlob) {
         const formData = new FormData();
-        formData.append('file', audioBlob, `rec-${Date.now()}.mp3`);
+        formData.append('file', currentUser.lastBlob, `rec-${Date.now()}.mp3`);
         const upRes = await fetch(`${API_BASE}/save`, { method: 'POST', body: formData });
         const upData = await upRes.json();
         audio_key = upData.key;
       }
-      const payload = { user_id: currentUser.id, video_id: videoId, video_title: videoTitle, timestamp, duration, order_index: orderIndex, text, audio_key };
+      
+      const payload = { 
+        user_id: currentUser.id, 
+        video_id: videoId, 
+        video_title: videoTitle, 
+        timestamp, 
+        duration, 
+        order_index: orderIndex, 
+        text, 
+        audio_key,
+        source: source
+      };
       const res = await fetch(`${API_BASE}/save`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       if (res.ok) {
         const resData = await res.json();
@@ -763,6 +869,8 @@
         refreshDisplay();
         document.getElementById('manualInput').value = "";
         currentUser.lastBlob = null;
+        currentUser.lastAudioKey = null;
+        currentUser.lastSource = null;
       }
     } catch (e) { alert("保存失败"); }
   }
@@ -822,7 +930,6 @@
       <div class="record-actions-col">
         <button class="action-btn" title="播放音频" onclick="playAudio('${record.audio_key || ""}', ${record.id})">${record.audio_key ? '🔊' : '❌'}</button>
         <button class="action-btn" title="重录当前片段" onclick="reRecordDirect(${record.id}, '${record.audio_key || ""}')">🎤</button>
-        <button class="action-btn" title="编辑文字" onclick="document.getElementById('text-${record.id}').focus()">📝</button>
       </div>
       <div class="record-info">
         <div class="record-meta">

@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS records (
   order_index INTEGER,
   text TEXT NOT NULL,
   audio_key TEXT,
+  source TEXT DEFAULT 'manual',
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
