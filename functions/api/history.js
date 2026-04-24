@@ -9,7 +9,7 @@ export async function onRequestGet(context) {
 
   try {
     const result = await env.DB.prepare(
-      "SELECT * FROM records WHERE user_id = ? ORDER BY created_at DESC"
+      "SELECT * FROM records WHERE user_id = ? ORDER BY order_index ASC, created_at ASC"
     )
       .bind(userId)
       .all();

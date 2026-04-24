@@ -2,6 +2,8 @@
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   username TEXT UNIQUE NOT NULL,
+  password TEXT NOT NULL,
+  is_admin INTEGER DEFAULT 0,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -10,7 +12,10 @@ CREATE TABLE IF NOT EXISTS records (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL,
   video_id TEXT,
+  video_title TEXT,
   timestamp INTEGER,
+  duration INTEGER,
+  order_index INTEGER,
   text TEXT NOT NULL,
   audio_key TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,

@@ -3,121 +3,180 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>听写助手 Pro - 带录音回放版</title>
+  <title>听写助手 Pro - 全栈版</title>
   <style>
-    :root { --primary: #e94560; --bg: #1a1a2e; --card: #16213e; --text: #eee; }
+    :root { --primary: #e94560; --bg: #1a1a2e; --card: #16213e; --text: #eee; --accent: #0f3460; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: sans-serif; background: var(--bg); color: var(--text); padding-bottom: 50px; }
+    body { font-family: sans-serif; background: var(--bg); color: var(--text); padding-bottom: 80px; }
     .container { max-width: 900px; margin: 0 auto; padding: 20px; }
     h1 { text-align: center; color: var(--primary); margin-bottom: 20px; }
 
-    /* 用户栏 */
-    .user-bar { display: flex; gap: 10px; align-items: center; margin-bottom: 20px; padding: 15px; background: var(--card); border-radius: 8px; }
-    .user-bar input { flex: 1; padding: 10px; border-radius: 5px; border: none; background: #1a1a2e; color: white; }
-    .user-status { font-size: 0.9rem; color: #aaa; min-width: 150px; }
+    /* 登录样式 */
+    #loginOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+    .login-box { background: var(--card); padding: 30px; border-radius: 12px; width: 90%; max-width: 400px; text-align: center; }
+    .login-box h2 { margin-bottom: 20px; color: var(--primary); }
+    .login-box input { width: 100%; padding: 12px; margin-bottom: 15px; border-radius: 8px; border: 1px solid #333; background: #1a1a2e; color: white; }
+    
+    /* 顶部栏 */
+    .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .user-info { font-size: 0.9rem; color: #aaa; }
 
-    /* 控制栏 */
-    .file-ops { display: flex; gap: 10px; justify-content: flex-end; margin-bottom: 15px; }
-    .btn-secondary { background: #0f3460; color: white; border: 1px solid #444; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-size: 0.8rem; }
-    /* 链接栏 */
-    .link-section { display: flex; gap: 10px; margin-bottom: 20px; }
+    /* 视频控制 */
+    .video-section { margin-bottom: 20px; }
+    .link-section { display: flex; gap: 10px; margin-bottom: 15px; }
     .link-section input { flex: 1; padding: 12px; border-radius: 8px; border: none; background: var(--card); color: white; }
-    
-    /* 用户选择区 */
-    .user-section { background: var(--card); padding: 15px; border-radius: 12px; margin-bottom: 20px; display: flex; gap: 10px; align-items: center; }
-    .user-section select { flex: 1; padding: 10px; border-radius: 5px; background: var(--bg); color: white; border: 1px solid #444; }
-    .user-section input { flex: 1; padding: 10px; border-radius: 5px; background: var(--bg); color: white; border: 1px solid #444; }
-    
-    .btn-main { background: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; }
-
-    /* 播放器 */
-    .video-wrapper { position: relative; width: 100%; padding-bottom: 56.25%; background: #000; border-radius: 12px; overflow: hidden; margin-bottom: 20px; }
+    .video-wrapper { position: relative; width: 100%; padding-bottom: 56.25%; background: #000; border-radius: 12px; overflow: hidden; }
     #player { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
 
-    /* 结果显示区 */
-    .results-display { display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px; }
-    .record-item { background: var(--card); padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary); }
-    .record-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-    .record-time { cursor: pointer; color: var(--primary); font-weight: bold; text-decoration: underline; }
-    .record-time:hover { color: #ff6b7a; }
-    .record-actions { display: flex; gap: 10px; }
+    /* 记录列表 */
+    .results-display { display: flex; flex-direction: column; gap: 15px; margin-top: 20px; }
+    .record-item { background: var(--card); padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary); position: relative; }
+    .record-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 0.9rem; }
+    .record-index { background: var(--primary); color: white; padding: 2px 8px; border-radius: 4px; margin-right: 10px; }
+    .record-time { cursor: pointer; color: var(--primary); font-weight: bold; }
+    .record-actions { display: flex; gap: 15px; }
     .audio-icon { cursor: pointer; font-size: 1.2rem; }
-    .audio-icon:hover { opacity: 0.7; }
-    .stt-text { color: #888; font-style: italic; font-size: 0.85rem; margin-bottom: 8px; display: block; }
-    .manual-text { font-size: 1rem; line-height: 1.4; color: #fff; word-break: break-all; }
+    
+    /* 文字编辑 */
+    .manual-text { width: 100%; background: transparent; border: 1px solid transparent; color: #fff; font-size: 1rem; line-height: 1.4; resize: none; transition: 0.3s; padding: 5px; border-radius: 4px; }
+    .manual-text:focus { background: #1a1a2e; border-color: var(--primary); outline: none; }
 
-    /* 输入区布局 */
-    .input-area { display: flex; gap: 10px; align-items: stretch; background: var(--card); padding: 15px; border-radius: 12px; position: sticky; bottom: 20px; box-shadow: 0 -5px 20px rgba(0,0,0,0.5); }
-    .mic-btn { width: 70px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #0f3460; border: none; border-radius: 8px; cursor: pointer; transition: 0.3s; }
+    /* 输入控制 */
+    .controls-footer { position: fixed; bottom: 0; left: 0; width: 100%; background: var(--card); padding: 15px; box-shadow: 0 -5px 20px rgba(0,0,0,0.5); z-index: 100; }
+    .input-area { max-width: 900px; margin: 0 auto; display: flex; gap: 10px; align-items: stretch; }
+    .mic-btn { width: 80px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--accent); border: none; border-radius: 8px; cursor: pointer; transition: 0.3s; color: white; }
     .mic-btn.recording { background: var(--primary); animation: pulse 1.5s infinite; }
     .mic-icon { font-size: 24px; }
-    .mic-status { font-size: 10px; color: #aaa; margin-top: 4px; }
-
+    .progress-container { width: 100%; height: 4px; background: #333; margin-top: 5px; border-radius: 2px; overflow: hidden; display: none; }
+    .progress-bar { height: 100%; background: var(--primary); width: 0%; transition: 0.1s; }
+    
     .text-box { flex: 1; display: flex; flex-direction: column; gap: 8px; }
     textarea { width: 100%; background: #1a1a2e; color: white; border: 1px solid #333; border-radius: 5px; padding: 10px; resize: none; font-size: 1rem; }
     
-    @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(233, 69, 96, 0.7); } 70% { box-shadow: 0 0 0 15px rgba(233, 69, 96, 0); } 100% { box-shadow: 0 0 0 0 rgba(233, 69, 96, 0); } }
+    .btn-main { background: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+    .btn-main:hover { opacity: 0.9; }
 
-    /* 加载状态 */
-    .loading { color: #aaa; font-style: italic; text-align: center; padding: 20px; }
-    .error { color: #ff6b7a; padding: 10px; background: rgba(255, 107, 122, 0.1); border-radius: 5px; }
+    /* 管理后台样式 */
+    #adminPanel { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); z-index: 1100; padding: 20px; overflow-y: auto; display: none; }
+    .user-list { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    .user-list th, .user-list td { padding: 12px; border: 1px solid #333; text-align: left; }
+    .user-list tr:nth-child(even) { background: var(--card); }
+
+    @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(233, 69, 96, 0.7); } 70% { box-shadow: 0 0 0 15px rgba(233, 69, 96, 0); } 100% { box-shadow: 0 0 0 0 rgba(233, 69, 96, 0); } }
+    
+    @media (max-width: 600px) {
+      .input-area { flex-direction: column; }
+      .mic-btn { width: 100%; height: 60px; }
+    }
   </style>
 </head>
 <body>
 
+<!-- 登录层 -->
+<div id="loginOverlay">
+  <div class="login-box">
+    <h2>🔑 听写助手 登录</h2>
+    <input type="text" id="loginUser" placeholder="用户名" value="yqcw@qq.com">
+    <input type="password" id="loginPass" placeholder="密码" value="123456">
+    <button class="btn-main" style="width: 100%" onclick="handleLogin()">进入系统</button>
+    <p id="loginMsg" style="color: #ff6b7a; margin-top: 10px; font-size: 0.9rem;"></p>
+  </div>
+</div>
+
+<!-- 管理后台 -->
+<div id="adminPanel">
+  <div class="container">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <h2>👥 用户管理</h2>
+      <button class="btn-main" onclick="closeAdmin()">返回</button>
+    </div>
+    <div style="margin-top: 20px; background: var(--card); padding: 15px; border-radius: 8px;">
+      <h3>添加/编辑用户</h3>
+      <div style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;">
+        <input type="hidden" id="editUserId">
+        <input type="text" id="editUsername" placeholder="用户名" style="padding: 8px; border-radius: 4px; background: #1a1a2e; color: white; border: 1px solid #333;">
+        <input type="text" id="editPassword" placeholder="密码" style="padding: 8px; border-radius: 4px; background: #1a1a2e; color: white; border: 1px solid #333;">
+        <select id="editIsAdmin" style="padding: 8px; border-radius: 4px; background: #1a1a2e; color: white; border: 1px solid #333;">
+          <option value="0">普通用户</option>
+          <option value="1">管理员</option>
+        </select>
+        <button class="btn-main" onclick="saveUser()">保存用户</button>
+      </div>
+    </div>
+    <table class="user-list" id="userTable">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>用户名</th>
+          <th>密码</th>
+          <th>权限</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
 <div class="container">
-  <div class="file-ops">
-    <button class="btn-secondary" onclick="exportData()">💾 保存记录</button>
-    <button class="btn-secondary" onclick="document.getElementById('fileInput').click()">📂 加载记录</button>
-    <input type="file" id="fileInput" style="display:none" accept=".json" onchange="importData(event)">
+  <div class="top-bar">
+    <div class="user-info" id="userInfo">加载中...</div>
+    <div id="adminLink" style="display: none;">
+      <button class="btn-secondary" onclick="openAdmin()" style="background: #0f3460; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">管理用户</button>
+    </div>
   </div>
 
-  <h1>🎧 听写助手 Pro (API 版)</h1>
+  <h1>🎧 听写助手 Pro</h1>
 
-  <!-- 用户输入栏 -->
-  <div class="user-bar">
-    <input type="text" id="username" placeholder="输入用户名..." />
-    <button class="btn-main" onclick="setUsername()">设置用户</button>
-    <div class="user-status" id="userStatus">未登录</div>
+  <div class="video-section">
+    <div class="link-section">
+      <input type="text" id="videoUrl" placeholder="粘贴 YouTube 视频链接...">
+      <button class="btn-main" onclick="loadVideo()">加载视频</button>
+    </div>
+    <div class="video-wrapper"><div id="player"></div></div>
   </div>
-
-  <div class="link-section">
-    <input type="text" id="videoUrl" placeholder="粘贴 YouTube 视频链接...">
-    <button class="btn-main" onclick="loadVideo()">加载视频</button>
-  </div>
-
-  <div class="video-wrapper"><div id="player"></div></div>
 
   <div id="resultsDisplay" class="results-display"></div>
+</div>
 
+<div class="controls-footer">
   <div class="input-area">
     <button id="micBtn" class="mic-btn" onclick="toggleRecording()">
       <span class="mic-icon">🎤</span>
-      <span id="micStatus" class="mic-status">点击录音</span>
+      <span id="micStatus" style="font-size: 10px;">点击录音</span>
+      <div class="progress-container" id="recordProgress"><div class="progress-bar" id="progressBar"></div></div>
     </button>
     
     <div class="text-box">
-      <textarea id="manualInput" rows="2" placeholder="先点录音，录完后在这里更正/输入最终文字..."></textarea>
-      <button class="btn-main" onclick="submitEntry()">提交听写记录</button>
+      <textarea id="manualInput" rows="2" placeholder="先录音，录完后在此输入/更正文字，按 Enter 提交 (Shift+Enter 换行)"></textarea>
+      <button class="btn-main" onclick="submitEntry()">提交记录</button>
     </div>
   </div>
 </div>
 
+<!-- MP3 转换库 (使用开源的 lamejs 模拟简单的转换，或者直接用 WebM 但确保兼容性) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.all.min.js"></script>
+
 <script>
   const API_BASE = '/api';
-  
-  let player, recognition, mediaRecorder;
+  let player, mediaRecorder, recordingStartTime, recordingInterval;
   let audioChunks = [];
   let isRecording = false;
-  let currentSTTText = ""; 
-  let currentAudioBlob = null;
-  let currentUserId = null;
+  let currentUser = null;
   let videoId = null;
+  let videoTitle = "";
+  let historyRecords = [];
+  let isContinuousPlaying = false;
+  let currentPlayIndex = -1;
 
   // --- YouTube API ---
   const tag = document.createElement('script');
   tag.src = "https://www.youtube.com/iframe_api";
   document.head.appendChild(tag);
+
+  function onYouTubeIframeAPIReady() {
+    // 默认加载一个空播放器
+  }
 
   function loadVideo() {
     const url = document.getElementById('videoUrl').value;
@@ -125,226 +184,322 @@
     if (!vid) return alert("链接无效");
     videoId = vid;
     if (player) player.destroy();
-    player = new YT.Player('player', { videoId: vid });
+    player = new YT.Player('player', {
+      videoId: vid,
+      events: {
+        'onReady': (event) => {
+          videoTitle = event.target.getVideoData().title;
+          loadHistory();
+        }
+      }
+    });
   }
 
-  // --- 用户管理 ---
-  async function setUsername() {
-    const username = document.getElementById('username').value.trim();
-    if (!username) return alert('请输入用户名');
+  // --- 权限管理 ---
+  async function handleLogin() {
+    const username = document.getElementById('loginUser').value;
+    const password = document.getElementById('loginPass').value;
+    const msg = document.getElementById('loginMsg');
 
     try {
-      const response = await fetch(`${API_BASE}/user`, {
+      const res = await fetch(`${API_BASE}/user`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username })
+        body: JSON.stringify({ action: 'login', username, password })
       });
-
-      const data = await response.json();
-      if (response.ok) {
-        currentUserId = data.id;
-        document.getElementById('userStatus').innerText = `✅ 用户: ${username} (ID: ${data.id})`;
-        loadHistory();
+      const data = await res.json();
+      if (res.ok) {
+        currentUser = data;
+        document.getElementById('loginOverlay').style.display = 'none';
+        document.getElementById('userInfo').innerText = `👤 用户: ${data.username}`;
+        if (data.is_admin) document.getElementById('adminLink').style.display = 'block';
       } else {
-        alert('设置用户失败: ' + data.error);
+        msg.innerText = data.error;
       }
-    } catch (err) {
-      alert('错误: ' + err.message);
+    } catch (e) {
+      msg.innerText = "网络错误";
     }
   }
 
-  // --- 核心逻辑：录音 + 识别 ---
-  async function initRecorder() {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    
-    mediaRecorder = new MediaRecorder(stream);
-    mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
-    mediaRecorder.onstop = () => {
-      currentAudioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-      audioChunks = [];
-    };
-
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    recognition = new SpeechRecognition();
-    recognition.lang = 'en-US';
-    recognition.onresult = (e) => { currentSTTText = e.results[0][0].transcript; };
+  // --- 录音逻辑 ---
+  async function toggleRecording() {
+    if (!currentUser) return;
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
   }
 
-  async function toggleRecording() {
-    if (!mediaRecorder) await initRecorder();
-
-    if (isRecording) {
-      mediaRecorder.stop();
-      recognition.stop();
-      isRecording = false;
-      document.getElementById('micBtn').classList.remove('recording');
-      document.getElementById('micStatus').innerText = "录音结束";
-    } else {
+  async function startRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorder = new MediaRecorder(stream);
       audioChunks = [];
-      currentSTTText = "";
+      recordingStartTime = Date.now();
+      
+      mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunks, { type: 'audio/mp3' }); // 模拟 mp3
+        currentUser.lastBlob = audioBlob;
+        currentUser.lastDuration = Math.round((Date.now() - recordingStartTime) / 1000);
+      };
+
       mediaRecorder.start();
-      recognition.start();
       isRecording = true;
       document.getElementById('micBtn').classList.add('recording');
       document.getElementById('micStatus').innerText = "录音中...";
+      document.getElementById('recordProgress').style.display = 'block';
+      
+      let p = 0;
+      recordingInterval = setInterval(() => {
+        p = (p + 1) % 100;
+        document.getElementById('progressBar').style.width = p + '%';
+      }, 100);
+    } catch (e) {
+      alert("无法访问麦克风");
     }
   }
 
-  // --- 提交记录到 API ---
-  async function submitEntry() {
-    if (!currentUserId) return alert('请先设置用户名');
-    if (!videoId) return alert('请先加载视频');
+  function stopRecording() {
+    if (mediaRecorder) mediaRecorder.stop();
+    isRecording = false;
+    clearInterval(recordingInterval);
+    document.getElementById('micBtn').classList.remove('recording');
+    document.getElementById('micStatus').innerText = "录音结束";
+    document.getElementById('progressBar').style.width = '100%';
+  }
 
-    const manualText = document.getElementById('manualInput').value.trim();
-    if (!manualText && !currentSTTText) return alert('请输入或录音内容');
+  // --- 提交记录 ---
+  async function submitEntry() {
+    if (!currentUser || !videoId) return alert("请先登录并加载视频");
+    const text = document.getElementById('manualInput').value.trim();
+    if (!text) return;
 
     const timestamp = player ? Math.floor(player.getCurrentTime()) : 0;
+    const duration = currentUser.lastDuration || 0;
+    const orderIndex = historyRecords.length + 1;
 
     try {
-      // 1. 上传音频到 R2
-      let audioKey = null;
-      if (currentAudioBlob) {
+      let audio_key = null;
+      if (currentUser.lastBlob) {
         const formData = new FormData();
-        formData.append('file', currentAudioBlob, `audio-${Date.now()}.webm`);
-
-        const uploadRes = await fetch(`${API_BASE}/save`, {
-          method: 'POST',
-          body: formData
-        });
-
-        if (uploadRes.ok) {
-          const uploadData = await uploadRes.json();
-          audioKey = uploadData.key;
-        }
+        formData.append('file', currentUser.lastBlob, `rec-${Date.now()}.mp3`);
+        const upRes = await fetch(`${API_BASE}/save`, { method: 'POST', body: formData });
+        const upData = await upRes.json();
+        audio_key = upData.key;
       }
 
-      // 2. 创建数据库记录
-      const response = await fetch(`${API_BASE}/save`, {
+      const res = await fetch(`${API_BASE}/save`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          user_id: currentUserId,
+          user_id: currentUser.id,
           video_id: videoId,
-          timestamp: timestamp,
-          text: manualText || currentSTTText,
-          audio_key: audioKey
+          video_title: videoTitle,
+          timestamp,
+          duration,
+          order_index: orderIndex,
+          text,
+          audio_key
         })
       });
 
-      if (response.ok) {
-        const resData = await response.json();
-        const fullRecord = {
-          id: resData.id,
-          user_id: currentUserId,
+      if (res.ok) {
+        const newRec = await res.json();
+        const record = {
+          id: newRec.id,
+          user_id: currentUser.id,
           video_id: videoId,
-          timestamp: timestamp,
-          text: manualText || currentSTTText,
-          audio_key: audioKey,
-          created_at: resData.created_at
+          timestamp,
+          duration,
+          order_index: orderIndex,
+          text,
+          audio_key,
+          created_at: newRec.created_at
         };
-        renderRecord(fullRecord);
+        historyRecords.push(record);
+        renderRecord(record);
         document.getElementById('manualInput').value = "";
-        currentAudioBlob = null;
-        document.getElementById('micStatus').innerText = "点击录音";
-        alert('✅ 记录已保存');
-      } else {
-        const data = await response.json();
-        alert('保存失败: ' + data.error);
+        currentUser.lastBlob = null;
+        currentUser.lastDuration = 0;
+        document.getElementById('recordProgress').style.display = 'none';
       }
-    } catch (err) {
-      alert('错误: ' + err.message);
+    } catch (e) {
+      alert("提交失败: " + e.message);
     }
   }
 
-  // --- 加载历史记录 ---
+  // --- 加载历史 ---
   async function loadHistory() {
-    if (!currentUserId) return;
-
     const container = document.getElementById('resultsDisplay');
-    container.innerHTML = '<div class="loading">加载中...</div>';
-
+    container.innerHTML = '<div style="text-align:center">加载历史记录...</div>';
     try {
-      const response = await fetch(`${API_BASE}/history?user_id=${currentUserId}`);
-      const records = await response.json();
-
-      container.innerHTML = '';
-      if (records.length === 0) {
-        container.innerHTML = '<div class="loading">暂无记录</div>';
-        return;
-      }
-
-      // 反向排序，最新的在上面
-      records.reverse().forEach(record => renderRecord(record));
-    } catch (err) {
-      container.innerHTML = `<div class="error">加载失败: ${err.message}</div>`;
+      const res = await fetch(`${API_BASE}/history?user_id=${currentUser.id}`);
+      historyRecords = await res.json();
+      container.innerHTML = "";
+      // 按照 order_index 排序并显示 (从上到下)
+      historyRecords.forEach(renderRecord);
+    } catch (e) {
+      container.innerHTML = "加载历史失败";
     }
   }
 
-  // --- 渲染单条记录 ---
-  function renderRecord(record) {
-    if (!record || !record.text) return;
+  function formatTime(s) {
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    return `${h > 0 ? h + ':' : ''}${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+  }
 
+  function renderRecord(record) {
     const container = document.getElementById('resultsDisplay');
     const div = document.createElement('div');
     div.className = 'record-item';
+    div.id = `record-${record.id}`;
     
-    const audioIcon = record.audio_key ? '🔊' : '❌';
-    const safeText = record.text.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-    
-    let audioHTML = '';
-    if (record.audio_key) {
-      const audioUrl = `${API_BASE}/audio?key=${encodeURIComponent(record.audio_key)}`;
-      audioHTML = `<audio controls style="width: 100%; height: 30px; margin-bottom: 10px; filter: invert(1) hue-rotate(180deg);" src="${audioUrl}"></audio>`;
-    }
+    const timeStr = formatTime(record.timestamp);
+    const durationStr = record.duration ? ` + ${record.duration}s` : "";
 
     div.innerHTML = `
       <div class="record-header">
-        <span class="record-time" onclick="seekVideo(${record.timestamp || 0})" title="点击跳转">⏱️ ${record.timestamp || 0}s</span>
+        <div>
+          <span class="record-index">#${record.order_index}</span>
+          <span class="record-time" onclick="seekVideo(${record.timestamp})">⏱️ ${timeStr}${durationStr}</span>
+        </div>
         <div class="record-actions">
-          ${record.audio_key ? `<span class="audio-icon" onclick="playAudio('${record.audio_key}')" title="播放音频">🔊</span>` : '<span class="audio-icon" title="无音频">❌</span>'}
-          <span onclick="copyText('${safeText}')" style="cursor: pointer;" title="复制文字">📋</span>
+          <span class="audio-icon" onclick="playAudio('${record.audio_key}', ${record.id})">${record.audio_key ? '🔊' : '❌'}</span>
+          <button class="btn-secondary" style="font-size: 0.7rem; padding: 2px 5px;" onclick="reRecord(${record.id})">重录</button>
         </div>
       </div>
-      <small class="stt-text">识别结果: ${record.text}</small>
-      ${audioHTML}
-      <div class="manual-text">${record.text}</div>
+      <textarea class="manual-text" onchange="updateText(${record.id}, this.value)">${record.text}</textarea>
     `;
-
-    container.insertBefore(div, container.firstChild);
+    container.appendChild(div);
   }
 
-  // --- 跳转视频时间戳 ---
-  function seekVideo(timestamp) {
-    if (player && player.seekTo) {
-      player.seekTo(timestamp);
-      player.playVideo();
+  async function updateText(id, text) {
+    await fetch(`${API_BASE}/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, text })
+    });
+  }
+
+  function seekVideo(t) {
+    if (player) player.seekTo(t);
+  }
+
+  function playAudio(key, id) {
+    if (!key) return;
+    const url = `${API_BASE}/audio?key=${encodeURIComponent(key)}`;
+    const audio = new Audio(url);
+    
+    // 自动连续播放逻辑
+    audio.onended = () => {
+      if (isContinuousPlaying) {
+        playNext(id);
+      }
+    };
+    
+    audio.play();
+  }
+
+  function playNext(currentId) {
+    const idx = historyRecords.findIndex(r => r.id === currentId);
+    if (idx !== -1 && idx < historyRecords.length - 1) {
+      const next = historyRecords[idx + 1];
+      if (next.audio_key) {
+        playAudio(next.audio_key, next.id);
+      } else {
+        playNext(next.id);
+      }
     }
   }
 
-  // --- 播放 R2 音频 ---
-  function playAudio(audioKey) {
-    if (!audioKey) return alert('无音频文件');
-    const audioUrl = `${API_BASE}/audio?key=${encodeURIComponent(audioKey)}`;
-    const audio = new Audio(audioUrl);
-    audio.play().catch(err => alert('播放失败: ' + err.message));
+  // --- 重新录制 ---
+  async function reRecord(id) {
+    const record = historyRecords.find(r => r.id === id);
+    if (!record) return;
+    
+    alert("点击底部录音按钮开始录制新片段...");
+    // 这里的逻辑可以优化为点击后底部录音变为“替换模式”
+    currentUser.replaceId = id;
+    currentUser.replaceKey = record.audio_key;
   }
 
-  // --- 复制文字 ---
-  function copyText(text) {
-    navigator.clipboard.writeText(text).then(() => alert('✅ 已复制')).catch(() => alert('复制失败'));
+  // --- 管理员逻辑 ---
+  async function openAdmin() {
+    document.getElementById('adminPanel').style.display = 'block';
+    loadUsers();
   }
 
-  // --- 导入导出 ---
-  function exportData() {
-    if (!currentUserId) return alert('请先设置用户');
-    // 可以导出当前用户的所有记录到 JSON
-    alert('导出功能可由服务端实现');
+  function closeAdmin() {
+    document.getElementById('adminPanel').style.display = 'none';
   }
 
-  function importData(event) {
-    // 可以导入 JSON 文件
-    alert('导入功能可由服务端实现');
+  async function loadUsers() {
+    const res = await fetch(`${API_BASE}/user?adminId=${currentUser.id}`);
+    const users = await res.json();
+    const tbody = document.querySelector('#userTable tbody');
+    tbody.innerHTML = users.map(u => `
+      <tr>
+        <td>${u.id}</td>
+        <td>${u.username}</td>
+        <td>${u.password}</td>
+        <td>${u.is_admin ? '管理员' : '普通用户'}</td>
+        <td><button onclick="editUser(${u.id}, '${u.username}', '${u.password}', ${u.is_admin})">编辑</button></td>
+      </tr>
+    `).join('');
   }
+
+  function editUser(id, user, pass, admin) {
+    document.getElementById('editUserId').value = id;
+    document.getElementById('editUsername').value = user;
+    document.getElementById('editPassword').value = pass;
+    document.getElementById('editIsAdmin').value = admin;
+  }
+
+  async function saveUser() {
+    const id = document.getElementById('editUserId').value;
+    const username = document.getElementById('editUsername').value;
+    const password = document.getElementById('editPassword').value;
+    const is_admin = parseInt(document.getElementById('editIsAdmin').value);
+
+    await fetch(`${API_BASE}/user`, {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'manage',
+        newUser: {
+          adminId: currentUser.id,
+          targetUser: { id, username, password, is_admin }
+        }
+      })
+    });
+    loadUsers();
+  }
+
+  // --- 键盘快捷键 ---
+  window.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') {
+      if (e.key === 'Enter' && !e.shiftKey && e.target.id === 'manualInput') {
+        e.preventDefault();
+        submitEntry();
+      }
+      return;
+    }
+    
+    if (e.code === 'Space') {
+      e.preventDefault();
+      if (player) {
+        const state = player.getPlayerState();
+        if (state === 1) player.pauseVideo();
+        else player.playVideo();
+      }
+    }
+    
+    if (e.code === 'KeyR') {
+      toggleRecording();
+    }
+  });
 </script>
 
 </body>
