@@ -395,11 +395,47 @@
     if (player) player.stopVideo();
   }
 
+  // --- 导航控制 ---
+  function showView(viewId) {
+    // 隐藏所有面板
+    document.getElementById('taskPanel').style.display = 'none';
+    document.getElementById('adminPanel').style.display = 'none';
+    // 默认显示主布局 (听写界面)
+    document.querySelector('.main-layout').style.display = (viewId === 'main') ? 'flex' : 'none';
+    document.querySelector('.controls-footer').style.display = (viewId === 'main') ? 'block' : 'none';
+    
+    if (viewId === 'tasks') {
+      document.getElementById('taskPanel').style.display = 'block';
+      loadMyTasks();
+      loadPlannedTasks();
+    } else if (viewId === 'admin') {
+      document.getElementById('adminPanel').style.display = 'block';
+      loadUsers();
+    }
+  }
+
   // --- 任务管理 ---
   async function openTasks() {
-    document.getElementById('taskPanel').style.display = 'block';
-    loadMyTasks();
-    loadPlannedTasks();
+    showView('tasks');
+  }
+
+  function closeTasks() {
+    showView('main');
+  }
+
+  function selectTask(vid, title) {
+    showView('main');
+    loadVideo(vid, title);
+  }
+
+  // --- 管理后台逻辑 ---
+  async function openAdmin() {
+    if (!currentUser || !currentUser.is_admin) return;
+    showView('admin');
+  }
+
+  function closeAdmin() {
+    showView('main');
   }
 
   async function loadMyTasks() {
@@ -465,22 +501,8 @@
 
   async function startNow(planId, vid, title) {
     await deletePlan(planId);
-    closeTasks();
+    showView('main');
     loadVideo(vid, title);
-  }
-
-  function closeTasks() { document.getElementById('taskPanel').style.display = 'none'; }
-  function selectTask(vid, title) { closeTasks(); loadVideo(vid, title); }
-
-  // --- 管理后台逻辑 ---
-  async function openAdmin() {
-    if (!currentUser || !currentUser.is_admin) return;
-    document.getElementById('adminPanel').style.display = 'block';
-    loadUsers();
-  }
-
-  function closeAdmin() {
-    document.getElementById('adminPanel').style.display = 'none';
   }
 
   async function loadUsers() {
