@@ -12,14 +12,50 @@
     /* 基础按钮美化 */
     .btn-main, .btn-secondary { 
       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
       border: none;
-      font-weight: 600;
-      letter-spacing: 0.5px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      padding: 12px 24px;
+      border-radius: 12px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
     }
-    .btn-main:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(233, 69, 96, 0.3); opacity: 0.9; }
-    .btn-secondary:hover { transform: translateY(-1px); background: #555; }
+    .btn-main { 
+      background: linear-gradient(135deg, var(--primary) 0%, #ff6b7a 100%); 
+      color: white; 
+      text-transform: uppercase;
+      font-size: 0.9rem;
+    }
+    .btn-main:hover { 
+      transform: translateY(-3px); 
+      box-shadow: 0 10px 20px rgba(233, 69, 96, 0.5); 
+      filter: brightness(1.1);
+    }
+    
+    .btn-secondary { 
+      background: linear-gradient(135deg, var(--accent) 0%, #1a4b8c 100%); 
+      color: white; 
+      font-size: 0.85rem;
+    }
+    .btn-secondary:hover { 
+      transform: translateY(-2px); 
+      box-shadow: 0 8px 15px rgba(15, 52, 96, 0.5); 
+      filter: brightness(1.1);
+    }
+    
     .btn-main:active, .btn-secondary:active { transform: translateY(0); }
+
+    /* 特殊按钮色 */
+    .btn-danger { background: linear-gradient(135deg, #ff4d4d, #c0392b); }
+    .btn-success { background: linear-gradient(135deg, #4ecca3, #27ae60); }
+
+    /* 任务列表页面的删除按钮特殊色 */
+    .btn-delete-task { background: #444; }
+    .btn-delete-task:hover { background: var(--danger); }
 
     /* 登录样式 */
     #loginOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 2000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(15px); }
@@ -126,11 +162,46 @@
   </div>
 </div>
 
+<!-- 管理后台 -->
+<div id="adminPanel" style="display:none; position: fixed; top: 60px; left: 0; width: 100%; height: calc(100vh - 60px); background: var(--bg); z-index: 500; padding: 20px; overflow-y: auto;">
+  <div class="panel-container">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+      <h1>⚙️ 用户管理中心</h1>
+      <button class="btn-main" onclick="closeAdmin()">❌ 关闭后台</button>
+    </div>
+    
+    <div class="panel-section">
+      <h2>新增用户</h2>
+      <div style="display: flex; gap: 15px; margin-top: 15px;">
+        <input type="text" id="newUsername" placeholder="新用户名" style="flex:1; padding: 12px; border-radius: 8px; background: #0f3460; border: 1px solid #444; color: white;">
+        <input type="password" id="newPassword" placeholder="初始密码" style="flex:1; padding: 12px; border-radius: 8px; background: #0f3460; border: 1px solid #444; color: white;">
+        <button class="btn-main" onclick="addUser()">➕ 添加用户</button>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <h2>现有用户列表</h2>
+      <table class="task-table" id="userTable">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>用户名</th>
+            <th>角色</th>
+            <th>创建日期</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <div id="taskPanel">
   <div class="panel-container">
     <div style="display: flex; justify-content: space-between; align-items: center;">
       <h1>🎯 学习控制台</h1>
-      <button class="btn-main" onclick="closeTasks()">返回听写</button>
+      <button class="btn-main" onclick="closeTasks()">🔙 返回听写</button>
     </div>
 
     <!-- 计划听写 -->
@@ -348,7 +419,7 @@
               <span>${progress}%</span>
             </div>
           </td>
-          <td><button class="btn-secondary" onclick="selectTask('${t.video_id}', '${t.video_title.replace(/'/g, "\\'")}')">复习</button></td>
+          <td><button class="btn-secondary" onclick="selectTask('${t.video_id}', '${t.video_title.replace(/'/g, "\\'")}')">🚀 复习</button></td>
         </tr>
       `;
     }).join('');
@@ -365,8 +436,8 @@
           <span>${t.video_url}</span>
         </div>
         <div style="display:flex; gap:10px">
-          <button class="btn-main" style="padding:6px 12px" onclick="startNow(${t.id}, '${t.video_id}', '${t.video_title.replace(/'/g, "\\'")}')">马上听写</button>
-          <button class="btn-secondary" style="padding:6px 12px; background:#444" onclick="deletePlan(${t.id})">删除</button>
+          <button class="btn-main" style="padding:8px 16px" onclick="startNow(${t.id}, '${t.video_id}', '${t.video_title.replace(/'/g, "\\'")}')">🔥 马上听写</button>
+          <button class="btn-secondary btn-danger" style="padding:8px 16px" onclick="deletePlan(${t.id})">🗑️ 删除</button>
         </div>
       </div>
     `).join('') || '<div style="color:#888; text-align:center">暂无计划</div>';
@@ -400,6 +471,79 @@
 
   function closeTasks() { document.getElementById('taskPanel').style.display = 'none'; }
   function selectTask(vid, title) { closeTasks(); loadVideo(vid, title); }
+
+  // --- 管理后台逻辑 ---
+  async function openAdmin() {
+    if (!currentUser || !currentUser.is_admin) return;
+    document.getElementById('adminPanel').style.display = 'block';
+    loadUsers();
+  }
+
+  function closeAdmin() {
+    document.getElementById('adminPanel').style.display = 'none';
+  }
+
+  async function loadUsers() {
+    const tbody = document.querySelector('#userTable tbody');
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center">加载中...</td></tr>';
+    try {
+      const res = await fetch(`${API_BASE}/user`, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'list' })
+      });
+      const users = await res.json();
+      tbody.innerHTML = users.map(u => `
+        <tr>
+          <td>${u.id}</td>
+          <td>${u.username}</td>
+          <td>${u.is_admin ? '<span class="admin-tag">管理员</span>' : '普通用户'}</td>
+          <td>${new Date(u.created_at).toLocaleDateString()}</td>
+          <td>
+            <button class="btn-secondary btn-danger" style="padding:4px 10px; font-size:0.7rem" onclick="deleteUser(${u.id})">删除</button>
+          </td>
+        </tr>
+      `).join('');
+    } catch (e) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:red">加载失败</td></tr>';
+    }
+  }
+
+  async function addUser() {
+    const username = document.getElementById('newUsername').value.trim();
+    const password = document.getElementById('newPassword').value.trim();
+    if (!username || !password) return alert("请填写完整信息");
+
+    try {
+      const res = await fetch(`${API_BASE}/user`, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'register', username, password })
+      });
+      if (res.ok) {
+        alert("添加成功");
+        document.getElementById('newUsername').value = "";
+        document.getElementById('newPassword').value = "";
+        loadUsers();
+      } else {
+        const data = await res.json();
+        alert(data.error || "添加失败");
+      }
+    } catch (e) { alert("网络错误"); }
+  }
+
+  async function deleteUser(id) {
+    if (!confirm("确定要删除此用户吗？")) return;
+    try {
+      const res = await fetch(`${API_BASE}/user`, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'delete', id })
+      });
+      if (res.ok) {
+        loadUsers();
+      } else {
+        alert("删除失败");
+      }
+    } catch (e) { alert("网络错误"); }
+  }
 
   // --- 录音逻辑 ---
   async function toggleRecording() {
