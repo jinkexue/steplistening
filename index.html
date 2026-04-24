@@ -3,21 +3,44 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>听写助手 Pro - 全栈版</title>
+  <title>听写达人 - 全栈版</title>
   <style>
-    :root { --primary: #e94560; --bg: #1a1a2e; --card: #16213e; --text: #eee; --accent: #0f3460; }
+    :root { --primary: #e94560; --bg: #1a1a2e; --card: #16213e; --text: #eee; --accent: #0f3460; --success: #4ecca3; --danger: #ff4d4d; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: sans-serif; background: var(--bg); color: var(--text); padding-bottom: 120px; transition: filter 0.3s; height: 100vh; overflow: hidden; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); padding-bottom: 120px; transition: filter 0.3s; height: 100vh; overflow: hidden; }
     
-    /* 页面禁用状态 */
-    body.not-logged-in { overflow: hidden; }
-    body.not-logged-in .main-layout { filter: grayscale(1) blur(5px); pointer-events: none; opacity: 0.5; }
+    /* 基础按钮美化 */
+    .btn-main, .btn-secondary { 
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+      border: none;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+    .btn-main:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(233, 69, 96, 0.3); opacity: 0.9; }
+    .btn-secondary:hover { transform: translateY(-1px); background: #555; }
+    .btn-main:active, .btn-secondary:active { transform: translateY(0); }
 
     /* 登录样式 */
-    #loginOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 2000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(10px); }
-    .login-box { background: var(--card); padding: 40px; border-radius: 16px; width: 90%; max-width: 400px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.5); border: 1px solid #333; }
-    .login-box h2 { margin-bottom: 25px; color: var(--primary); font-size: 1.8rem; }
-    .login-box input { width: 100%; padding: 14px; margin-bottom: 20px; border-radius: 8px; border: 1px solid #333; background: #1a1a2e; color: white; font-size: 1rem; }
+    #loginOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 2000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(15px); }
+    .login-box { background: var(--card); padding: 40px; border-radius: 20px; width: 90%; max-width: 400px; text-align: center; box-shadow: 0 25px 50px rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.1); }
+    .login-box h2 { margin-bottom: 30px; color: var(--primary); font-size: 2rem; font-weight: 800; letter-spacing: 1px; }
+    .login-box input { width: 100%; padding: 15px; margin-bottom: 20px; border-radius: 12px; border: 1px solid #333; background: #0f3460; color: white; font-size: 1rem; transition: border-color 0.3s; }
+    .login-box input:focus { border-color: var(--primary); outline: none; background: #16213e; }
+    
+    /* 记录项高亮 */
+    .record-item.active { border-left-color: var(--success); background: rgba(78, 204, 163, 0.05); box-shadow: inset 0 0 10px rgba(78, 204, 163, 0.1); }
+    
+    /* 片段操作按钮组 */
+    .fragment-ops { display: flex; gap: 8px; margin-top: 5px; }
+    .op-btn { 
+      padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; cursor: pointer; 
+      display: flex; align-items: center; gap: 4px; border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.05); color: #aaa; transition: all 0.2s;
+    }
+    .op-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
+    .op-btn.btn-insert:hover { border-color: var(--success); color: var(--success); }
+    .op-btn.btn-delete:hover { border-color: var(--danger); color: var(--danger); }
     
     /* 顶部栏 */
     .top-bar { display: flex; justify-content: space-between; align-items: center; background: var(--card); padding: 10px 20px; border-bottom: 1px solid #333; height: 60px; }
@@ -95,9 +118,9 @@
 
 <div id="loginOverlay">
   <div class="login-box">
-    <h2>🔐 听写助手 Pro</h2>
-    <input type="text" id="loginUser" placeholder="用户名/邮箱" value="yqcw@qq.com">
-    <input type="password" id="loginPass" placeholder="密码" value="123456">
+    <h2>🔐 听写达人</h2>
+    <input type="text" id="loginUser" placeholder="用户名/邮箱">
+    <input type="password" id="loginPass" placeholder="密码">
     <button class="btn-main" style="width: 100%" onclick="handleLogin()">登录系统</button>
     <p id="loginMsg" style="color: #ff6b7a; margin-top: 15px; font-size: 0.9rem;"></p>
   </div>
@@ -145,6 +168,9 @@
   <div class="user-info" id="userInfo">未登录</div>
   <div style="display: flex; gap: 15px; align-items: center;">
     <button class="btn-secondary" onclick="openTasks()" style="background: var(--accent);">📂 任务列表</button>
+    <div id="adminLink" style="display: none;">
+      <button class="btn-secondary" onclick="openAdmin()" style="background: #444;">⚙️ 管理后台</button>
+    </div>
     <button onclick="handleLogout()" style="background:none; border:none; color:#888; cursor:pointer">退出</button>
   </div>
 </div>
@@ -214,11 +240,47 @@
           videoTotalDuration = event.target.getDuration();
           document.getElementById('currentTaskTitle').innerText = videoTitle;
           loadHistory();
-          // 保存视频时长到元数据
           saveVideoMeta(vid, Math.floor(videoTotalDuration));
+          
+          // 启动播放器状态监听，用于片段自动滚动
+          startTrackingPlayer();
         }
       }
     });
+  }
+
+  // --- 自动滚动逻辑 ---
+  let trackingInterval = null;
+  function startTrackingPlayer() {
+    if (trackingInterval) clearInterval(trackingInterval);
+    trackingInterval = setInterval(() => {
+      if (player && player.getPlayerState && player.getPlayerState() === 1) { // 正在播放
+        const currentTime = Math.floor(player.getCurrentTime());
+        syncFragmentHighlight(currentTime);
+      }
+    }, 1000);
+  }
+
+  function syncFragmentHighlight(currentTime) {
+    let activeId = null;
+    // 寻找当前时间对应的片段（最接近当前时间且不超过当前时间的片段）
+    for (let i = 0; i < historyRecords.length; i++) {
+      if (historyRecords[i].timestamp <= currentTime) {
+        activeId = historyRecords[i].id;
+      } else {
+        break;
+      }
+    }
+
+    if (activeId) {
+      document.querySelectorAll('.record-item').forEach(el => el.classList.remove('active'));
+      const activeEl = document.getElementById(`record-${activeId}`);
+      if (activeEl) {
+        activeEl.classList.add('active');
+        // 平滑滚动到视野中心
+        activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
   }
 
   async function saveVideoMeta(vid, duration) {
@@ -247,6 +309,9 @@
         document.body.classList.remove('not-logged-in');
         document.getElementById('loginOverlay').style.display = 'none';
         document.getElementById('userInfo').innerHTML = `👤 ${data.username} ${data.is_admin ? '<span class="admin-tag">管理员</span>' : ''}`;
+        if (data.is_admin) {
+          document.getElementById('adminLink').style.display = 'block';
+        }
         openTasks();
       } else { msg.innerText = data.error; }
     } catch (e) { msg.innerText = "网络错误"; }
@@ -477,10 +542,12 @@
           <span class="record-index">#${record.order_index}</span>
           <span class="record-time" onclick="seekVideo(${record.timestamp})">⏱️ ${Math.floor(record.timestamp/60)}:${(record.timestamp%60).toString().padStart(2,'0')}${record.duration ? ' + ' + record.duration + 's' : ''}</span>
           <button class="action-btn" onclick="copyText(this, \`${record.text}\`)">📋</button>
-          <button class="action-btn" onclick="insertRecord(${record.order_index})">➕ 插入</button>
-          <button class="action-btn" onclick="deleteRecord(${record.id}, ${record.order_index})" style="color:#ff6b7a">�️</button>
         </div>
-        <textarea id="text-${record.id}" class="manual-text" onchange="updateText(${record.id}, this.value)">${record.text}</textarea>
+        <textarea id="text-${record.id}" class="manual-text" onchange="updateText(${record.id}, this.value)" placeholder="在这里输入听写内容...">${record.text}</textarea>
+        <div class="fragment-ops">
+          <button class="op-btn btn-insert" onclick="insertRecord(${record.order_index})">➕ 插入片段</button>
+          <button class="op-btn btn-delete" onclick="deleteRecord(${record.id}, ${record.order_index})">🗑️ 删除</button>
+        </div>
       </div>
     `;
     container.appendChild(div);
