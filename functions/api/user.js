@@ -27,7 +27,11 @@ export async function onRequestPost(context) {
         return new Response(JSON.stringify({ error: "无权限" }), { status: 403 });
       }
 
-      if (targetUser.id) {
+      if (targetUser.delete) {
+        // 删除
+        await env.DB.prepare("DELETE FROM users WHERE id = ?").bind(targetUser.id).run();
+        return new Response(JSON.stringify({ success: true }));
+      } else if (targetUser.id) {
         // 编辑
         await env.DB.prepare("UPDATE users SET username = ?, password = ?, is_admin = ? WHERE id = ?")
           .bind(targetUser.username, targetUser.password, targetUser.is_admin, targetUser.id)
