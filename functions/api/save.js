@@ -27,37 +27,57 @@ export async function onRequestPost(context) {
       });
     }
 
-    // 2. 处理记录保存 (application/json)
+    // 2. 处理记录保存/更新/删除/插入 (application/json)
     if (contentType.includes("application/json")) {
       const data = await request.json();
-      const { id, user_id, video_id, video_title, timestamp, duration, order_index, text, audio_key } = data;
+      const { action, id, user_id, video_id, video_title, timestamp, duration, order_index, text, audio_key, total_duration } = data;
 
-      if (id) {
-        // 更新现有记录
-        await env.DB.prepare(
-          "UPDATE records SET text = ?, audio_key = ? WHERE id = ?"
-        )
-          .bind(text, audio_key || null, id)
+      // 保存视频元数据 (总时长)
+      if (video_id && total_duration) {
+        await env.DB.prepare("INSERT OR REPLACE INTO videos_meta (video_id, total_duration) VALUES (?, ?)")
+          .bind(video_id, total_duration)
           .run();
-        return new Response(JSON.stringify({ success: true, id, created_at: new Date().toISOString() }), {
-          headers: { "Content-Type": "application/json" },
-        });
-      } else {
-        // 创建新记录
+      }
+
+      if (action === 'delete') {
+        await env.DB.prepare("DELETE FROM records WHERE id = ?").bind(id).run();
+        // 重新排序索引 (可选，但为了保持连续性)
+        await env.DB.prepare("UPDATE records SET order_index = order_index - 1 WHERE video_id = ? AND user_id = ? AND order_index > ?")
+          .bind(video_id, user_id, order_index)
+          .run();
+        return new Response(JSON.stringify({ success: true }));
+      }
+
+      if (action === 'insert') {
+        // 先腾出位置
+        await env.DB.prepare("UPDATE records SET order_index = order_index + 1 WHERE video_id = ? AND user_id = ? AND order_index >= ?")
+          .bind(video_id, user_id, order_index)
+          .run();
+        
         const result = await env.DB.prepare(
           "INSERT INTO records (user_id, video_id, video_title, timestamp, duration, order_index, text, audio_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
         )
-          .bind(user_id, video_id || null, video_title || null, timestamp || null, duration || null, order_index || 0, text, audio_key || null)
+          .bind(user_id, video_id, video_title, timestamp, duration || 0, order_index, text || "", audio_key || null)
+          .run();
+          
+        return new Response(JSON.stringify({ id: result.meta.last_row_id, success: true, created_at: new Date().toISOString() }), { status: 201 });
+      }
+
+      if (id) {
+        // 更新现有记录
+        await env.DB.prepare("UPDATE records SET text = ?, audio_key = ? WHERE id = ?")
+          .bind(text, audio_key || null, id)
+          .run();
+        return new Response(JSON.stringify({ success: true, id, created_at: new Date().toISOString() }));
+      } else {
+        // 创建新记录 (正常追加)
+        const result = await env.DB.prepare(
+          "INSERT INTO records (user_id, video_id, video_title, timestamp, duration, order_index, text, audio_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        )
+          .bind(user_id, video_id, video_title, timestamp, duration, order_index, text, audio_key)
           .run();
 
-        return new Response(
-          JSON.stringify({
-            id: result.meta.last_row_id,
-            success: true,
-            created_at: new Date().toISOString(),
-          }),
-          { status: 201, headers: { "Content-Type": "application/json" } }
-        );
+        return new Response(JSON.stringify({ id: result.meta.last_row_id, success: true, created_at: new Date().toISOString() }), { status: 201 });
       }
     }
 

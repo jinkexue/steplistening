@@ -40,16 +40,16 @@
     .results-header { padding: 12px 15px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); }
     .results-display { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
 
-    /* 记录项样式 (紧凑) */
+    /* 记录项样式 */
     .record-item { background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 6px; border-left: 3px solid var(--primary); display: flex; gap: 10px; align-items: flex-start; }
-    .record-actions-col { display: flex; flex-direction: column; gap: 8px; align-items: center; min-width: 25px; }
+    .record-actions-col { display: flex; flex-direction: column; gap: 6px; align-items: center; min-width: 25px; }
     .record-info { flex: 1; display: flex; flex-direction: column; gap: 4px; }
     .record-meta { display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: #888; }
     .record-index { background: var(--primary); color: white; padding: 1px 5px; border-radius: 3px; font-weight: bold; }
     .record-time { cursor: pointer; color: var(--primary); font-weight: bold; }
     .manual-text { width: 100%; background: transparent; border: none; color: #ccc; font-size: 0.9rem; line-height: 1.4; resize: none; padding: 0; border-bottom: 1px solid transparent; }
     .manual-text:focus { color: #fff; border-bottom-color: var(--primary); outline: none; }
-    .action-btn { cursor: pointer; font-size: 1rem; background: none; border: none; color: #aaa; transition: 0.2s; }
+    .action-btn { cursor: pointer; font-size: 0.9rem; background: none; border: none; color: #aaa; transition: 0.2s; }
     .action-btn:hover { color: var(--primary); transform: scale(1.1); }
 
     /* 底部控制栏 */
@@ -61,19 +61,25 @@
     .text-box { flex: 1; position: relative; }
     #manualInput { width: 100%; height: 60px; background: #1a1a2e; color: white; border: 1px solid #444; border-radius: 8px; padding: 10px; resize: none; font-size: 1rem; }
     
-    /* 任务面板 (Dashboard) */
-    #taskPanel { position: fixed; top: 60px; left: 0; width: 100%; height: calc(100vh - 60px); background: var(--bg); z-index: 500; padding: 30px; overflow-y: auto; display: none; }
-    .task-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; margin-top: 20px; }
-    .task-card { background: var(--card); padding: 20px; border-radius: 12px; border: 1px solid #333; cursor: pointer; transition: 0.3s; position: relative; }
-    .task-card:hover { border-color: var(--primary); transform: translateY(-5px); }
-    .task-card h3 { font-size: 1rem; margin-bottom: 10px; color: #fff; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-    .task-meta { font-size: 0.8rem; color: #888; display: flex; justify-content: space-between; }
-
-    /* 管理后台 */
-    #adminPanel { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); z-index: 1500; padding: 30px; overflow-y: auto; display: none; }
-
-    .btn-main { background: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; }
-    .btn-secondary { background: #444; color: white; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
+    /* 任务面板 */
+    #taskPanel { position: fixed; top: 60px; left: 0; width: 100%; height: calc(100vh - 60px); background: var(--bg); z-index: 500; padding: 20px; overflow-y: auto; display: none; }
+    .panel-container { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1fr; gap: 30px; }
+    .panel-section { background: var(--card); border-radius: 12px; border: 1px solid #333; padding: 20px; }
+    .panel-section h2 { margin-bottom: 15px; font-size: 1.2rem; color: var(--primary); border-bottom: 1px solid #333; padding-bottom: 10px; }
+    
+    /* 表格样式 */
+    .task-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    .task-table th, .task-table td { padding: 12px; text-align: left; border-bottom: 1px solid #333; font-size: 0.9rem; }
+    .task-table th { color: #888; font-weight: normal; }
+    .task-table tr:hover { background: rgba(255,255,255,0.02); }
+    .completion-bar { width: 100px; height: 8px; background: #333; border-radius: 4px; overflow: hidden; position: relative; }
+    .completion-fill { height: 100%; background: var(--primary); }
+    
+    /* 计划列表 */
+    .planned-list { display: flex; flex-direction: column; gap: 10px; }
+    .planned-item { display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 12px; border-radius: 8px; }
+    .planned-info h3 { font-size: 0.95rem; margin-bottom: 4px; }
+    .planned-info span { font-size: 0.8rem; color: #888; }
 
     @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(233, 69, 96, 0.7); } 70% { box-shadow: 0 0 0 15px rgba(233, 69, 96, 0); } 100% { box-shadow: 0 0 0 0 rgba(233, 69, 96, 0); } }
 
@@ -87,7 +93,6 @@
 </head>
 <body class="not-logged-in">
 
-<!-- 登录遮罩 -->
 <div id="loginOverlay">
   <div class="login-box">
     <h2>🔐 听写助手 Pro</h2>
@@ -98,52 +103,59 @@
   </div>
 </div>
 
-<!-- 任务面板 (我的任务) -->
 <div id="taskPanel">
-  <div style="max-width: 1200px; margin: 0 auto;">
+  <div class="panel-container">
     <div style="display: flex; justify-content: space-between; align-items: center;">
-      <h2>📚 我的听写任务</h2>
-      <button class="btn-main" onclick="closeTasks()">返回当前听写</button>
+      <h1>🎯 学习控制台</h1>
+      <button class="btn-main" onclick="closeTasks()">返回听写</button>
     </div>
-    <div id="taskList" class="task-grid">
-      <!-- 任务卡片加载区 -->
-    </div>
-  </div>
-</div>
 
-<!-- 管理后台 (略，保持逻辑) -->
-<div id="adminPanel" style="display:none">
-  <!-- 管理员逻辑保持不变 -->
-  <div class="container" style="max-width:900px; margin:0 auto">
-    <button class="btn-secondary" onclick="closeAdmin()">关闭后台</button>
-    <div id="adminContent"></div>
+    <!-- 计划听写 -->
+    <div class="panel-section">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+        <h2>📝 计划听写</h2>
+        <div style="display: flex; gap: 10px;">
+          <input type="text" id="planUrl" placeholder="输入 YouTube 链接..." style="padding: 8px; border-radius: 6px; background: #1a1a2e; border: 1px solid #444; color: white; width: 300px;">
+          <button class="btn-secondary" onclick="addPlan()">+ 加入计划</button>
+        </div>
+      </div>
+      <div id="plannedList" class="planned-list"></div>
+    </div>
+
+    <!-- 我的听写任务 -->
+    <div class="panel-section">
+      <h2>📊 我的听写任务</h2>
+      <table class="task-table" id="taskTable">
+        <thead>
+          <tr>
+            <th>最近活动</th>
+            <th>视频标题</th>
+            <th>片段数</th>
+            <th>完成度</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
   </div>
 </div>
 
 <div class="top-bar">
   <div class="user-info" id="userInfo">未登录</div>
   <div style="display: flex; gap: 15px; align-items: center;">
-    <button class="btn-secondary" onclick="openTasks()" style="background: var(--accent);">📂 我的任务</button>
-    <div id="adminLink" style="display: none;">
-      <button class="btn-secondary" onclick="openAdmin()" style="background: #444;">⚙️ 管理后台</button>
-    </div>
+    <button class="btn-secondary" onclick="openTasks()" style="background: var(--accent);">📂 任务列表</button>
     <button onclick="handleLogout()" style="background:none; border:none; color:#888; cursor:pointer">退出</button>
   </div>
 </div>
 
 <div class="main-layout">
   <div class="content-grid">
-    <!-- 左侧视频 -->
     <div class="video-pane">
-      <div class="link-section">
-        <input type="text" id="videoUrl" placeholder="输入新的 YouTube 链接添加听写任务...">
-        <button class="btn-main" onclick="loadVideo()">添加听写任务</button>
-      </div>
-      <div id="currentTaskTitle" style="font-weight: bold; font-size: 1.1rem; color: var(--primary); min-height: 1.5rem;"></div>
+      <div id="currentTaskTitle" style="font-weight: bold; font-size: 1.1rem; color: var(--primary); min-height: 1.5rem; margin-bottom: 5px;"></div>
       <div class="video-wrapper"><div id="player"></div></div>
     </div>
 
-    <!-- 右侧记录 -->
     <div class="record-pane">
       <div class="results-header">
         <div style="font-weight: bold; color: var(--primary);">📜 听写片段 (<span id="recordCount">0</span>)</div>
@@ -183,32 +195,37 @@
   let currentUser = null;
   let videoId = null;
   let videoTitle = "";
+  let videoTotalDuration = 0;
   let historyRecords = [];
   let currentAudio = null;
 
-  // --- YouTube API ---
   const tag = document.createElement('script');
   tag.src = "https://www.youtube.com/iframe_api";
   document.head.appendChild(tag);
 
-  function loadVideo(vidToLoad = null, titleToLoad = null) {
-    const url = document.getElementById('videoUrl').value;
-    const vid = vidToLoad || url.match(/(?:v=|be\/|embed\/)([a-zA-Z0-9_-]{11})/)?.[1];
-    if (!vid) return alert("请输入有效的 YouTube 链接");
-    
+  function loadVideo(vid, title) {
     videoId = vid;
-    document.getElementById('videoUrl').value = "";
-    
     if (player) player.destroy();
     player = new YT.Player('player', {
       videoId: vid,
       events: {
         'onReady': (event) => {
-          videoTitle = titleToLoad || event.target.getVideoData().title || "听写任务";
+          videoTitle = title || event.target.getVideoData().title;
+          videoTotalDuration = event.target.getDuration();
           document.getElementById('currentTaskTitle').innerText = videoTitle;
           loadHistory();
+          // 保存视频时长到元数据
+          saveVideoMeta(vid, Math.floor(videoTotalDuration));
         }
       }
+    });
+  }
+
+  async function saveVideoMeta(vid, duration) {
+    await fetch(`${API_BASE}/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ video_id: vid, total_duration: duration })
     });
   }
 
@@ -230,12 +247,8 @@
         document.body.classList.remove('not-logged-in');
         document.getElementById('loginOverlay').style.display = 'none';
         document.getElementById('userInfo').innerHTML = `👤 ${data.username} ${data.is_admin ? '<span class="admin-tag">管理员</span>' : ''}`;
-        if (data.is_admin) document.getElementById('adminLink').style.display = 'block';
-        // 自动打开任务列表
         openTasks();
-      } else {
-        msg.innerText = data.error;
-      }
+      } else { msg.innerText = data.error; }
     } catch (e) { msg.innerText = "网络错误"; }
   }
 
@@ -248,34 +261,80 @@
 
   // --- 任务管理 ---
   async function openTasks() {
-    if (!currentUser) return;
     document.getElementById('taskPanel').style.display = 'block';
-    const list = document.getElementById('taskList');
-    list.innerHTML = '<div style="color:#888">正在加载任务列表...</div>';
-    
-    try {
-      const res = await fetch(`${API_BASE}/tasks?user_id=${currentUser.id}`);
-      const tasks = await res.json();
-      list.innerHTML = tasks.map(t => `
-        <div class="task-card" onclick="selectTask('${t.video_id}', '${t.video_title.replace(/'/g, "\\'")}')">
-          <h3>${t.video_title}</h3>
-          <div class="task-meta">
-            <span>📝 ${t.record_count} 个片段</span>
-            <span>📅 ${new Date(t.last_activity).toLocaleDateString()}</span>
-          </div>
+    loadMyTasks();
+    loadPlannedTasks();
+  }
+
+  async function loadMyTasks() {
+    const res = await fetch(`${API_BASE}/tasks?user_id=${currentUser.id}`);
+    const tasks = await res.json();
+    const tbody = document.querySelector('#taskTable tbody');
+    tbody.innerHTML = tasks.map(t => {
+      const progress = t.total_duration ? Math.min(100, Math.round((t.recorded_duration / t.total_duration) * 100)) : 0;
+      return `
+        <tr>
+          <td>${new Date(t.last_activity).toLocaleDateString()}</td>
+          <td title="${t.video_id}"><a href="https://youtu.be/${t.video_id}" target="_blank" style="color:var(--primary);text-decoration:none">🔗 ${t.video_title}</a></td>
+          <td>${t.record_count}</td>
+          <td>
+            <div style="display:flex; align-items:center; gap:10px">
+              <div class="completion-bar"><div class="completion-fill" style="width:${progress}%"></div></div>
+              <span>${progress}%</span>
+            </div>
+          </td>
+          <td><button class="btn-secondary" onclick="selectTask('${t.video_id}', '${t.video_title.replace(/'/g, "\\'")}')">复习</button></td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  async function loadPlannedTasks() {
+    const res = await fetch(`${API_BASE}/planned?user_id=${currentUser.id}`);
+    const tasks = await res.json();
+    const list = document.getElementById('plannedList');
+    list.innerHTML = tasks.map(t => `
+      <div class="planned-item">
+        <div class="planned-info">
+          <h3>${t.video_title || '获取中...'}</h3>
+          <span>${t.video_url}</span>
         </div>
-      `).join('') || '<div style="color:#888">暂无听写任务，快去添加一个吧！</div>';
-    } catch (e) { list.innerHTML = "加载失败"; }
+        <div style="display:flex; gap:10px">
+          <button class="btn-main" style="padding:6px 12px" onclick="startNow(${t.id}, '${t.video_id}', '${t.video_title.replace(/'/g, "\\'")}')">马上听写</button>
+          <button class="btn-secondary" style="padding:6px 12px; background:#444" onclick="deletePlan(${t.id})">删除</button>
+        </div>
+      </div>
+    `).join('') || '<div style="color:#888; text-align:center">暂无计划</div>';
   }
 
-  function closeTasks() {
-    document.getElementById('taskPanel').style.display = 'none';
+  async function addPlan() {
+    const url = document.getElementById('planUrl').value;
+    const vid = url.match(/(?:v=|be\/|embed\/)([a-zA-Z0-9_-]{11})/)?.[1];
+    if (!vid) return alert("链接无效");
+    
+    // 模拟自动获取标题 (实际中可以由后端完成，这里先用链接)
+    const title = "待处理视频 " + vid;
+    await fetch(`${API_BASE}/planned`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'add', userId: currentUser.id, videoId: vid, videoTitle: title, videoUrl: url })
+    });
+    document.getElementById('planUrl').value = "";
+    loadPlannedTasks();
   }
 
-  function selectTask(vid, title) {
+  async function deletePlan(id) {
+    await fetch(`${API_BASE}/planned`, { method: 'POST', body: JSON.stringify({ action: 'delete', userId: currentUser.id, id }) });
+    loadPlannedTasks();
+  }
+
+  async function startNow(planId, vid, title) {
+    await deletePlan(planId);
     closeTasks();
     loadVideo(vid, title);
   }
+
+  function closeTasks() { document.getElementById('taskPanel').style.display = 'none'; }
+  function selectTask(vid, title) { closeTasks(); loadVideo(vid, title); }
 
   // --- 录音逻辑 ---
   async function toggleRecording() {
@@ -300,7 +359,6 @@
           if (currentUser.replaceKey) formData.append('existingKey', currentUser.replaceKey);
           const upRes = await fetch(`${API_BASE}/save`, { method: 'POST', body: formData });
           const upData = await upRes.json();
-          
           const record = historyRecords.find(r => r.id === currentUser.replaceId);
           await fetch(`${API_BASE}/save`, {
             method: 'POST',
@@ -311,7 +369,6 @@
           document.getElementById(`record-${currentUser.replaceId}`).remove();
           renderRecord(record);
           currentUser.replaceId = null;
-          currentUser.replaceKey = null;
         } else {
           currentUser.lastBlob = blob;
           currentUser.lastDuration = duration;
@@ -331,84 +388,77 @@
     }
   }
 
-  async function reRecordDirect(id, key) {
-    if (isRecording) { stopRecording(); return; }
-    currentUser.replaceId = id;
-    currentUser.replaceKey = key;
-    startRecording();
-  }
-
-  // --- 提交记录 ---
+  // --- 记录操作 ---
   async function submitEntry() {
     if (!currentUser || !videoId) return;
     const text = document.getElementById('manualInput').value.trim();
     if (!text) return;
-
     const timestamp = player ? Math.floor(player.getCurrentTime()) : 0;
     const duration = currentUser.lastDuration || 0;
     const orderIndex = historyRecords.length + 1;
+    saveRecord(timestamp, duration, orderIndex, text);
+  }
 
+  async function saveRecord(timestamp, duration, orderIndex, text, audioBlob = currentUser.lastBlob) {
     try {
       let audio_key = null;
-      if (currentUser.lastBlob) {
+      if (audioBlob) {
         const formData = new FormData();
-        formData.append('file', currentUser.lastBlob, `rec-${Date.now()}.mp3`);
+        formData.append('file', audioBlob, `rec-${Date.now()}.mp3`);
         const upRes = await fetch(`${API_BASE}/save`, { method: 'POST', body: formData });
         const upData = await upRes.json();
         audio_key = upData.key;
       }
-
-      const payload = {
-        user_id: currentUser.id,
-        video_id: videoId,
-        video_title: videoTitle,
-        timestamp,
-        duration,
-        order_index: orderIndex,
-        text,
-        audio_key
-      };
-
-      const res = await fetch(`${API_BASE}/save`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
+      const payload = { user_id: currentUser.id, video_id: videoId, video_title: videoTitle, timestamp, duration, order_index: orderIndex, text, audio_key };
+      const res = await fetch(`${API_BASE}/save`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       if (res.ok) {
         const resData = await res.json();
-        const newRecord = { ...payload, id: resData.id };
-        historyRecords.push(newRecord);
-        renderRecord(newRecord);
+        const newRec = { ...payload, id: resData.id };
+        historyRecords.splice(orderIndex - 1, 0, newRec);
+        refreshDisplay();
         document.getElementById('manualInput').value = "";
         currentUser.lastBlob = null;
-        currentUser.lastDuration = 0;
-        updateCount();
       }
-    } catch (e) { alert("提交失败"); }
+    } catch (e) { alert("保存失败"); }
   }
 
-  // --- 加载历史 ---
+  async function deleteRecord(id, orderIndex) {
+    if (!confirm("确定删除片段吗？")) return;
+    await fetch(`${API_BASE}/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'delete', id, video_id: videoId, user_id: currentUser.id, order_index: orderIndex })
+    });
+    historyRecords = historyRecords.filter(r => r.id !== id).map((r, i) => ({ ...r, order_index: i + 1 }));
+    refreshDisplay();
+  }
+
+  async function insertRecord(afterOrderIndex) {
+    const timestamp = player ? Math.floor(player.getCurrentTime()) : 0;
+    const res = await fetch(`${API_BASE}/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'insert', user_id: currentUser.id, video_id: videoId, video_title: videoTitle, timestamp, order_index: afterOrderIndex + 1, text: "新片段" })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      loadHistory(); // 重新加载以确保索引同步
+    }
+  }
+
   async function loadHistory() {
-    const container = document.getElementById('resultsDisplay');
-    container.innerHTML = '<div style="text-align:center; padding: 20px;">同步记录中...</div>';
     try {
       const res = await fetch(`${API_BASE}/history?user_id=${currentUser.id}&video_id=${videoId}`);
       historyRecords = await res.json();
-      container.innerHTML = "";
-      historyRecords.forEach(renderRecord);
-      updateCount();
-    } catch (e) { container.innerHTML = "同步失败"; }
+      refreshDisplay();
+    } catch (e) { }
   }
 
-  function updateCount() {
+  function refreshDisplay() {
+    const container = document.getElementById('resultsDisplay');
+    container.innerHTML = "";
+    historyRecords.forEach(renderRecord);
     document.getElementById('recordCount').innerText = historyRecords.length;
-  }
-
-  function formatTime(s) {
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
   }
 
   function renderRecord(record) {
@@ -416,7 +466,6 @@
     const div = document.createElement('div');
     div.className = 'record-item';
     div.id = `record-${record.id}`;
-    
     div.innerHTML = `
       <div class="record-actions-col">
         <button class="action-btn" onclick="playAudio('${record.audio_key || ""}', ${record.id})">${record.audio_key ? '🔊' : '❌'}</button>
@@ -426,42 +475,30 @@
       <div class="record-info">
         <div class="record-meta">
           <span class="record-index">#${record.order_index}</span>
-          <span class="record-time" onclick="seekVideo(${record.timestamp})">⏱️ ${formatTime(record.timestamp)}${record.duration ? ' + ' + record.duration + 's' : ''}</span>
-          <button class="action-btn" onclick="copyText(this, \`${record.text.replace(/`/g, '\\`')}\`)">📋</button>
+          <span class="record-time" onclick="seekVideo(${record.timestamp})">⏱️ ${Math.floor(record.timestamp/60)}:${(record.timestamp%60).toString().padStart(2,'0')}${record.duration ? ' + ' + record.duration + 's' : ''}</span>
+          <button class="action-btn" onclick="copyText(this, \`${record.text}\`)">📋</button>
+          <button class="action-btn" onclick="insertRecord(${record.order_index})">➕ 插入</button>
+          <button class="action-btn" onclick="deleteRecord(${record.id}, ${record.order_index})" style="color:#ff6b7a">�️</button>
         </div>
         <textarea id="text-${record.id}" class="manual-text" onchange="updateText(${record.id}, this.value)">${record.text}</textarea>
       </div>
     `;
     container.appendChild(div);
-    container.scrollTop = container.scrollHeight;
   }
 
   async function updateText(id, text) {
-    await fetch(`${API_BASE}/save`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, text })
-    });
+    await fetch(`${API_BASE}/save`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, text }) });
   }
 
-  function seekVideo(t) {
-    if (player && player.seekTo) {
-      player.seekTo(t);
-      player.playVideo();
-    }
-  }
-
+  function seekVideo(t) { if (player) player.seekTo(t); }
   function playAudio(key, id) {
     if (!key) return;
     if (currentAudio) currentAudio.pause();
     const url = `${API_BASE}/audio?key=${encodeURIComponent(key)}`;
     currentAudio = new Audio(url);
-    currentAudio.onended = () => {
-      if (document.getElementById('continuousPlayToggle').checked) playNext(id);
-    };
+    currentAudio.onended = () => { if (document.getElementById('continuousPlayToggle').checked) playNext(id); };
     currentAudio.play();
   }
-
   function playNext(currentId) {
     const idx = historyRecords.findIndex(r => r.id === currentId);
     if (idx !== -1 && idx < historyRecords.length - 1) {
@@ -470,21 +507,17 @@
       else playNext(next.id);
     }
   }
-
   function playAllRecords() {
-    if (historyRecords.length === 0) return;
     document.getElementById('playAllBtn').style.display = 'none';
     document.getElementById('pauseAllBtn').style.display = 'block';
     const first = historyRecords.find(r => r.audio_key);
     if (first) playAudio(first.audio_key, first.id);
   }
-
   function pauseAllRecords() {
     if (currentAudio) currentAudio.pause();
     document.getElementById('playAllBtn').style.display = 'block';
     document.getElementById('pauseAllBtn').style.display = 'none';
   }
-
   function copyText(btn, text) {
     navigator.clipboard.writeText(text).then(() => {
       const old = btn.innerText;
@@ -492,32 +525,20 @@
       setTimeout(() => btn.innerText = old, 1000);
     });
   }
-
-  // --- 键盘快捷键 ---
+  function reRecordDirect(id, key) {
+    if (isRecording) { stopRecording(); return; }
+    currentUser.replaceId = id;
+    currentUser.replaceKey = key;
+    startRecording();
+  }
   window.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') {
-      if (e.key === 'Enter' && !e.shiftKey && e.target.id === 'manualInput') {
-        e.preventDefault();
-        submitEntry();
-      }
+      if (e.key === 'Enter' && !e.shiftKey && e.target.id === 'manualInput') { e.preventDefault(); submitEntry(); }
       return;
     }
-    if (e.code === 'Space') {
-      e.preventDefault();
-      if (player && player.getPlayerState) {
-        const state = player.getPlayerState();
-        state === 1 ? player.pauseVideo() : player.playVideo();
-      }
-    }
-    if (e.code === 'KeyR') {
-      e.preventDefault();
-      toggleRecording();
-    }
+    if (e.code === 'Space') { e.preventDefault(); if (player) { const s = player.getPlayerState(); s === 1 ? player.pauseVideo() : player.playVideo(); } }
+    if (e.code === 'KeyR') { e.preventDefault(); toggleRecording(); }
   });
-
-  // 管理后台占位
-  function openAdmin() { alert("管理后台正在建设中..."); }
 </script>
-
 </body>
 </html>

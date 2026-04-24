@@ -8,16 +8,20 @@ export async function onRequestGet(context) {
   }
 
   try {
-    // 获取用户所有的视频任务列表，并统计每个视频的片段数量
+    // 获取用户所有的视频任务列表，并统计每个视频的片段数量和录音总时长
+    // 同时关联 videos_meta 获取视频总时长以计算完成度
     const result = await env.DB.prepare(`
       SELECT 
-        video_id, 
-        video_title, 
-        COUNT(*) as record_count, 
-        MAX(created_at) as last_activity 
-      FROM records 
-      WHERE user_id = ? 
-      GROUP BY video_id 
+        r.video_id, 
+        r.video_title, 
+        COUNT(r.id) as record_count, 
+        SUM(r.duration) as recorded_duration,
+        v.total_duration,
+        MAX(r.created_at) as last_activity 
+      FROM records r
+      LEFT JOIN videos_meta v ON r.video_id = v.video_id
+      WHERE r.user_id = ? 
+      GROUP BY r.video_id 
       ORDER BY last_activity DESC
     `)
       .bind(userId)
