@@ -44,3 +44,19 @@ CREATE TABLE IF NOT EXISTS planned_tasks (
 CREATE INDEX IF NOT EXISTS idx_records_user_id ON records(user_id);
 CREATE INDEX IF NOT EXISTS idx_records_video_id ON records(video_id);
 CREATE INDEX IF NOT EXISTS idx_planned_user_id ON planned_tasks(user_id);
+
+-- 创建 vocab 表 (生词本)
+CREATE TABLE IF NOT EXISTS vocab (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  video_id TEXT NOT NULL,
+  word TEXT NOT NULL,
+  context TEXT,
+  definition TEXT,
+  level INTEGER DEFAULT 0, -- 记忆等级 (0-5)
+  next_review DATETIME DEFAULT CURRENT_TIMESTAMP, -- 下次复习时间
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_vocab_user_id ON vocab(user_id);
+CREATE INDEX IF NOT EXISTS idx_vocab_video_id ON vocab(video_id);
