@@ -58,9 +58,20 @@
     .flashcard-back { transform: rotateY(180deg); background: var(--accent); border-radius: 15px; }
     .vocab-word { font-size: 2rem; font-weight: 800; color: var(--primary); margin-bottom: 15px; }
     .vocab-context { font-size: 1rem; color: #aaa; font-style: italic; line-height: 1.5; }
-    .vocab-definition { font-size: 1.2rem; color: white; line-height: 1.6; }
+    .vocab-definition { font-size: 1.2rem; color: white; line-height: 1.6; margin-bottom: 15px; }
     
-    .review-actions { display: flex; gap: 20px; margin-top: 20px; justify-content: center; }
+    /* 字典侧边栏 */
+    .vocab-dictionary { flex: 1; background: rgba(0,0,0,0.2); border-radius: 10px; padding: 15px; text-align: left; font-size: 0.85rem; overflow-y: auto; max-height: 200px; margin-top: 10px; border: 1px solid rgba(255,255,255,0.05); }
+    .dict-phonetic { color: var(--primary); margin-bottom: 5px; font-family: monospace; }
+    .dict-meaning { margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px; }
+    .dict-part { font-weight: bold; color: #888; margin-right: 5px; }
+
+    .spelling-input { width: 100%; padding: 10px; border-radius: 8px; border: 2px solid #333; background: #1a1a2e; color: white; text-align: center; font-size: 1.2rem; margin: 15px 0; }
+    .spelling-input:focus { border-color: var(--primary); outline: none; }
+    .spelling-input.correct { border-color: var(--success); }
+    .spelling-input.wrong { border-color: var(--danger); }
+
+    .review-actions { display: flex; gap: 15px; margin-top: 10px; justify-content: center; width: 100%; }
     
     .btn-main:active, .btn-secondary:active { transform: translateY(0); }
 
@@ -230,17 +241,29 @@
     
     <div id="vocabReviewArea" class="panel-section" style="display: none;">
       <h2>正在复习</h2>
-      <div id="flashcard" class="flashcard" onclick="this.classList.toggle('flipped')">
-        <div class="flashcard-front">
-          <div id="cardWord" class="vocab-word"></div>
+      <div id="flashcard" class="flashcard">
+        <div class="flashcard-front" onclick="flipCard()">
+          <div style="display:flex; align-items:center; gap:10px">
+            <div id="cardWord" class="vocab-word"></div>
+            <button class="action-btn" onclick="event.stopPropagation(); speakWord(document.getElementById('cardWord').innerText)" title="朗读" style="font-size: 1.5rem">🔊</button>
+          </div>
           <div id="cardContext" class="vocab-context"></div>
-          <div style="margin-top: 20px; color: #666; font-size: 0.8rem;">点击翻面查看释义</div>
+          <div style="margin-top: 20px; color: #666; font-size: 0.8rem;">点击翻面查看释义并拼写</div>
         </div>
         <div class="flashcard-back">
-          <div id="cardDefinition" class="vocab-definition"></div>
-          <div class="review-actions">
-            <button class="btn-main btn-danger" onclick="handleVocabResult(event, false)">❌ 记不住</button>
-            <button class="btn-main btn-success" onclick="handleVocabResult(event, true)">✅ 记住了</button>
+          <div style="width: 100%; display: flex; flex-direction: column; height: 100%;">
+            <div id="cardDefinition" class="vocab-definition"></div>
+            
+            <input type="text" id="spellingInput" class="spelling-input" placeholder="请拼写该单词..." oninput="checkSpelling(this.value)" autocomplete="off">
+            
+            <div id="cardDict" class="vocab-dictionary">
+              <div style="color: #666; text-align: center;">正在查询词典...</div>
+            </div>
+
+            <div class="review-actions">
+              <button id="vocabFailBtn" class="btn-main btn-danger" onclick="handleVocabResult(event, false)">❌ 没记住</button>
+              <button id="vocabSuccessBtn" class="btn-main btn-success" onclick="handleVocabResult(event, true)" disabled>✅ 记住了</button>
+            </div>
           </div>
         </div>
       </div>
@@ -555,7 +578,12 @@
     const tbody = document.querySelector('#vocabTable tbody');
     tbody.innerHTML = vocab.map(v => `
       <tr>
-        <td class="vocab-word-td">${v.word}</td>
+        <td class="vocab-word-td">
+          <div style="display:flex; align-items:center; gap:8px">
+            ${v.word}
+            <button class="action-btn" onclick="speakWord('${v.word}')" title="朗读" style="font-size: 1rem">🔊</button>
+          </div>
+        </td>
         <td ondblclick="editVocabDef(${v.id}, '${v.definition || ""}')">${v.definition || '<span style="color:#666">双击添加释义</span>'}</td>
         <td style="font-size:0.8rem">
           <a href="https://youtu.be/${v.video_id}" target="_blank" style="color:var(--primary);text-decoration:none">🔗 ${v.video_title || v.video_id}</a>
@@ -636,10 +664,100 @@
     const item = reviewQueue[currentReviewIdx];
     const card = document.getElementById('flashcard');
     card.classList.remove('flipped');
+    
+    // 重置拼写输入
+    const sInput = document.getElementById('spellingInput');
+    sInput.value = "";
+    sInput.classList.remove('correct', 'wrong');
+    document.getElementById('vocabSuccessBtn').disabled = true;
+    
     document.getElementById('cardWord').innerText = item.word;
     document.getElementById('cardContext').innerText = `"${item.context}"`;
-    document.getElementById('cardDefinition').innerText = item.definition || "暂无释义";
+    document.getElementById('cardDefinition').innerText = item.definition || "暂无自定义释义";
+    document.getElementById('cardDict').innerHTML = '<div style="color: #666; text-align: center;">正在查询词典...</div>';
     document.getElementById('reviewProgress').innerText = `进度: ${currentReviewIdx + 1} / ${reviewQueue.length}`;
+  }
+
+  function flipCard() {
+    const card = document.getElementById('flashcard');
+    if (card.classList.contains('flipped')) return;
+    
+    card.classList.add('flipped');
+    const item = reviewQueue[currentReviewIdx];
+    
+    // 聚焦拼写输入框
+    setTimeout(() => document.getElementById('spellingInput').focus(), 300);
+    
+    // 自动播放发音
+    speakWord(item.word);
+    
+    // 获取词典信息
+    fetchDictionary(item.word);
+  }
+
+  function checkSpelling(value) {
+    const item = reviewQueue[currentReviewIdx];
+    const sInput = document.getElementById('spellingInput');
+    const target = item.word.toLowerCase().trim();
+    const current = value.toLowerCase().trim();
+    
+    if (current === target) {
+      sInput.classList.add('correct');
+      sInput.classList.remove('wrong');
+      document.getElementById('vocabSuccessBtn').disabled = false;
+    } else {
+      sInput.classList.remove('correct');
+      if (current.length >= target.length) {
+        sInput.classList.add('wrong');
+      } else {
+        sInput.classList.remove('wrong');
+      }
+      document.getElementById('vocabSuccessBtn').disabled = true;
+    }
+  }
+
+  async function fetchDictionary(word) {
+    const dictDiv = document.getElementById('cardDict');
+    try {
+      const cleanWord = word.replace(/[.,!?;:]/g, '').trim();
+      const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(cleanWord)}`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      
+      let html = '';
+      data[0].meanings.forEach(m => {
+        html += `<div class="dict-meaning">
+          <span class="dict-part">${m.partOfSpeech}</span>
+          ${m.definitions[0].definition}
+        </div>`;
+      });
+      dictDiv.innerHTML = html || '未找到词典定义';
+    } catch (e) {
+      dictDiv.innerHTML = '<div style="color: #666; text-align: center;">词典未找到该单词</div>';
+    }
+  }
+
+  function speakWord(word) {
+    const cleanWord = word.replace(/[.,!?;:]/g, '').trim();
+    // 优先尝试使用 Dictionary API 的发音
+    fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(cleanWord)}`)
+      .then(res => res.json())
+      .then(data => {
+        const audioObj = data[0]?.phonetics?.find(p => p.audio);
+        if (audioObj && audioObj.audio) {
+          new Audio(audioObj.audio).play();
+        } else {
+          // 降级使用浏览器 TTS
+          const utterance = new SpeechSynthesisUtterance(cleanWord);
+          utterance.lang = 'en-US';
+          window.speechSynthesis.speak(utterance);
+        }
+      })
+      .catch(() => {
+        const utterance = new SpeechSynthesisUtterance(cleanWord);
+        utterance.lang = 'en-US';
+        window.speechSynthesis.speak(utterance);
+      });
   }
 
   async function handleVocabResult(event, success) {
