@@ -58,6 +58,32 @@ export async function onRequestPost(context) {
       return new Response(JSON.stringify({ success: true }));
     }
 
+    if (action === 'review_v2') {
+      let nextReview;
+      let newLevel = level;
+      const now = new Date();
+
+      if (status === 'success') {
+        newLevel = Math.min(5, level + 1);
+        const days = [1, 2, 4, 7, 15, 30][newLevel];
+        nextReview = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+      } else if (status === 'blur') {
+        // 模糊：等级不变，复习时间推迟较短时间 (如 4 小时)
+        nextReview = new Date(now.getTime() + 4 * 60 * 60 * 1000);
+      } else {
+        // 失败：等级重置，1 小时后重新复习
+        newLevel = 0;
+        nextReview = new Date(now.getTime() + 60 * 60 * 1000);
+      }
+
+      await env.DB.prepare(
+        "UPDATE vocab SET level = ?, next_review = ? WHERE id = ?"
+      )
+        .bind(newLevel, nextReview.toISOString(), id)
+        .run();
+      return new Response(JSON.stringify({ success: true }));
+    }
+
     if (action === 'review') {
       // 记忆曲线逻辑 (Leitner System)
       // level: 0 -> 1 (1天), 1 -> 2 (2天), 2 -> 3 (4天), 3 -> 4 (7天), 4 -> 5 (15天)

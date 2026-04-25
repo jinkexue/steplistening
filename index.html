@@ -56,17 +56,21 @@
     .flashcard.flipped { transform: rotateY(180deg); }
     .flashcard-front, .flashcard-back { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
     .flashcard-back { transform: rotateY(180deg); background: var(--accent); border-radius: 15px; }
+    
+    .card-content-split { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; width: 100%; flex: 1; min-height: 0; margin-bottom: 10px; }
+    .custom-def-pane { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; justify-content: center; }
+    .vocab-dictionary { background: rgba(0,0,0,0.2); border-radius: 10px; padding: 15px; text-align: left; font-size: 0.85rem; overflow-y: auto; border: 1px solid rgba(255,255,255,0.05); }
+    
     .vocab-word { font-size: 2rem; font-weight: 800; color: var(--primary); margin-bottom: 15px; }
     .vocab-context { font-size: 1rem; color: #aaa; font-style: italic; line-height: 1.5; }
-    .vocab-definition { font-size: 1.2rem; color: white; line-height: 1.6; margin-bottom: 15px; }
+    .vocab-definition { font-size: 1.1rem; color: white; line-height: 1.6; }
     
-    /* 字典侧边栏 */
-    .vocab-dictionary { flex: 1; background: rgba(0,0,0,0.2); border-radius: 10px; padding: 15px; text-align: left; font-size: 0.85rem; overflow-y: auto; max-height: 200px; margin-top: 10px; border: 1px solid rgba(255,255,255,0.05); }
-    .dict-phonetic { color: var(--primary); margin-bottom: 5px; font-family: monospace; }
-    .dict-meaning { margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px; }
-    .dict-part { font-weight: bold; color: #888; margin-right: 5px; }
+    .dict-phonetic { color: var(--primary); margin-bottom: 8px; font-family: monospace; font-size: 0.9rem; }
+    .dict-meaning { margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px; }
+    .dict-part { font-weight: bold; color: var(--success); margin-right: 5px; font-style: italic; }
+    .dict-example { color: #888; font-size: 0.8rem; margin-top: 4px; border-left: 2px solid #444; padding-left: 8px; }
 
-    .spelling-input { width: 100%; padding: 10px; border-radius: 8px; border: 2px solid #333; background: #1a1a2e; color: white; text-align: center; font-size: 1.2rem; margin: 15px 0; }
+    .spelling-input { width: 100%; padding: 12px; border-radius: 8px; border: 2px solid #333; background: #1a1a2e; color: white; text-align: center; font-size: 1.3rem; margin-bottom: 10px; transition: all 0.3s; }
     .spelling-input:focus { border-color: var(--primary); outline: none; }
     .spelling-input.correct { border-color: var(--success); }
     .spelling-input.wrong { border-color: var(--danger); }
@@ -252,17 +256,22 @@
         </div>
         <div class="flashcard-back">
           <div style="width: 100%; display: flex; flex-direction: column; height: 100%;">
-            <div id="cardDefinition" class="vocab-definition"></div>
-            
-            <input type="text" id="spellingInput" class="spelling-input" placeholder="请拼写该单词..." oninput="checkSpelling(this.value)" autocomplete="off">
-            
-            <div id="cardDict" class="vocab-dictionary">
-              <div style="color: #666; text-align: center;">正在查询词典...</div>
+            <div class="card-content-split">
+              <div class="custom-def-pane">
+                <div style="font-size: 0.75rem; color: #888; margin-bottom: 5px;">我的备注:</div>
+                <div id="cardDefinition" class="vocab-definition"></div>
+              </div>
+              <div id="cardDict" class="vocab-dictionary">
+                <div style="color: #666; text-align: center;">正在查询词典...</div>
+              </div>
             </div>
-
+            
+            <input type="text" id="spellingInput" class="spelling-input" placeholder="请拼写该单词以激活按钮..." oninput="checkSpelling(this.value)" autocomplete="off">
+            
             <div class="review-actions">
-              <button id="vocabFailBtn" class="btn-main btn-danger" onclick="handleVocabResult(event, false)">❌ 没记住</button>
-              <button id="vocabSuccessBtn" class="btn-main btn-success" onclick="handleVocabResult(event, true)" disabled>✅ 记住了</button>
+              <button id="vocabFailBtn" class="btn-main btn-danger" style="flex:1" onclick="handleVocabResult(event, 'fail')">❌ 没记住</button>
+              <button id="vocabBlurBtn" class="btn-main" style="flex:1; background: linear-gradient(135deg, #f39c12, #d35400);" onclick="handleVocabResult(event, 'blur')">🤔 模糊</button>
+              <button id="vocabSuccessBtn" class="btn-main btn-success" style="flex:1" onclick="handleVocabResult(event, 'success')" disabled>✅ 记住了</button>
             </div>
           </div>
         </div>
@@ -272,8 +281,17 @@
 
     <div class="panel-section">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-        <h2>我的生词库</h2>
-        <button id="startReviewBtn" class="btn-main" onclick="startVocabReview()">🚀 开始复习 (0)</button>
+        <div style="display: flex; align-items: center; gap: 20px;">
+          <h2>我的生词库</h2>
+          <div style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: #888;">
+            <span>每日计划复习:</span>
+            <input type="number" id="dailyLimit" value="20" min="5" max="100" style="width: 50px; background: #1a1a2e; border: 1px solid #444; color: white; padding: 2px 5px; border-radius: 4px;" onchange="loadVocab()">
+          </div>
+        </div>
+        <div style="display: flex; gap: 10px;">
+          <button id="manualReviewBtn" class="btn-secondary" onclick="startVocabReview(true)" style="padding: 8px 16px;">🔍 随时复习 (全部)</button>
+          <button id="startReviewBtn" class="btn-main" onclick="startVocabReview(false)">🚀 开始复习 (0)</button>
+        </div>
       </div>
       <table class="task-table" id="vocabTable">
         <thead>
@@ -650,10 +668,20 @@
     loadVocab();
   }
 
-  async function startVocabReview() {
-    const res = await fetch(`${API_BASE}/vocab?user_id=${currentUser.id}&review=true`);
-    reviewQueue = await res.json();
-    if (!reviewQueue.length) return alert("暂无需要复习的生词");
+  async function startVocabReview(isManual = false) {
+    const res = await fetch(`${API_BASE}/vocab?user_id=${currentUser.id}${isManual ? '' : '&review=true'}`);
+    let vocab = await res.json();
+    
+    if (isManual) {
+      // 随时复习：洗牌打乱全部单词
+      reviewQueue = vocab.sort(() => Math.random() - 0.5);
+    } else {
+      // 计划复习：限制每日数量
+      const limit = parseInt(document.getElementById('dailyLimit').value) || 20;
+      reviewQueue = vocab.filter(v => new Date(v.next_review) <= new Date()).slice(0, limit);
+    }
+
+    if (!reviewQueue.length) return alert(isManual ? "生词库中暂无单词" : "暂无需要复习的生词");
     
     currentReviewIdx = 0;
     document.getElementById('vocabReviewArea').style.display = 'block';
@@ -675,7 +703,7 @@
     document.getElementById('cardContext').innerText = `"${item.context}"`;
     document.getElementById('cardDefinition').innerText = item.definition || "暂无自定义释义";
     document.getElementById('cardDict').innerHTML = '<div style="color: #666; text-align: center;">正在查询词典...</div>';
-    document.getElementById('reviewProgress').innerText = `进度: ${currentReviewIdx + 1} / ${reviewQueue.length}`;
+    document.getElementById('reviewProgress').innerText = `复习中: ${currentReviewIdx + 1} / ${reviewQueue.length}`;
   }
 
   function flipCard() {
@@ -729,6 +757,7 @@
         html += `<div class="dict-meaning">
           <span class="dict-part">${m.partOfSpeech}</span>
           ${m.definitions[0].definition}
+          ${m.definitions[0].example ? `<div class="dict-example">"${m.definitions[0].example}"</div>` : ''}
         </div>`;
       });
       dictDiv.innerHTML = html || '未找到词典定义';
@@ -760,14 +789,15 @@
       });
   }
 
-  async function handleVocabResult(event, success) {
+  async function handleVocabResult(event, status) {
     event.stopPropagation();
     const item = reviewQueue[currentReviewIdx];
     await fetch(`${API_BASE}/vocab`, {
       method: 'POST',
       body: JSON.stringify({ 
-        action: success ? 'review' : 'fail', 
+        action: 'review_v2', 
         id: item.id, 
+        status: status, // 'fail', 'blur', 'success'
         level: item.level 
       })
     });
