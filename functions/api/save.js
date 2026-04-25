@@ -8,6 +8,7 @@ export async function onRequestPost(context) {
       const formData = await request.formData();
       const file = formData.get("file");
       const existingKey = formData.get("existingKey");
+      const language = formData.get("language");
 
       if (!file || !(file instanceof File)) {
         return new Response(JSON.stringify({ error: "No file provided" }), { status: 400 });
@@ -26,9 +27,12 @@ export async function onRequestPost(context) {
       let autoText = "";
       try {
         if (env.AI) {
-          const aiResponse = await env.AI.run("@cf/openai/whisper", {
+          const aiParams = {
             audio: [...new Uint8Array(arrayBuffer)],
-          });
+          };
+          if (language) aiParams.language = language;
+          
+          const aiResponse = await env.AI.run("@cf/openai/whisper", aiParams);
           autoText = aiResponse.text || "";
         }
       } catch (aiErr) {

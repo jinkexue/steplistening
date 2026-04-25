@@ -7,7 +7,7 @@
   <style>
     :root { --primary: #e94560; --bg: #1a1a2e; --card: #16213e; --text: #eee; --accent: #0f3460; --success: #4ecca3; --danger: #ff4d4d; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); padding-bottom: 120px; transition: filter 0.3s; height: 100vh; overflow: hidden; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); padding-bottom: 100px; transition: filter 0.3s; height: 100vh; overflow: hidden; }
     
     /* 基础按钮美化 */
     .btn-main, .btn-secondary { 
@@ -99,18 +99,18 @@
     .admin-tag { background: #ffd700; color: #000; font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
 
     /* 主布局 */
-    .main-layout { display: flex; flex-direction: column; height: calc(100vh - 60px); }
-    .content-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px; padding: 20px; flex: 1; overflow: hidden; }
+    .main-layout { display: flex; flex-direction: column; height: calc(100vh - 160px); }
+    .content-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px; padding: 20px; height: 100%; overflow: hidden; align-items: start; }
     
     /* 左侧视频区 */
-    .video-pane { display: flex; flex-direction: column; gap: 15px; overflow: hidden; }
+    .video-pane { display: flex; flex-direction: column; gap: 15px; }
     .link-section { display: flex; gap: 10px; }
     .link-section input { flex: 1; padding: 10px 15px; border-radius: 8px; border: 1px solid #333; background: var(--card); color: white; }
     .video-wrapper { position: relative; width: 100%; padding-bottom: 56.25%; background: #000; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
     #player { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
 
     /* 右侧记录区 */
-    .record-pane { display: flex; flex-direction: column; background: var(--card); border-radius: 12px; border: 1px solid #333; overflow: hidden; }
+    .record-pane { display: flex; flex-direction: column; background: var(--card); border-radius: 12px; border: 1px solid #333; overflow: hidden; height: 100%; }
     .results-header { padding: 12px 15px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); }
     .results-display { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
 
@@ -351,12 +351,21 @@
 
 <div class="controls-footer">
   <div class="input-area">
-    <div style="text-align: center;">
+    <div style="text-align: center; display: flex; flex-direction: column; align-items: center; gap: 5px;">
+      <select id="sttLanguage" style="background: #1a1a2e; color: #888; border: 1px solid #444; border-radius: 4px; font-size: 10px; padding: 2px 4px; width: 60px;">
+        <option value="">自动</option>
+        <option value="en">英语</option>
+        <option value="zh">中文</option>
+        <option value="ja">日语</option>
+        <option value="ko">韩语</option>
+        <option value="fr">法语</option>
+        <option value="de">德语</option>
+      </select>
       <button id="micBtn" class="mic-btn" onclick="toggleRecording()">
         <span class="mic-icon">🎤</span>
         <div id="micProgress" class="mic-progress"></div>
       </button>
-      <div id="micStatus" style="font-size: 10px; color: #888; margin-top: 5px;">R 键录音</div>
+      <div id="micStatus" style="font-size: 10px; color: #888;">R 键录音</div>
     </div>
     <div class="text-box">
       <textarea id="manualInput" placeholder="在此输入文字，回车提交记录..."></textarea>
@@ -1051,9 +1060,12 @@
         const blob = new Blob(audioChunks, { type: 'audio/mpeg' });
         const duration = Math.round((Date.now() - recordingStartTime) / 1000);
         
+        const lang = document.getElementById('sttLanguage').value;
+        
         if (currentUser.replaceId) {
           const formData = new FormData();
           formData.append('file', blob, `rec-${Date.now()}.mp3`);
+          if (lang) formData.append('language', lang);
           if (currentUser.replaceKey) formData.append('existingKey', currentUser.replaceKey);
           const upRes = await fetch(`${API_BASE}/save`, { method: 'POST', body: formData });
           const upData = await upRes.json();
@@ -1088,6 +1100,7 @@
           // 预上传并获取识别文字
           const formData = new FormData();
           formData.append('file', blob, `temp-${Date.now()}.mp3`);
+          if (lang) formData.append('language', lang);
           const upRes = await fetch(`${API_BASE}/save`, { method: 'POST', body: formData });
           const upData = await upRes.json();
           currentUser.lastAudioKey = upData.key;
