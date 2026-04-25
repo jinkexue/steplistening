@@ -219,7 +219,7 @@
   </div>
 </div>
 
-<div id="vocabPopup" onclick="addSelectedToVocab()">➕ 加入生词本</div>
+<div id="vocabPopup" onmousedown="event.preventDefault()" onclick="addSelectedToVocab()">➕ 加入生词本</div>
 
 <div id="vocabPanel" style="display:none; position: fixed; top: 60px; left: 0; width: 100%; height: calc(100vh - 60px); background: var(--bg); z-index: 500; padding: 20px; overflow-y: auto;">
   <div class="panel-container">
@@ -622,28 +622,56 @@
   }
 
   // --- 选词处理 ---
-  document.addEventListener('selectionchange', () => {
-    const selection = window.getSelection();
-    const text = selection.toString().trim();
+  function handleSelection(e) {
     const activeEl = document.activeElement;
-    
-    if (text && activeEl && activeEl.classList.contains('manual-text')) {
-      const range = selection.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
-      const popup = document.getElementById('vocabPopup');
+    if (activeEl && activeEl.classList.contains('manual-text')) {
+      const start = activeEl.selectionStart;
+      const end = activeEl.selectionEnd;
+      const text = activeEl.value.substring(start, end).trim();
       
-      selectedText = text;
-      selectedContext = activeEl.value;
-      
-      popup.style.display = 'block';
-      popup.style.top = (rect.top + window.scrollY - 40) + 'px';
-      popup.style.left = (rect.left + window.scrollX) + 'px';
-    } else {
-      setTimeout(() => {
-        if (!window.getSelection().toString()) {
-          document.getElementById('vocabPopup').style.display = 'none';
+      if (text && text.length > 0) {
+        selectedText = text;
+        selectedContext = activeEl.value;
+        
+        const popup = document.getElementById('vocabPopup');
+        popup.style.display = 'block';
+        
+        // 定位：使用鼠标/触摸位置，如果没有则定位在 textarea 上方
+        let x, y;
+        if (e && (e.clientX || (e.touches && e.touches[0]))) {
+          const clientX = e.clientX || e.touches[0].clientX;
+          const clientY = e.clientY || e.touches[0].clientY;
+          x = clientX + window.scrollX;
+          y = clientY + window.scrollY - 40;
+        } else {
+          const rect = activeEl.getBoundingClientRect();
+          x = rect.left + window.scrollX;
+          y = rect.top + window.scrollY - 40;
         }
-      }, 100);
+        
+        popup.style.left = x + 'px';
+        popup.style.top = y + 'px';
+        return;
+      }
+    }
+    
+    // 如果没有选中或不在目标区域，延迟隐藏（防止点击 popup 时立即消失）
+    setTimeout(() => {
+      const selection = window.getSelection().toString();
+      const activeEl = document.activeElement;
+      const hasTextareaSelection = activeEl && activeEl.classList.contains('manual-text') && activeEl.selectionStart !== activeEl.selectionEnd;
+      
+      if (!selection && !hasTextareaSelection) {
+        document.getElementById('vocabPopup').style.display = 'none';
+      }
+    }, 200);
+  }
+
+  document.addEventListener('mouseup', handleSelection);
+  document.addEventListener('touchend', handleSelection);
+  document.addEventListener('keyup', (e) => {
+    if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'End', 'Home'].includes(e.key)) {
+      handleSelection(e);
     }
   });
 
