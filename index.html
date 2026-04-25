@@ -340,11 +340,8 @@
         </div>
         <div style="display: flex; gap: 10px; align-items: center;">
           <button id="batchDeleteBtn" class="btn-secondary btn-danger" onclick="batchDelete()" style="font-size: 0.7rem; padding: 4px 10px; display: none;">批量删除</button>
-          <button id="playAllBtn" class="btn-secondary" onclick="playAllRecords()" style="font-size: 0.75rem;">▶️ 全部播放</button>
+          <button id="playSelectedBtn" class="btn-secondary" onclick="playSelectedRecords()" style="font-size: 0.75rem;">▶️ 播放选中</button>
           <button id="pauseAllBtn" class="btn-secondary" onclick="pauseAllRecords()" style="font-size: 0.75rem; display: none;">⏸️ 停止</button>
-          <label style="font-size: 0.75rem; color: #888; cursor: pointer; display: flex; align-items: center; gap: 4px;">
-            <input type="checkbox" id="continuousPlayToggle"> 连播
-          </label>
         </div>
       </div>
       <div id="resultsDisplay" class="results-display"></div>
@@ -381,6 +378,7 @@
   let currentAudio = null;
   let selectedText = "";
   let selectedContext = "";
+  let selectedRecordInfo = null;
   let reviewQueue = [];
   let currentReviewIdx = 0;
 
@@ -550,14 +548,50 @@
       <tr>
         <td class="vocab-word-td">${v.word}</td>
         <td ondblclick="editVocabDef(${v.id}, '${v.definition || ""}')">${v.definition || '<span style="color:#666">双击添加释义</span>'}</td>
-        <td style="font-size:0.8rem; color:#888">${v.video_id}</td>
+        <td style="font-size:0.8rem">
+          <a href="https://youtu.be/${v.video_id}" target="_blank" style="color:var(--primary);text-decoration:none">🔗 ${v.video_title || v.video_id}</a>
+        </td>
         <td>Level ${v.level}</td>
         <td style="font-size:0.8rem">${new Date(v.next_review).toLocaleDateString()}</td>
         <td>
-          <button class="btn-secondary btn-danger" style="padding:4px 10px; font-size:0.7rem" onclick="deleteVocab(${v.id})">删除</button>
+          <div style="display:flex; gap:5px">
+            <button class="btn-secondary" style="padding:4px 10px; font-size:0.7rem" onclick="locateSource('${v.video_id}', '${(v.video_title || "").replace(/'/g, "\\'")}', ${v.timestamp || 0}, ${v.record_id || 0})">定位出处</button>
+            <button class="btn-secondary btn-danger" style="padding:4px 10px; font-size:0.7rem" onclick="deleteVocab(${v.id})">删除</button>
+          </div>
         </td>
       </tr>
     `).join('') || '<tr><td colspan="6" style="text-align:center; color:#888">暂无生词</td></tr>';
+  }
+
+  function locateSource(vid, title, timestamp, recordId) {
+    showView('main');
+    if (videoId !== vid) {
+      loadVideo(vid, title);
+      // 等待视频加载后定位
+      const checkLoaded = setInterval(() => {
+        if (player && player.getPlayerState && player.getPlayerState() !== -1) {
+          clearInterval(checkLoaded);
+          player.seekTo(timestamp);
+          if (recordId) {
+            setTimeout(() => {
+              const el = document.getElementById(`record-${recordId}`);
+              if (el) {
+                el.classList.add('active');
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+            }, 1000);
+          }
+        }
+      }, 500);
+    } else {
+      player.seekTo(timestamp);
+      const el = document.getElementById(`record-${recordId}`);
+      if (el) {
+        document.querySelectorAll('.record-item').forEach(e => e.classList.remove('active'));
+        el.classList.add('active');
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
   }
 
   async function editVocabDef(id, oldDef) {
@@ -633,6 +667,18 @@
         selectedText = text;
         selectedContext = activeEl.value;
         
+        // 获取当前片段的信息
+        const recordId = activeEl.id.replace('text-', '');
+        const record = historyRecords.find(r => r.id == recordId);
+        if (record) {
+          selectedRecordInfo = {
+            video_id: record.video_id,
+            video_title: record.video_title,
+            timestamp: record.timestamp,
+            id: record.id
+          };
+        }
+        
         const popup = document.getElementById('vocabPopup');
         popup.style.display = 'block';
         
@@ -685,7 +731,10 @@
       body: JSON.stringify({
         action: 'add',
         userId: currentUser.id,
-        videoId: videoId || 'general',
+        videoId: selectedRecordInfo?.video_id || videoId || 'general',
+        videoTitle: selectedRecordInfo?.video_title || videoTitle || '未知视频',
+        timestamp: selectedRecordInfo?.timestamp || 0,
+        recordId: selectedRecordInfo?.id || null,
         word: selectedText,
         context: selectedContext,
         definition: def
@@ -1212,26 +1261,50 @@
     if (currentAudio) currentAudio.pause();
     const url = `${API_BASE}/audio?key=${encodeURIComponent(key)}`;
     currentAudio = new Audio(url);
-    currentAudio.onended = () => { if (document.getElementById('continuousPlayToggle').checked) playNext(id); };
+    currentAudio.onended = () => { 
+      // 检查是否有选中的后续片段需要播放
+      playNextSelected(id);
+    };
     currentAudio.play();
   }
-  function playNext(currentId) {
-    const idx = historyRecords.findIndex(r => r.id === currentId);
-    if (idx !== -1 && idx < historyRecords.length - 1) {
-      const next = historyRecords[idx + 1];
-      if (next.audio_key) playAudio(next.audio_key, next.id);
-      else playNext(next.id);
+
+  function playNextSelected(currentId) {
+    const checked = Array.from(document.querySelectorAll('.record-checkbox:checked')).map(c => parseInt(c.value));
+    if (checked.length === 0) return;
+
+    const currentIdx = checked.indexOf(currentId);
+    if (currentIdx !== -1 && currentIdx < checked.length - 1) {
+      const nextId = checked[currentIdx + 1];
+      const nextRecord = historyRecords.find(r => r.id === nextId);
+      if (nextRecord && nextRecord.audio_key) {
+        playAudio(nextRecord.audio_key, nextRecord.id);
+      }
+    } else {
+      // 播放结束，重置按钮状态
+      pauseAllRecords();
     }
   }
-  function playAllRecords() {
-    document.getElementById('playAllBtn').style.display = 'none';
+
+  function playSelectedRecords() {
+    const checked = Array.from(document.querySelectorAll('.record-checkbox:checked')).map(c => parseInt(c.value));
+    if (checked.length === 0) return alert("请先勾选想要播放的片段");
+
+    document.getElementById('playSelectedBtn').style.display = 'none';
     document.getElementById('pauseAllBtn').style.display = 'block';
-    const first = historyRecords.find(r => r.audio_key);
-    if (first) playAudio(first.audio_key, first.id);
+    
+    // 从第一个选中的有音频的片段开始播放
+    const firstId = checked[0];
+    const firstRecord = historyRecords.find(r => r.id === firstId);
+    if (firstRecord && firstRecord.audio_key) {
+      playAudio(firstRecord.audio_key, firstRecord.id);
+    } else {
+      playNextSelected(firstId);
+    }
   }
+
   function pauseAllRecords() {
     if (currentAudio) currentAudio.pause();
-    document.getElementById('playAllBtn').style.display = 'block';
+    document.getElementById('playSelectedBtn').style.display = 'block';
     document.getElementById('pauseAllBtn').style.display = 'none';
   }
   function copyText(btn, text) {

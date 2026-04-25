@@ -38,13 +38,13 @@ export async function onRequestPost(context) {
   
   try {
     const data = await request.json();
-    const { action, id, userId, videoId, word, context: vocabContext, definition, level } = data;
+    const { action, id, userId, videoId, videoTitle, timestamp, recordId, word, context: vocabContext, definition, level } = data;
 
     if (action === 'add') {
       const result = await env.DB.prepare(
-        "INSERT INTO vocab (user_id, video_id, word, context, definition) VALUES (?, ?, ?, ?, ?)"
+        "INSERT INTO vocab (user_id, video_id, video_title, timestamp, record_id, word, context, definition) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
       )
-        .bind(userId, videoId, word, vocabContext, definition)
+        .bind(userId, videoId, videoTitle, timestamp, recordId, word, vocabContext, definition)
         .run();
       return new Response(JSON.stringify({ id: result.meta.last_row_id, success: true }));
     }
