@@ -38,7 +38,7 @@ export async function onRequestPost(context) {
   
   try {
     const data = await request.json();
-    const { action, id, userId, videoId, videoTitle, timestamp, recordId, word, context: vocabContext, definition, level } = data;
+    const { action, id, userId, videoId, videoTitle, timestamp, recordId, word, context: vocabContext, definition, level, status } = data;
 
     if (action === 'add') {
       const result = await env.DB.prepare(

@@ -52,16 +52,82 @@
     #vocabPopup:hover { filter: brightness(1.2); }
 
     /* 生词卡片样式 */
-    .flashcard { background: var(--card); border-radius: 15px; padding: 30px; min-height: 250px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; cursor: pointer; perspective: 1000px; transition: transform 0.6s; transform-style: preserve-3d; position: relative; border: 1px solid rgba(255,255,255,0.1); }
-    .flashcard.flipped { transform: rotateY(180deg); }
-    .flashcard-front, .flashcard-back { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
-    .flashcard-back { transform: rotateY(180deg); background: var(--accent); border-radius: 15px; }
+    .flashcard { 
+      background: var(--card); 
+      border-radius: 15px; 
+      min-height: 800px; 
+      width: 100%;
+      display: grid;
+      perspective: 1000px; 
+      position: relative; 
+      border: 1px solid rgba(255,255,255,0.1); 
+    }
+    .flashcard-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      transition: transform 0.6s;
+      transform-style: preserve-3d;
+      display: grid;
+    }
+    .flashcard.flipped .flashcard-inner { transform: rotateY(180deg); }
     
-    .card-content-split { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; width: 100%; flex: 1; min-height: 0; margin-bottom: 10px; }
-    .custom-def-pane { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; justify-content: center; }
-    .vocab-dictionary { background: rgba(0,0,0,0.2); border-radius: 10px; padding: 15px; text-align: left; font-size: 0.85rem; overflow-y: auto; border: 1px solid rgba(255,255,255,0.05); }
+    .flashcard-front, .flashcard-back { 
+      grid-area: 1 / 1;
+      width: 100%; 
+      height: 100%; 
+      backface-visibility: hidden; 
+      display: flex; 
+      flex-direction: column; 
+      padding: 40px; 
+      border-radius: 15px;
+      overflow-y: auto;
+    }
+    .flashcard-front { 
+      background: var(--card);
+      align-items: center; 
+      justify-content: center; 
+    }
+    .flashcard-back { 
+      transform: rotateY(180deg); 
+      background: var(--accent); 
+      align-items: stretch;
+      justify-content: flex-start;
+      text-align: left;
+    }
     
-    .vocab-word { font-size: 2rem; font-weight: 800; color: var(--primary); margin-bottom: 15px; }
+    .card-content-split { 
+      display: grid; 
+      grid-template-columns: 0.8fr 2.2fr; 
+      gap: 25px; 
+      width: 100%; 
+      flex: 1; 
+      min-height: 0; 
+      margin-bottom: 20px; 
+    }
+    .custom-def-pane { 
+      background: rgba(255,255,255,0.05); 
+      padding: 15px; 
+      border-radius: 10px; 
+      border: 1px solid rgba(255,255,255,0.1); 
+      display: flex; 
+      flex-direction: column; 
+    }
+    .vocab-dictionary { 
+      background: rgba(0,0,0,0.2); 
+      border-radius: 10px; 
+      padding: 15px; 
+      font-size: 0.9rem; 
+      overflow-y: auto; 
+      border: 1px solid rgba(255,255,255,0.05);
+      line-height: 1.4;
+      scrollbar-width: thin;
+      scrollbar-color: var(--primary) transparent;
+    }
+    .vocab-dictionary::-webkit-scrollbar { width: 6px; }
+    .vocab-dictionary::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 3px; }
+    
+    .vocab-word { font-size: 2.2rem; font-weight: 800; color: var(--primary); margin-bottom: 15px; }
     .vocab-context { font-size: 1rem; color: #aaa; font-style: italic; line-height: 1.5; }
     .vocab-definition { font-size: 1.1rem; color: white; line-height: 1.6; }
     
@@ -246,32 +312,36 @@
     <div id="vocabReviewArea" class="panel-section" style="display: none;">
       <h2>正在复习</h2>
       <div id="flashcard" class="flashcard">
-        <div class="flashcard-front" onclick="flipCard()">
-          <div style="display:flex; align-items:center; gap:10px">
-            <div id="cardWord" class="vocab-word"></div>
-            <button class="action-btn" onclick="event.stopPropagation(); speakWord(document.getElementById('cardWord').innerText)" title="朗读" style="font-size: 1.5rem">🔊</button>
-          </div>
-          <div id="cardContext" class="vocab-context"></div>
-          <div style="margin-top: 20px; color: #666; font-size: 0.8rem;">点击翻面查看释义并拼写</div>
-        </div>
-        <div class="flashcard-back">
-          <div style="width: 100%; display: flex; flex-direction: column; height: 100%;">
-            <div class="card-content-split">
-              <div class="custom-def-pane">
-                <div style="font-size: 0.75rem; color: #888; margin-bottom: 5px;">我的备注:</div>
-                <div id="cardDefinition" class="vocab-definition"></div>
-              </div>
-              <div id="cardDict" class="vocab-dictionary">
-                <div style="color: #666; text-align: center;">正在查询词典...</div>
-              </div>
+        <div class="flashcard-inner">
+          <div class="flashcard-front" onclick="flipCard()">
+            <div style="display:flex; align-items:center; gap:10px">
+              <div id="cardWord" class="vocab-word"></div>
+              <button class="action-btn" onclick="event.stopPropagation(); speakWord(document.getElementById('cardWord').innerText)" title="朗读" style="font-size: 1.5rem">🔊</button>
             </div>
-            
-            <input type="text" id="spellingInput" class="spelling-input" placeholder="请拼写该单词以激活按钮..." oninput="checkSpelling(this.value)" autocomplete="off">
-            
-            <div class="review-actions">
-              <button id="vocabFailBtn" class="btn-main btn-danger" style="flex:1" onclick="handleVocabResult(event, 'fail')">❌ 没记住</button>
-              <button id="vocabBlurBtn" class="btn-main" style="flex:1; background: linear-gradient(135deg, #f39c12, #d35400);" onclick="handleVocabResult(event, 'blur')">🤔 模糊</button>
-              <button id="vocabSuccessBtn" class="btn-main btn-success" style="flex:1" onclick="handleVocabResult(event, 'success')" disabled>✅ 记住了</button>
+            <div id="cardContext" class="vocab-context"></div>
+            <div style="margin-top: 20px; color: #666; font-size: 0.8rem;">点击翻面查看释义并拼写</div>
+          </div>
+          <div class="flashcard-back" onclick="flipCardBack(event)">
+            <div style="width: 100%; display: flex; flex-direction: column; height: 100%;">
+              <div class="card-content-split">
+                <div class="custom-def-pane">
+                  <div style="font-size: 0.75rem; color: #888; margin-bottom: 5px;">我的备注:</div>
+                  <div id="cardDefinition" class="vocab-definition"></div>
+                </div>
+                <div id="cardDict" class="vocab-dictionary">
+                  <div style="color: #666; text-align: center;">正在查询词典...</div>
+                </div>
+              </div>
+              
+              <div style="margin-top: auto;" onclick="event.stopPropagation()">
+                <input type="text" id="spellingInput" class="spelling-input" placeholder="请拼写该单词以激活按钮..." oninput="checkSpelling(this.value)" autocomplete="off">
+                
+                <div class="review-actions">
+                  <button id="vocabFailBtn" class="btn-main btn-danger" style="flex:1" onclick="handleVocabResult(event, 'fail')">❌ 没记住</button>
+                  <button id="vocabBlurBtn" class="btn-main" style="flex:1; background: linear-gradient(135deg, #f39c12, #d35400);" onclick="handleVocabResult(event, 'blur')">🤔 模糊</button>
+                  <button id="vocabSuccessBtn" class="btn-main btn-success" style="flex:1" onclick="handleVocabResult(event, 'success')" disabled>✅ 记住了</button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -590,8 +660,11 @@
     const vocab = await res.json();
     
     // 更新待复习数量
-    const toReview = vocab.filter(v => new Date(v.next_review) <= new Date());
-    document.getElementById('startReviewBtn').innerText = `🚀 开始复习 (${toReview.length})`;
+    const limit = parseInt(document.getElementById('dailyLimit').value) || 20;
+    const dueWords = vocab.filter(v => new Date(v.next_review) <= new Date());
+    const reviewCount = Math.min(dueWords.length, limit);
+    document.getElementById('startReviewBtn').innerText = `🚀 开始复习 (${reviewCount})`;
+    document.getElementById('startReviewBtn').disabled = reviewCount === 0;
     
     const tbody = document.querySelector('#vocabTable tbody');
     tbody.innerHTML = vocab.map(v => `
@@ -723,6 +796,13 @@
     fetchDictionary(item.word);
   }
 
+  function flipCardBack(event) {
+    const card = document.getElementById('flashcard');
+    if (card.classList.contains('flipped')) {
+      card.classList.remove('flipped');
+    }
+  }
+
   function checkSpelling(value) {
     const item = reviewQueue[currentReviewIdx];
     const sInput = document.getElementById('spellingInput');
@@ -753,12 +833,26 @@
       const data = await res.json();
       
       let html = '';
-      data[0].meanings.forEach(m => {
-        html += `<div class="dict-meaning">
-          <span class="dict-part">${m.partOfSpeech}</span>
-          ${m.definitions[0].definition}
-          ${m.definitions[0].example ? `<div class="dict-example">"${m.definitions[0].example}"</div>` : ''}
-        </div>`;
+      data.forEach((entry, entryIdx) => {
+        // 音标
+        const phonetics = entry.phonetics.filter(p => p.text).map(p => p.text).join(' ');
+        if (phonetics) html += `<div class="dict-phonetic">${phonetics}</div>`;
+        
+        entry.meanings.forEach(m => {
+          html += `<div class="dict-meaning">
+            <span class="dict-part">${m.partOfSpeech}</span>
+            <ul style="list-style: none; margin-top: 5px;">
+              ${m.definitions.map(d => `
+                <li style="margin-bottom: 8px;">
+                  <div style="color: #eee;">${d.definition}</div>
+                  ${d.example ? `<div class="dict-example">"${d.example}"</div>` : ''}
+                </li>
+              `).join('')}
+            </ul>
+          </div>`;
+        });
+        
+        if (entryIdx < data.length - 1) html += '<hr style="border:0; border-top:1px solid rgba(255,255,255,0.1); margin:10px 0">';
       });
       dictDiv.innerHTML = html || '未找到词典定义';
     } catch (e) {
@@ -772,9 +866,18 @@
     fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(cleanWord)}`)
       .then(res => res.json())
       .then(data => {
-        const audioObj = data[0]?.phonetics?.find(p => p.audio);
-        if (audioObj && audioObj.audio) {
-          new Audio(audioObj.audio).play();
+        // 查找所有可能的发音链接
+        let audioUrl = null;
+        for (const entry of data) {
+          const phonetic = entry.phonetics.find(p => p.audio && p.audio !== "");
+          if (phonetic) {
+            audioUrl = phonetic.audio;
+            break;
+          }
+        }
+        
+        if (audioUrl) {
+          new Audio(audioUrl).play();
         } else {
           // 降级使用浏览器 TTS
           const utterance = new SpeechSynthesisUtterance(cleanWord);
@@ -790,25 +893,42 @@
   }
 
   async function handleVocabResult(event, status) {
-    event.stopPropagation();
+    if (event) event.stopPropagation();
     const item = reviewQueue[currentReviewIdx];
-    await fetch(`${API_BASE}/vocab`, {
-      method: 'POST',
-      body: JSON.stringify({ 
-        action: 'review_v2', 
-        id: item.id, 
-        status: status, // 'fail', 'blur', 'success'
-        level: item.level 
-      })
-    });
     
-    currentReviewIdx++;
-    if (currentReviewIdx < reviewQueue.length) {
-      showCard();
-    } else {
-      alert("本轮复习完成！");
-      document.getElementById('vocabReviewArea').style.display = 'none';
-      loadVocab();
+    // 先禁用按钮防止重复点击
+    document.querySelectorAll('.review-actions button').forEach(b => b.disabled = true);
+    
+    try {
+      await fetch(`${API_BASE}/vocab`, {
+        method: 'POST',
+        body: JSON.stringify({ 
+          action: 'review_v2', 
+          id: item.id, 
+          status: status, // 'fail', 'blur', 'success'
+          level: item.level 
+        })
+      });
+      
+      currentReviewIdx++;
+      if (currentReviewIdx < reviewQueue.length) {
+        // 延迟一小会儿展示下一张卡片，让用户看清状态反馈（如果有的话）
+        setTimeout(() => {
+          showCard();
+          document.querySelectorAll('.review-actions button').forEach(b => {
+            if (b.id !== 'vocabSuccessBtn') b.disabled = false;
+          });
+        }, 300);
+      } else {
+        alert("🎉 本轮复习完成！记错或模糊的单词已根据记忆曲线重新安排。");
+        document.getElementById('vocabReviewArea').style.display = 'none';
+        loadVocab();
+      }
+    } catch (e) {
+      alert("提交失败，请重试");
+      document.querySelectorAll('.review-actions button').forEach(b => {
+        if (b.id !== 'vocabSuccessBtn') b.disabled = false;
+      });
     }
   }
 
@@ -1417,9 +1537,17 @@
   }
 
   function seekVideo(t) { if (player) player.seekTo(t); }
-  function playAudio(key, id) {
+  function playAudio(key, id, timestamp = null) {
     if (!key) return;
     if (currentAudio) currentAudio.pause();
+
+    // 如果提供了时间轴，则同步视频并静音 (配音模式)
+    if (timestamp !== null && player && player.seekTo) {
+      player.mute();
+      player.seekTo(timestamp);
+      player.playVideo();
+    }
+
     const url = `${API_BASE}/audio?key=${encodeURIComponent(key)}`;
     currentAudio = new Audio(url);
     currentAudio.onended = () => { 
@@ -1437,11 +1565,16 @@
     if (currentIdx !== -1 && currentIdx < checked.length - 1) {
       const nextId = checked[currentIdx + 1];
       const nextRecord = historyRecords.find(r => r.id === nextId);
-      if (nextRecord && nextRecord.audio_key) {
-        playAudio(nextRecord.audio_key, nextRecord.id);
+      if (nextRecord) {
+        if (nextRecord.audio_key) {
+          playAudio(nextRecord.audio_key, nextRecord.id, nextRecord.timestamp);
+        } else {
+          // 如果没有音频，跳过并尝试下一个
+          playNextSelected(nextId);
+        }
       }
     } else {
-      // 播放结束，重置按钮状态
+      // 播放结束，重置按钮状态并取消静音
       pauseAllRecords();
     }
   }
@@ -1453,18 +1586,24 @@
     document.getElementById('playSelectedBtn').style.display = 'none';
     document.getElementById('pauseAllBtn').style.display = 'block';
     
-    // 从第一个选中的有音频的片段开始播放
+    // 从第一个选中的片段开始播放
     const firstId = checked[0];
     const firstRecord = historyRecords.find(r => r.id === firstId);
-    if (firstRecord && firstRecord.audio_key) {
-      playAudio(firstRecord.audio_key, firstRecord.id);
-    } else {
-      playNextSelected(firstId);
+    if (firstRecord) {
+      if (firstRecord.audio_key) {
+        playAudio(firstRecord.audio_key, firstRecord.id, firstRecord.timestamp);
+      } else {
+        playNextSelected(firstId);
+      }
     }
   }
 
   function pauseAllRecords() {
     if (currentAudio) currentAudio.pause();
+    if (player && player.unMute) {
+      player.unMute();
+      player.pauseVideo();
+    }
     document.getElementById('playSelectedBtn').style.display = 'block';
     document.getElementById('pauseAllBtn').style.display = 'none';
   }
