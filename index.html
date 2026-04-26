@@ -7,7 +7,7 @@
   <style>
     :root { --primary: #e94560; --bg: #1a1a2e; --card: #16213e; --text: #eee; --accent: #0f3460; --success: #4ecca3; --danger: #ff4d4d; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); padding-bottom: 100px; transition: filter 0.3s; height: 100vh; overflow: hidden; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); padding-bottom: 110px; transition: filter 0.3s; height: 100vh; overflow: hidden; }
     
     /* 基础按钮美化 */
     .btn-main, .btn-secondary { 
@@ -52,15 +52,15 @@
     #vocabPopup:hover { filter: brightness(1.2); }
 
     /* 生词卡片样式 */
-    .flashcard { 
-      background: var(--card); 
-      border-radius: 15px; 
-      min-height: 800px; 
+    .flashcard {
+      background: var(--card);
+      border-radius: 15px;
+      min-height: 600px;
       width: 100%;
       display: grid;
-      perspective: 1000px; 
-      position: relative; 
-      border: 1px solid rgba(255,255,255,0.1); 
+      perspective: 1000px;
+      position: relative;
+      border: 1px solid rgba(255,255,255,0.1);
     }
     .flashcard-inner {
       position: relative;
@@ -105,13 +105,15 @@
       min-height: 0; 
       margin-bottom: 20px; 
     }
-    .custom-def-pane { 
-      background: rgba(255,255,255,0.05); 
-      padding: 15px; 
-      border-radius: 10px; 
-      border: 1px solid rgba(255,255,255,0.1); 
-      display: flex; 
-      flex-direction: column; 
+    .custom-def-pane {
+      background: rgba(255,255,255,0.05);
+      padding: 15px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.1);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      max-height: 100%;
     }
     .vocab-dictionary { 
       background: rgba(0,0,0,0.2); 
@@ -129,7 +131,7 @@
     
     .vocab-word { font-size: 2.2rem; font-weight: 800; color: var(--primary); margin-bottom: 15px; }
     .vocab-context { font-size: 1rem; color: #aaa; font-style: italic; line-height: 1.5; }
-    .vocab-definition { font-size: 1.1rem; color: white; line-height: 1.6; }
+    .vocab-definition { font-size: 1.1rem; color: white; line-height: 1.6; overflow-y: auto; max-height: 100%; }
     
     .dict-phonetic { color: var(--primary); margin-bottom: 8px; font-family: monospace; font-size: 0.9rem; }
     .dict-meaning { margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px; }
@@ -180,7 +182,7 @@
     .admin-tag { background: #ffd700; color: #000; font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
 
     /* 主布局 */
-    .main-layout { display: flex; flex-direction: column; height: calc(100vh - 160px); }
+    .main-layout { display: flex; flex-direction: column; height: calc(100vh - 170px); }
     .content-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px; padding: 20px; height: 100%; overflow: hidden; align-items: start; }
     
     /* 左侧视频区 */
@@ -209,7 +211,7 @@
     .action-btn:hover { color: var(--primary); transform: scale(1.1); }
 
     /* 底部控制栏 */
-    .controls-footer { position: fixed; bottom: 0; left: 0; width: 100%; background: var(--card); padding: 15px 20px; border-top: 1px solid #333; z-index: 100; }
+    .controls-footer { position: fixed; bottom: 0; left: 0; width: 100%; background: var(--card); padding: 12px 20px; border-top: 1px solid #333; z-index: 100; }
     .input-area { max-width: 1200px; margin: 0 auto; display: flex; gap: 15px; align-items: center; }
     .mic-btn { width: 60px; height: 60px; border-radius: 50%; background: var(--accent); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; position: relative; }
     .mic-btn.recording { background: var(--primary); animation: pulse 1.5s infinite; }
@@ -451,6 +453,11 @@
         </div>
         <div style="display: flex; gap: 10px; align-items: center;">
           <button id="batchDeleteBtn" class="btn-secondary btn-danger" onclick="batchDelete()" style="font-size: 0.7rem; padding: 4px 10px; display: none;">批量删除</button>
+          <div style="display: flex; align-items: center; gap: 5px; background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1);">
+            <span style="font-size: 0.7rem; color: #888;">偏移(s):</span>
+            <input type="number" id="timeOffset" value="0" step="0.1" style="width: 60px; background: #1a1a2e; border: 1px solid #444; color: white; padding: 3px 5px; border-radius: 4px; font-size: 0.75rem;" title="正值推迟(延后)，负值提前">
+            <button class="btn-secondary" onclick="applyTimeOffset()" style="font-size: 0.7rem; padding: 4px 10px;">✓</button>
+          </div>
           <button id="playSelectedBtn" class="btn-secondary" onclick="playSelectedRecords()" style="font-size: 0.75rem;">▶️ 播放选中</button>
           <button id="pauseAllBtn" class="btn-secondary" onclick="pauseAllRecords()" style="font-size: 0.75rem; display: none;">⏸️ 停止</button>
         </div>
@@ -501,6 +508,7 @@
   let selectedRecordInfo = null;
   let reviewQueue = [];
   let currentReviewIdx = 0;
+  let timeOffsetValue = 0; // 整体时间偏移量（秒）
 
   const tag = document.createElement('script');
   tag.src = "https://www.youtube.com/iframe_api";
@@ -1393,6 +1401,11 @@
       mediaRecorder.stop();
       isRecording = false;
       document.getElementById('micBtn').classList.remove('recording');
+      // 恢复录音按钮状态
+      if (currentRecordingRecordId) {
+        updateRecordBtnState(currentRecordingRecordId, false);
+        currentRecordingRecordId = null;
+      }
     }
   }
 
@@ -1514,7 +1527,7 @@
       </div>
       <div class="record-actions-col">
         <button class="action-btn" title="播放音频" onclick="playAudio('${record.audio_key || ""}', ${record.id})">${record.audio_key ? '🔊' : '❌'}</button>
-        <button class="action-btn" title="重录当前片段" onclick="reRecordDirect(${record.id}, '${record.audio_key || ""}')">🎤</button>
+        <button id="recBtn-${record.id}" class="action-btn" title="重录当前片段" onclick="reRecordDirect(${record.id}, '${record.audio_key || ""}')">🎤</button>
       </div>
       <div class="record-info">
         <div class="record-meta">
@@ -1536,7 +1549,13 @@
     await fetch(`${API_BASE}/save`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, text }) });
   }
 
-  function seekVideo(t) { if (player) player.seekTo(t); }
+  function seekVideo(t) { if (player) player.seekTo(t + timeOffsetValue); }
+
+  function applyTimeOffset() {
+    const offset = parseFloat(document.getElementById('timeOffset').value) || 0;
+    timeOffsetValue = offset;
+    alert(`时间偏移已应用: ${offset >= 0 ? '+' : ''}${offset}秒 (${offset >= 0 ? '推迟' : '提前'})`);
+  }
   function playAudio(key, id, timestamp = null) {
     if (!key) return;
     if (currentAudio) currentAudio.pause();
@@ -1614,11 +1633,36 @@
       setTimeout(() => btn.innerText = old, 1000);
     });
   }
+  let currentRecordingRecordId = null; // 当前正在重录的片段ID
+
   function reRecordDirect(id, key) {
-    if (isRecording) { stopRecording(); return; }
+    if (isRecording && currentRecordingRecordId === id) {
+      stopRecording();
+      return;
+    }
+    if (isRecording) {
+      stopRecording(); // 先停止其他录音
+    }
+    currentRecordingRecordId = id;
     currentUser.replaceId = id;
     currentUser.replaceKey = key;
+    updateRecordBtnState(id, true);
     startRecording();
+  }
+
+  function updateRecordBtnState(recordId, isRecording) {
+    const btn = document.getElementById(`recBtn-${recordId}`);
+    if (btn) {
+      if (isRecording) {
+        btn.innerHTML = '⏹️';
+        btn.title = '停止录音';
+        btn.style.color = 'var(--danger)';
+      } else {
+        btn.innerHTML = '🎤';
+        btn.title = '重录当前片段';
+        btn.style.color = '';
+      }
+    }
   }
   window.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') {
