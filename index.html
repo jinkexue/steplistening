@@ -280,6 +280,25 @@
       <button class="btn-main" onclick="closeAdmin()">❌ 关闭后台</button>
     </div>
     
+    <div class="panel-section" style="background: linear-gradient(135deg, #1a1a2e, #16213e);">
+      <h2>🗄️ 数据库管理</h2>
+      <div style="margin-top: 15px;">
+        <div id="dbStatus" style="margin-bottom: 15px; padding: 15px; background: rgba(0,0,0,0.2); border-radius: 8px;">
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+            <span id="dbStatusIcon">⏳</span>
+            <span id="dbStatusText">正在检查数据库状态...</span>
+          </div>
+          <div id="dbColumns" style="font-size: 0.85rem; color: #888;"></div>
+        </div>
+        <button id="migrateBtn" class="btn-main" onclick="runDatabaseMigration()" disabled>
+          🔧 执行数据库迁移
+        </button>
+        <div style="margin-top: 10px; font-size: 0.8rem; color: #666;">
+          自动添加 SM-2 记忆算法所需的字段 (efactor, interval, repetitions)
+        </div>
+      </div>
+    </div>
+
     <div class="panel-section">
       <h2>新增用户</h2>
       <div style="display: flex; gap: 15px; margin-top: 15px;">
@@ -1116,10 +1135,99 @@
   async function openAdmin() {
     if (!currentUser || !currentUser.is_admin) return;
     showView('admin');
+    loadUsers();
+    checkDatabaseStatus();
   }
 
   function closeAdmin() {
     showView('main');
+  }
+
+  async function checkDatabaseStatus() {
+    const statusIcon = document.getElementById('dbStatusIcon');
+    const statusText = document.getElementById('dbStatusText');
+    const columnsDiv = document.getElementById('dbColumns');
+    const migrateBtn = document.getElementById('migrateBtn');
+
+    statusIcon.textContent = '⏳';
+    statusText.textContent = '正在检查数据库状态...';
+    columnsDiv.textContent = '';
+    migrateBtn.disabled = true;
+
+    try {
+      const res = await fetch(`${API_BASE}/migrate`, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'check_columns', userId: currentUser.id })
+      });
+
+      const data = await res.json();
+
+      if (!data.success) {
+        statusIcon.textContent = '❌';
+        statusText.textContent = '检查失败: ' + (data.error || '未知错误');
+        return;
+      }
+
+      const existing = data.existingColumns || [];
+      const missing = data.missingColumns || [];
+
+      columnsDiv.innerHTML = `
+        <div>✅ 已有字段: ${existing.length > 0 ? existing.join(', ') : '无'}</div>
+        ${missing.length > 0 ? `<div>⚠️ 缺失字段: ${missing.join(', ')}</div>` : ''}
+      `;
+
+      if (missing.length === 0) {
+        statusIcon.textContent = '✅';
+        statusText.textContent = '数据库已是最新状态';
+        migrateBtn.textContent = '✅ 数据库已更新';
+        migrateBtn.disabled = true;
+      } else {
+        statusIcon.textContent = '⚠️';
+        statusText.textContent = `需要迁移: ${missing.length} 个字段缺失`;
+        migrateBtn.textContent = '🔧 执行数据库迁移';
+        migrateBtn.disabled = false;
+      }
+    } catch (e) {
+      statusIcon.textContent = '❌';
+      statusText.textContent = '检查失败: ' + e.message;
+    }
+  }
+
+  async function runDatabaseMigration() {
+    const migrateBtn = document.getElementById('migrateBtn');
+    const statusText = document.getElementById('dbStatusText');
+
+    if (!confirm('确定要执行数据库迁移吗？\n这将添加 SM-2 记忆算法所需的字段。')) {
+      return;
+    }
+
+    migrateBtn.disabled = true;
+    migrateBtn.textContent = '⏳ 正在迁移...';
+    statusText.textContent = '正在执行数据库迁移...';
+
+    try {
+      const res = await fetch(`${API_BASE}/migrate`, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'run_migration', userId: currentUser.id })
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        alert('✅ 数据库迁移完成！\n\n' + data.results.map(r =>
+          `${r.column}: ${r.status === 'added' ? '✅ 已添加' : r.status === 'already_exists' ? '✓ 已存在' : '❌ ' + r.error}`
+        ).join('\n'));
+        checkDatabaseStatus();
+      } else {
+        alert('❌ 迁移失败:\n' + (data.message || data.error || '未知错误'));
+        migrateBtn.disabled = false;
+        migrateBtn.textContent = '🔧 执行数据库迁移';
+      }
+    } catch (e) {
+      alert('❌ 迁移失败: ' + e.message);
+      migrateBtn.disabled = false;
+      migrateBtn.textContent = '🔧 执行数据库迁移';
+    }
   }
 
   async function loadMyTasks() {
