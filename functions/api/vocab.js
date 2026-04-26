@@ -59,17 +59,23 @@ export async function onRequestPost(context) {
     }
 
     if (action === 'review_v2') {
-      // SM-2 算法实现
-      // 质量等级映射: fail=1(失败), blur=3(模糊/困难), success=4(顺利), perfect=5(完美)
+      // SM-2 算法实现（带向后兼容）
       const qualityMap = { fail: 1, blur: 3, success: 4 };
       const quality = qualityMap[status] || 3;
-
       const now = new Date();
 
-      // 获取当前单词的SM-2参数
-      const vocabRecord = await env.DB.prepare(
-        "SELECT efactor, interval, repetitions, level FROM vocab WHERE id = ?"
-      ).bind(id).first();
+      let vocabRecord;
+      try {
+        // 尝试获取SM-2参数
+        vocabRecord = await env.DB.prepare(
+          "SELECT efactor, interval, repetitions, level FROM vocab WHERE id = ?"
+        ).bind(id).first();
+      } catch (e) {
+        // 如果字段不存在，回退到旧查询
+        vocabRecord = await env.DB.prepare(
+          "SELECT level FROM vocab WHERE id = ?"
+        ).bind(id).first();
+      }
 
       let efactor = vocabRecord?.efactor ?? 2.5;
       let interval = vocabRecord?.interval ?? 0;
@@ -81,43 +87,44 @@ export async function onRequestPost(context) {
       let newLevel = currentLevel;
 
       if (quality < 3) {
-        // 回答质量低于3（失败或模糊）
         newRepetitions = 0;
-        newInterval = 1; // 1天后重新复习
-        newLevel = Math.max(0, currentLevel - 1); // 降级
-
-        // 降低简易度系数 (EF = EF - 0.8)，但不低于1.3
+        newInterval = 1;
+        newLevel = Math.max(0, currentLevel - 1);
         newEfactor = Math.max(1.3, efactor - 0.8);
       } else {
-        // 回答质量>=3（成功）
         newRepetitions = repetitions + 1;
-        newLevel = Math.min(5, currentLevel + 1); // 升级
+        newLevel = Math.min(5, currentLevel + 1);
 
         if (newRepetitions === 1) {
-          newInterval = 1; // 第一次成功，1天后
+          newInterval = 1;
         } else if (newRepetitions === 2) {
-          newInterval = 6; // 第二次成功，6天后
+          newInterval = 6;
         } else {
-          // 第三次及以上，使用EF计算间隔
           newInterval = Math.round(interval * efactor);
         }
 
-        // 更新简易度系数 (SM-2公式)
-        // EF' = EF + (0.1 - (5 - q) * (0.08 + (5 - q) * 0.02))
         const qFactor = 5 - quality;
         newEfactor = efactor + (0.1 - qFactor * (0.08 + qFactor * 0.02));
-        newEfactor = Math.max(1.3, newEfactor); // 不低于1.3
+        newEfactor = Math.max(1.3, newEfactor);
       }
 
-      // 计算下次复习时间
       const nextReview = new Date(now.getTime() + newInterval * 24 * 60 * 60 * 1000);
 
-      // 更新数据库
-      await env.DB.prepare(
-        "UPDATE vocab SET level = ?, efactor = ?, interval = ?, repetitions = ?, next_review = ? WHERE id = ?"
-      )
-        .bind(newLevel, newEfactor, newInterval, newRepetitions, nextReview.toISOString(), id)
-        .run();
+      // 尝试更新SM-2字段，如果不存在则回退到旧版更新
+      try {
+        await env.DB.prepare(
+          "UPDATE vocab SET level = ?, efactor = ?, interval = ?, repetitions = ?, next_review = ? WHERE id = ?"
+        )
+          .bind(newLevel, newEfactor, newInterval, newRepetitions, nextReview.toISOString(), id)
+          .run();
+      } catch (e) {
+        // SM-2字段不存在，使用旧版更新
+        await env.DB.prepare(
+          "UPDATE vocab SET level = ?, next_review = ? WHERE id = ?"
+        )
+          .bind(newLevel, nextReview.toISOString(), id)
+          .run();
+      }
 
       return new Response(JSON.stringify({
         success: true,
@@ -126,6 +133,76 @@ export async function onRequestPost(context) {
         newLevel,
         nextReview: nextReview.toISOString()
       }));
+    }
+
+    // 添加导出功能
+    if (action === 'export') {
+      const { format } = data; // 'csv' or 'mdx'
+
+      // 获取用户的所有生词
+      let vocabList;
+      try {
+        const result = await env.DB.prepare(
+          "SELECT word, context, definition, level, next_review, created_at FROM vocab WHERE user_id = ? ORDER BY created_at DESC"
+        ).bind(userId).all();
+        vocabList = result.results;
+      } catch (e) {
+        return new Response(JSON.stringify({ error: "查询生词失败: " + e.message }), { status: 500 });
+      }
+
+      if (format === 'csv') {
+        // CSV格式导出
+        const headers = ['word', 'context', 'definition', 'level', 'next_review', 'created_at'];
+        const csvContent = [
+          headers.join(','),
+          ...vocabList.map(v => {
+            // 处理可能包含逗号或引号的字段
+            const escape = (str) => {
+              if (!str) return '';
+              str = String(str).replace(/"/g, '""');
+              if (str.includes(',') || str.includes('\n') || str.includes('"')) {
+                return `"${str}"`;
+              }
+              return str;
+            };
+            return [
+              escape(v.word),
+              escape(v.context),
+              escape(v.definition),
+              v.level || 0,
+              v.next_review || '',
+              v.created_at || ''
+            ].join(',');
+          })
+        ].join('\n');
+
+        return new Response(csvContent, {
+          headers: {
+            'Content-Type': 'text/csv; charset=utf-8',
+            'Content-Disposition': `attachment; filename="vocab_export_${Date.now()}.csv"`
+          }
+        });
+      }
+
+      if (format === 'mdx') {
+        // MDX格式导出 (MdxBuilder格式)
+        // MDX格式: 单词\n定义\n</>\n
+        const mdxContent = vocabList.map(v => {
+          const word = v.word || '';
+          const definition = v.definition || v.context || '';
+          // MDX使用简单的分隔符格式
+          return `${word}\n${definition}\n</>\n`;
+        }).join('\n');
+
+        return new Response(mdxContent, {
+          headers: {
+            'Content-Type': 'text/plain; charset=utf-8',
+            'Content-Disposition': `attachment; filename="vocab_export_${Date.now()}.mdx"`
+          }
+        });
+      }
+
+      return new Response(JSON.stringify({ error: "不支持的格式" }), { status: 400 });
     }
 
     if (action === 'review') {
