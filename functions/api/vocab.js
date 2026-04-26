@@ -59,29 +59,73 @@ export async function onRequestPost(context) {
     }
 
     if (action === 'review_v2') {
-      let nextReview;
-      let newLevel = level;
+      // SM-2 算法实现
+      // 质量等级映射: fail=1(失败), blur=3(模糊/困难), success=4(顺利), perfect=5(完美)
+      const qualityMap = { fail: 1, blur: 3, success: 4 };
+      const quality = qualityMap[status] || 3;
+
       const now = new Date();
 
-      if (status === 'success') {
-        newLevel = Math.min(5, level + 1);
-        const days = [1, 2, 4, 7, 15, 30][newLevel];
-        nextReview = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
-      } else if (status === 'blur') {
-        // 模糊：等级不变，复习时间推迟较短时间 (如 4 小时)
-        nextReview = new Date(now.getTime() + 4 * 60 * 60 * 1000);
+      // 获取当前单词的SM-2参数
+      const vocabRecord = await env.DB.prepare(
+        "SELECT efactor, interval, repetitions, level FROM vocab WHERE id = ?"
+      ).bind(id).first();
+
+      let efactor = vocabRecord?.efactor ?? 2.5;
+      let interval = vocabRecord?.interval ?? 0;
+      let repetitions = vocabRecord?.repetitions ?? 0;
+      let currentLevel = vocabRecord?.level ?? 0;
+      let newInterval;
+      let newRepetitions = repetitions;
+      let newEfactor = efactor;
+      let newLevel = currentLevel;
+
+      if (quality < 3) {
+        // 回答质量低于3（失败或模糊）
+        newRepetitions = 0;
+        newInterval = 1; // 1天后重新复习
+        newLevel = Math.max(0, currentLevel - 1); // 降级
+
+        // 降低简易度系数 (EF = EF - 0.8)，但不低于1.3
+        newEfactor = Math.max(1.3, efactor - 0.8);
       } else {
-        // 失败：等级重置，1 小时后重新复习
-        newLevel = 0;
-        nextReview = new Date(now.getTime() + 60 * 60 * 1000);
+        // 回答质量>=3（成功）
+        newRepetitions = repetitions + 1;
+        newLevel = Math.min(5, currentLevel + 1); // 升级
+
+        if (newRepetitions === 1) {
+          newInterval = 1; // 第一次成功，1天后
+        } else if (newRepetitions === 2) {
+          newInterval = 6; // 第二次成功，6天后
+        } else {
+          // 第三次及以上，使用EF计算间隔
+          newInterval = Math.round(interval * efactor);
+        }
+
+        // 更新简易度系数 (SM-2公式)
+        // EF' = EF + (0.1 - (5 - q) * (0.08 + (5 - q) * 0.02))
+        const qFactor = 5 - quality;
+        newEfactor = efactor + (0.1 - qFactor * (0.08 + qFactor * 0.02));
+        newEfactor = Math.max(1.3, newEfactor); // 不低于1.3
       }
 
+      // 计算下次复习时间
+      const nextReview = new Date(now.getTime() + newInterval * 24 * 60 * 60 * 1000);
+
+      // 更新数据库
       await env.DB.prepare(
-        "UPDATE vocab SET level = ?, next_review = ? WHERE id = ?"
+        "UPDATE vocab SET level = ?, efactor = ?, interval = ?, repetitions = ?, next_review = ? WHERE id = ?"
       )
-        .bind(newLevel, nextReview.toISOString(), id)
+        .bind(newLevel, newEfactor, newInterval, newRepetitions, nextReview.toISOString(), id)
         .run();
-      return new Response(JSON.stringify({ success: true }));
+
+      return new Response(JSON.stringify({
+        success: true,
+        newInterval,
+        newEfactor: Math.round(newEfactor * 100) / 100,
+        newLevel,
+        nextReview: nextReview.toISOString()
+      }));
     }
 
     if (action === 'review') {

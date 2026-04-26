@@ -57,6 +57,9 @@ CREATE TABLE IF NOT EXISTS vocab (
   context TEXT,
   definition TEXT,
   level INTEGER DEFAULT 0, -- 记忆等级 (0-5)
+  efactor REAL DEFAULT 2.5, -- SM-2简易度系数 (Easiness Factor)，默认2.5
+  interval INTEGER DEFAULT 0, -- SM-2当前间隔天数
+  repetitions INTEGER DEFAULT 0, -- SM-2连续成功复习次数
   next_review DATETIME DEFAULT CURRENT_TIMESTAMP, -- 下次复习时间
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
