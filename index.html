@@ -2346,23 +2346,26 @@
       html += `
         <div class="segment-item" style="
           background: rgba(255,255,255,0.05);
-          padding: 10px 12px;
+          padding: 8px 10px;
           border-radius: 6px;
           border-left: 4px solid var(--success);
           display: flex;
-          align-items: stretch;
-          min-height: 50px;
+          align-items: flex-start;
         ">
-          <div style="flex: 1; display: flex; align-items: center; padding-right: 10px;">
+          <div style="width: 30px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 2px; flex-shrink: 0;">
+            <span style="color: #ff9f43; font-size: 0.7rem; font-weight: bold;">${idx + 1}</span>
+            <input type="checkbox" class="segment-checkbox" value="${seg.id}" style="cursor: pointer;">
+          </div>
+          <div style="flex: 1; padding: 0 8px;">
             <textarea class="segment-text" id="seg-${seg.id}" 
               onblur="updateSegment(${seg.id}, this.value)"
-              style="width: 100%; padding: 4px 6px; border-radius: 4px; background: rgba(0,0,0,0.3); border: 1px solid #444; color: #ff9f43; font-size: 0.9rem; resize: none; line-height: 1.4; overflow: hidden;"
+              style="width: 100%; padding: 2px 4px; background: transparent; border: none; color: #ff9f43; font-size: 0.9rem; resize: none; line-height: 1.5; overflow: hidden;"
+              onfocus="this.style.border='1px solid #444'"
+              onblur="this.style.border='none'"
             >${seg.text}</textarea>
           </div>
-          <div style="width: 32px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-left: 1px solid #333; padding-left: 8px;">
-            <input type="checkbox" class="segment-checkbox" value="${seg.id}" style="cursor: pointer;">
-            <span style="color: #ff9f43; font-size: 0.7rem; font-weight: bold;">${idx + 1}</span>
-            <button class="action-btn" onclick="recordSegmentAudio(${seg.id})" title="为该句录音" style="font-size: 0.8rem; color: var(--primary);">🎤</button>
+          <div style="width: 30px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 2px; flex-shrink: 0;">
+            <button class="action-btn" onclick="recordSegmentAudio(${seg.id})" title="录音" style="font-size: 0.75rem; color: var(--primary);">🎤</button>
             <button class="action-btn" onclick="deleteSegment(${seg.id})" title="删除" style="font-size: 0.7rem;">🗑️</button>
           </div>
         </div>
@@ -2557,19 +2560,23 @@
     }
 
     container.innerHTML = interviewAudios.map(audio => `
-      <div class="record-item" id="interview-audio-${audio.id}" style="display: flex; align-items: stretch; min-height: 50px;">
-        <div style="width: 40px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-right: 1px solid #333; padding-right: 8px;">
-          <span style="color: #888; font-size: 0.7rem;">${audio.order_index || 1}</span>
-          <button class="action-btn" onclick="playInterviewAudio('${audio.audio_key || ''}', ${audio.id})" title="播放">${audio.audio_key ? '🔊' : '❌'}</button>
-          <button id="interview-rec-${audio.id}" class="action-btn" onclick="reRecordInterviewAudio(${audio.id}, '${audio.audio_key || ''}')" title="重录">🎤</button>
-          <button class="action-btn" onclick="deleteInterviewAudio(${audio.id})" title="删除">🗑️</button>
+      <div class="record-item" id="interview-audio-${audio.id}" style="display: flex; align-items: flex-start; padding: 8px 10px;">
+        <div style="width: 30px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 2px; flex-shrink: 0;">
+          <span style="color: #888; font-size: 0.7rem; font-weight: bold;">${audio.order_index || 1}</span>
         </div>
-        <div style="flex: 1; display: flex; align-items: center; padding-left: 10px;">
+        <div style="flex: 1; padding: 0 8px;">
           <textarea class="manual-text ${audio.source === 'auto' ? 'source-auto' : 'source-manual'}" 
             onblur="updateInterviewAudioText(${audio.id}, this.value)" 
             placeholder="识别/输入文字..."
-            style="width: 100%; padding: 4px 6px; font-size: 0.9rem; resize: none; line-height: 1.4; overflow: hidden;"
+            style="width: 100%; padding: 2px 4px; background: transparent; border: none; font-size: 0.9rem; resize: none; line-height: 1.5; overflow: hidden;"
+            onfocus="this.style.border='1px solid #444'"
+            onblur="this.style.border='none'"
           >${audio.text || ''}</textarea>
+        </div>
+        <div style="width: 50px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 2px; flex-shrink: 0;">
+          <button class="action-btn" onclick="playInterviewAudio('${audio.audio_key || ''}', ${audio.id})" title="播放">${audio.audio_key ? '🔊' : '❌'}</button>
+          <button id="interview-rec-${audio.id}" class="action-btn" onclick="reRecordInterviewAudio(${audio.id}, '${audio.audio_key || ''}')" title="重录">🎤</button>
+          <button class="action-btn" onclick="deleteInterviewAudio(${audio.id})" title="删除">🗑️</button>
         </div>
       </div>
     `).join('');
