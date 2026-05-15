@@ -2346,23 +2346,24 @@
       html += `
         <div class="segment-item" style="
           background: rgba(255,255,255,0.05);
-          padding: 12px 15px;
-          border-radius: 8px;
+          padding: 10px 12px;
+          border-radius: 6px;
           border-left: 4px solid var(--success);
           display: flex;
-          gap: 10px;
+          gap: 8px;
           align-items: flex-start;
+          min-height: 70px;
         ">
-          <input type="checkbox" class="segment-checkbox" value="${seg.id}" style="margin-top: 6px; cursor: pointer;">
-          <span style="color: #ff9f43; font-size: 0.8rem; min-width: 20px; padding-top: 4px; font-weight: bold;">${idx + 1}</span>
-          <div style="flex: 1;">
+          <input type="checkbox" class="segment-checkbox" value="${seg.id}" style="margin-top: 6px; cursor: pointer; flex-shrink: 0;">
+          <span style="color: #ff9f43; font-size: 0.75rem; min-width: 18px; padding-top: 6px; font-weight: bold; flex-shrink: 0;">${idx + 1}</span>
+          <div style="flex: 1; display: flex; flex-direction: column;">
             <textarea class="segment-text" id="seg-${seg.id}" 
               onblur="updateSegment(${seg.id}, this.value)"
-              style="width: 100%; min-height: 40px; padding: 6px 10px; border-radius: 4px; background: rgba(0,0,0,0.3); border: 1px solid #444; color: #ff9f43; font-size: 0.95rem; resize: vertical; line-height: 1.5;"
+              style="width: 100%; min-height: 44px; padding: 6px 8px; border-radius: 4px; background: rgba(0,0,0,0.3); border: 1px solid #444; color: #ff9f43; font-size: 0.9rem; resize: vertical; line-height: 1.5; flex: 1;"
             >${seg.text}</textarea>
           </div>
-          <button class="action-btn" onclick="recordSegmentAudio(${seg.id})" title="为该句录音" style="font-size: 0.9rem; color: var(--primary);">🎤</button>
-          <button class="action-btn" onclick="deleteSegment(${seg.id})" title="删除" style="font-size: 0.75rem;">🗑️</button>
+          <button class="action-btn" onclick="recordSegmentAudio(${seg.id})" title="为该句录音" style="font-size: 0.85rem; color: var(--primary); flex-shrink: 0;">🎤</button>
+          <button class="action-btn" onclick="deleteSegment(${seg.id})" title="删除" style="font-size: 0.7rem; flex-shrink: 0;">🗑️</button>
         </div>
       `;
     });
@@ -2555,23 +2556,23 @@
     }
 
     container.innerHTML = interviewAudios.map(audio => `
-      <div class="record-item" id="interview-audio-${audio.id}">
-        <div class="record-actions-col">
+      <div class="record-item" id="interview-audio-${audio.id}" style="min-height: 70px;">
+        <div class="record-actions-col" style="flex-shrink: 0;">
           <button class="action-btn" onclick="playInterviewAudio('${audio.audio_key || ''}', ${audio.id})" title="播放">${audio.audio_key ? '🔊' : '❌'}</button>
           <button id="interview-rec-${audio.id}" class="action-btn" onclick="reRecordInterviewAudio(${audio.id}, '${audio.audio_key || ''}')" title="重录">🎤</button>
         </div>
-        <div class="record-info" style="flex: 1;">
+        <div class="record-info" style="flex: 1; display: flex; flex-direction: column;">
           <div class="record-meta">
             <span class="record-index">${audio.order_index || 1}</span>
-            <span style="color: #888; font-size: 0.8rem;">${audio.duration ? audio.duration + 's' : ''}</span>
+            <span style="color: #888; font-size: 0.75rem;">${audio.duration ? audio.duration + 's' : ''}</span>
           </div>
           <textarea class="manual-text ${audio.source === 'auto' ? 'source-auto' : 'source-manual'}" 
             onblur="updateInterviewAudioText(${audio.id}, this.value)" 
             placeholder="识别/输入文字..."
-            style="min-height: 40px; padding: 6px 10px; font-size: 0.95rem; resize: vertical; line-height: 1.5;"
+            style="min-height: 44px; padding: 6px 8px; font-size: 0.9rem; resize: vertical; line-height: 1.5; flex: 1;"
           >${audio.text || ''}</textarea>
         </div>
-        <div style="display: flex; flex-direction: column; gap: 4px; min-width: 24px;">
+        <div style="display: flex; flex-direction: column; gap: 4px; min-width: 22px; flex-shrink: 0;">
           <button class="action-btn" onclick="deleteInterviewAudio(${audio.id})" title="删除">🗑️</button>
         </div>
       </div>
