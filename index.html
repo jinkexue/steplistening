@@ -558,8 +558,10 @@
             style="width: 100%; padding: 4px 6px; border-radius: 4px; background: #1a1a2e; border: 1px solid #444; color: white; font-size: 0.75rem;"
             onkeydown="if(event.key==='Enter') { event.preventDefault(); addNewQuestion(); }">
         </div>
-        <!-- 回答输入区 - 自适应高度 -->
-        <div id="interviewTextArea" style="flex: 1; display: flex; flex-direction: column; gap: 8px; align-items: stretch;"></div>
+        <!-- 回答输入区 -->
+        <div id="interviewTextArea" style="flex: 1; display: flex; flex-direction: column; gap: 8px;"></div>
+        <!-- 底部占位（保持和右侧录音栏高度一致） -->
+        <div style="height: 80px; border-top: 1px solid #333;"></div>
       </div>
       
       <!-- 右侧：录音界面 -->
