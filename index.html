@@ -532,7 +532,7 @@
     <h1>🎤 面试练习</h1>
     <button class="btn-main" onclick="closeInterview()">🔙 返回听写</button>
   </div>
-  <div style="display: grid; grid-template-columns: 200px 1fr 180px; gap: 20px; height: calc(100vh - 140px);">
+  <div style="display: grid; grid-template-columns: 240px 1fr 220px; gap: 20px; height: calc(100vh - 140px);">
     <!-- 左侧：岗位清单 -->
     <div style="display: flex; flex-direction: column; gap: 12px;">
       <button class="btn-main" onclick="createNewPosition()">➕ 新建岗位</button>
@@ -540,15 +540,15 @@
     </div>
     
     <!-- 中间：问题列表 + 回答输入区 -->
-    <div style="display: flex; flex-direction: column; gap: 15px; background: var(--card); border-radius: 12px; border: 1px solid #333; padding: 15px;">
+    <div style="display: flex; flex-direction: column; gap: 12px; background: var(--card); border-radius: 12px; border: 1px solid #333; padding: 12px;">
       <!-- 问题标题栏 -->
-      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 10px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 8px;">
         <span style="font-weight: bold; color: var(--primary);">📋 <span id="currentQuestionTitle">面试回答</span></span>
         <div id="addQuestionBtn" style="display: none; align-items: center; gap: 8px;">
-          <input type="text" id="newQuestionInput" placeholder="输入问题名称..." 
-            style="padding: 6px 10px; border-radius: 6px; background: #1a1a2e; border: 1px solid #444; color: white; font-size: 0.8rem; width: 150px;"
+          <input type="text" id="newQuestionInput" placeholder="输入问题..." 
+            style="padding: 5px 8px; border-radius: 6px; background: #1a1a2e; border: 1px solid #444; color: white; font-size: 0.75rem; width: 120px;"
             onkeydown="if(event.key==='Enter') { event.preventDefault(); addNewQuestion(); }">
-          <button class="btn-secondary" onclick="addNewQuestion()" style="padding: 6px 10px; font-size: 0.75rem;">✓ 确认</button>
+          <button class="btn-secondary" onclick="addNewQuestion()" style="padding: 5px 8px; font-size: 0.7rem;">✓</button>
         </div>
       </div>
       <!-- 回答输入区 -->
@@ -556,10 +556,10 @@
     </div>
     
     <!-- 右侧：录音界面 -->
-    <div style="display: flex; flex-direction: column; gap: 15px; background: var(--card); border-radius: 12px; border: 1px solid #333; padding: 15px;">
-      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 10px;">
+    <div style="display: flex; flex-direction: column; gap: 12px; background: var(--card); border-radius: 12px; border: 1px solid #333; padding: 12px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 8px;">
         <span style="font-weight: bold; color: var(--primary);">🎙️ 录音 (<span id="interviewAudioCount">0</span>)</span>
-        <select id="interviewSttLang" style="background: #1a1a2e; color: #888; border: 1px solid #444; border-radius: 4px; font-size: 10px; padding: 2px 4px; width: 50px;">
+        <select id="interviewSttLang" style="background: #1a1a2e; color: #888; border: 1px solid #444; border-radius: 4px; font-size: 10px; padding: 2px 4px; width: 45px;">
           <option value="">自动</option>
           <option value="zh">中文</option>
           <option value="en">英语</option>
@@ -2321,25 +2321,25 @@
   function renderSegments() {
     const container = document.getElementById('interviewTextArea');
     
-    let html = '<div style="display: flex; flex-direction: column; gap: 8px;">';
+    let html = '<div style="display: flex; flex-direction: column; gap: 10px;">';
     
-    // 显示已分割的句子
+    // 显示已分割的句子 - 大字显示
     questionSegments.forEach((seg, idx) => {
       html += `
         <div class="segment-item" style="
-          background: rgba(255,255,255,0.03);
-          padding: 10px;
-          border-radius: 6px;
-          border-left: 3px solid var(--success);
+          background: rgba(255,255,255,0.05);
+          padding: 12px 15px;
+          border-radius: 8px;
+          border-left: 4px solid var(--success);
           display: flex;
-          gap: 8px;
+          gap: 10px;
           align-items: flex-start;
         ">
-          <span style="color: #888; font-size: 0.7rem; min-width: 20px;">#${idx + 1}</span>
+          <span style="color: var(--success); font-size: 0.7rem; min-width: 18px; padding-top: 2px;">${idx + 1}</span>
           <div style="flex: 1;">
             <textarea class="segment-text" id="seg-${seg.id}" 
-              onchange="updateSegment(${seg.id}, this.value)"
-              style="width: 100%; min-height: 40px; padding: 6px 8px; border-radius: 4px; background: #1a1a2e; border: 1px solid #333; color: white; font-size: 0.85rem; resize: vertical; line-height: 1.4;"
+              onblur="updateSegment(${seg.id}, this.value)"
+              style="width: 100%; min-height: 36px; padding: 6px 8px; border-radius: 4px; background: rgba(0,0,0,0.2); border: 1px solid #333; color: white; font-size: 1rem; resize: vertical; line-height: 1.5;"
             >${seg.text}</textarea>
           </div>
           <button class="action-btn" onclick="deleteSegment(${seg.id})" title="删除" style="font-size: 0.7rem;">🗑️</button>
@@ -2347,7 +2347,7 @@
       `;
     });
 
-    // 粘贴输入区域 - 自动分段
+    // 粘贴输入区域
     html += `
       <div style="
         background: rgba(255,255,255,0.03);
@@ -2355,15 +2355,15 @@
         border-radius: 8px;
         border: 2px dashed var(--primary);
       ">
-        <div style="font-size: 0.75rem; color: var(--primary); margin-bottom: 8px;">📋 粘贴或输入回答，自动按句子分割：</div>
+        <div style="font-size: 0.75rem; color: var(--primary); margin-bottom: 8px;">📋 粘贴回答，自动按句子分割：</div>
         <textarea id="segmentInput" 
-          placeholder="粘贴大段回答文字，系统会自动按句子分割...\n支持中文句号、英文句号、换行符作为分隔符"
-          style="width: 100%; min-height: 100px; padding: 10px; border-radius: 6px; background: #1a1a2e; border: 1px solid #444; color: white; font-size: 0.9rem; resize: vertical; line-height: 1.6;"
+          placeholder="粘贴大段回答文字，系统会自动按句子分割...\n支持句号、换行等分隔"
+          style="width: 100%; min-height: 80px; padding: 8px; border-radius: 6px; background: #1a1a2e; border: 1px solid #444; color: white; font-size: 0.85rem; resize: vertical; line-height: 1.5;"
           oninput="previewSegments(this.value)"
         ></textarea>
-        <div style="display: flex; gap: 10px; margin-top: 10px; align-items: center;">
-          <button class="btn-secondary" onclick="splitAndSaveSegments()" style="padding: 8px 16px; font-size: 0.8rem;">✂️ 分割保存</button>
-          <span id="segmentCountPreview" style="font-size: 0.75rem; color: #888;"></span>
+        <div style="display: flex; gap: 10px; margin-top: 8px; align-items: center;">
+          <button class="btn-secondary" onclick="splitAndSaveSegments()" style="padding: 6px 12px; font-size: 0.75rem;">✂️ 分割保存</button>
+          <span id="segmentCountPreview" style="font-size: 0.7rem; color: #888;"></span>
         </div>
       </div>
     `;
@@ -2383,14 +2383,18 @@
   function splitTextToSegments(text) {
     if (!text.trim()) return [];
     
-    // 按换行符、中文句号、英文句号、分号分割
-    let segments = text
-      .replace(/([。！？；!?;])\s*/g, '$1\n')  // 句号后面加换行
-      .replace(/([。！？；!?;])/g, '$1')  // 确保标点保留
-      .split(/\n+/)
+    // 清理文本，把多个换行符替换为分隔符
+    let cleaned = text
+      .replace(/\r\n/g, '\n')
+      .replace(/\r/g, '\n')
+      .replace(/\n{3,}/g, '\n\n');  // 最多2个连续换行
+
+    // 按换行、中文句号、英文句号、分号分割
+    let segments = cleaned
+      .split(/\n|(?<=[。！？])|(?<=[.!?])|(?<=[;；])/)
       .map(s => s.trim())
-      .filter(s => s.length > 0);
-    
+      .filter(s => s.length > 0 && !/^[。！？.!?;；]+$/.test(s));
+
     return segments;
   }
 
