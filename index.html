@@ -552,9 +552,9 @@
           </label>
           <button onclick="deleteSelectedSegments()" style="background: var(--danger); color: white; border: none; padding: 4px 10px; border-radius: 4px; font-size: 0.75rem; cursor: pointer;">🗑️ 删除选中</button>
         </div>
-        <!-- 问题标题栏 -->
+        <!-- 问题标题栏 - 隐藏标题 -->
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 8px;">
-          <span style="font-weight: bold; color: var(--primary);">📋 <span id="currentQuestionTitle">面试回答</span></span>
+          <span style="font-weight: bold; color: var(--primary); display: none;">📋 <span id="currentQuestionTitle">面试回答</span></span>
           <div id="addQuestionBtn" style="display: none; align-items: center; gap: 8px;">
             <input type="text" id="newQuestionInput" placeholder="输入问题..." 
               style="padding: 5px 8px; border-radius: 6px; background: #1a1a2e; border: 1px solid #444; color: white; font-size: 0.75rem; width: 120px;"
@@ -2349,21 +2349,22 @@
           padding: 10px 12px;
           border-radius: 6px;
           border-left: 4px solid var(--success);
-          display: flex;
-          gap: 8px;
-          align-items: flex-start;
           min-height: 70px;
         ">
-          <input type="checkbox" class="segment-checkbox" value="${seg.id}" style="margin-top: 6px; cursor: pointer; flex-shrink: 0;">
-          <span style="color: #ff9f43; font-size: 0.75rem; min-width: 18px; padding-top: 6px; font-weight: bold; flex-shrink: 0;">${idx + 1}</span>
-          <div style="flex: 1; display: flex; flex-direction: column;">
+          <div style="display: inline-block; vertical-align: top; margin-right: 8px;">
+            <input type="checkbox" class="segment-checkbox" value="${seg.id}" style="margin-top: 4px; cursor: pointer;">
+            <span style="color: #ff9f43; font-size: 0.75rem; font-weight: bold; margin-left: 4px;">${idx + 1}</span>
+          </div>
+          <div style="display: inline-block; vertical-align: top; width: calc(100% - 80px);">
             <textarea class="segment-text" id="seg-${seg.id}" 
               onblur="updateSegment(${seg.id}, this.value)"
-              style="width: 100%; min-height: 44px; padding: 6px 8px; border-radius: 4px; background: rgba(0,0,0,0.3); border: 1px solid #444; color: #ff9f43; font-size: 0.9rem; resize: vertical; line-height: 1.5; flex: 1;"
+              style="width: 100%; min-height: 44px; padding: 6px 8px; border-radius: 4px; background: rgba(0,0,0,0.3); border: 1px solid #444; color: #ff9f43; font-size: 0.9rem; resize: vertical; line-height: 1.5;"
             >${seg.text}</textarea>
           </div>
-          <button class="action-btn" onclick="recordSegmentAudio(${seg.id})" title="为该句录音" style="font-size: 0.85rem; color: var(--primary); flex-shrink: 0;">🎤</button>
-          <button class="action-btn" onclick="deleteSegment(${seg.id})" title="删除" style="font-size: 0.7rem; flex-shrink: 0;">🗑️</button>
+          <div style="display: inline-block; vertical-align: top; margin-left: 4px;">
+            <button class="action-btn" onclick="recordSegmentAudio(${seg.id})" title="为该句录音" style="font-size: 0.85rem; color: var(--primary);">🎤</button>
+            <button class="action-btn" onclick="deleteSegment(${seg.id})" title="删除" style="font-size: 0.7rem;">🗑️</button>
+          </div>
         </div>
       `;
     });
@@ -2557,22 +2558,19 @@
 
     container.innerHTML = interviewAudios.map(audio => `
       <div class="record-item" id="interview-audio-${audio.id}" style="min-height: 70px;">
-        <div class="record-actions-col" style="flex-shrink: 0;">
+        <div style="display: inline-block; vertical-align: top; margin-right: 8px;">
           <button class="action-btn" onclick="playInterviewAudio('${audio.audio_key || ''}', ${audio.id})" title="播放">${audio.audio_key ? '🔊' : '❌'}</button>
           <button id="interview-rec-${audio.id}" class="action-btn" onclick="reRecordInterviewAudio(${audio.id}, '${audio.audio_key || ''}')" title="重录">🎤</button>
+          <span style="color: #888; font-size: 0.7rem; display: block; margin-top: 2px;">${audio.duration ? audio.duration + 's' : ''}</span>
         </div>
-        <div class="record-info" style="flex: 1; display: flex; flex-direction: column;">
-          <div class="record-meta">
-            <span class="record-index">${audio.order_index || 1}</span>
-            <span style="color: #888; font-size: 0.75rem;">${audio.duration ? audio.duration + 's' : ''}</span>
-          </div>
+        <div style="display: inline-block; vertical-align: top; width: calc(100% - 70px);">
           <textarea class="manual-text ${audio.source === 'auto' ? 'source-auto' : 'source-manual'}" 
             onblur="updateInterviewAudioText(${audio.id}, this.value)" 
             placeholder="识别/输入文字..."
-            style="min-height: 44px; padding: 6px 8px; font-size: 0.9rem; resize: vertical; line-height: 1.5; flex: 1;"
+            style="min-height: 44px; padding: 6px 8px; font-size: 0.9rem; resize: vertical; line-height: 1.5;"
           >${audio.text || ''}</textarea>
         </div>
-        <div style="display: flex; flex-direction: column; gap: 4px; min-width: 22px; flex-shrink: 0;">
+        <div style="display: inline-block; vertical-align: top; margin-left: 4px;">
           <button class="action-btn" onclick="deleteInterviewAudio(${audio.id})" title="删除">🗑️</button>
         </div>
       </div>
