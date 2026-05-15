@@ -234,6 +234,8 @@
     /* 句子分段样式 */
     .segment-item { cursor: default; }
     .segment-item.active { cursor: default; }
+    .source-auto { color: #2ecc71 !important; }
+    .source-manual { color: #888; }
     
     /* 片段操作按钮组 */
     .fragment-ops { display: flex; gap: 8px; margin-top: 5px; }
@@ -532,7 +534,7 @@
     <h1>🎤 面试练习</h1>
     <button class="btn-main" onclick="closeInterview()">🔙 返回听写</button>
   </div>
-  <div style="display: grid; grid-template-columns: 240px 1fr 220px; gap: 20px; height: calc(100vh - 140px);">
+  <div style="display: grid; grid-template-columns: 1fr 2fr 2fr; gap: 20px; height: calc(100vh - 140px);">
     <!-- 左侧：岗位清单 -->
     <div style="display: flex; flex-direction: column; gap: 12px;">
       <button class="btn-main" onclick="createNewPosition()">➕ 新建岗位</button>
@@ -2340,23 +2342,23 @@
       html += `
         <div class="segment-item" style="
           background: rgba(255,255,255,0.05);
-          padding: 10px 12px;
+          padding: 12px 15px;
           border-radius: 8px;
           border-left: 4px solid var(--success);
           display: flex;
           gap: 10px;
           align-items: flex-start;
         ">
-          <input type="checkbox" class="segment-checkbox" value="${seg.id}" style="margin-top: 4px; cursor: pointer;">
-          <span style="color: var(--success); font-size: 0.7rem; min-width: 18px; padding-top: 2px;">${idx + 1}</span>
+          <input type="checkbox" class="segment-checkbox" value="${seg.id}" style="margin-top: 6px; cursor: pointer;">
+          <span style="color: #ff9f43; font-size: 0.8rem; min-width: 20px; padding-top: 4px; font-weight: bold;">${idx + 1}</span>
           <div style="flex: 1;">
             <textarea class="segment-text" id="seg-${seg.id}" 
               onblur="updateSegment(${seg.id}, this.value)"
-              style="width: 100%; min-height: 32px; padding: 4px 6px; border-radius: 4px; background: rgba(0,0,0,0.2); border: 1px solid #333; color: white; font-size: 0.9rem; resize: vertical; line-height: 1.4;"
+              style="width: 100%; min-height: 40px; padding: 6px 10px; border-radius: 4px; background: rgba(0,0,0,0.3); border: 1px solid #444; color: #ff9f43; font-size: 0.95rem; resize: vertical; line-height: 1.5;"
             >${seg.text}</textarea>
           </div>
-          <button class="action-btn" onclick="recordSegmentAudio(${seg.id})" title="为该句录音" style="font-size: 0.8rem; color: var(--primary);">🎤</button>
-          <button class="action-btn" onclick="deleteSegment(${seg.id})" title="删除" style="font-size: 0.7rem;">🗑️</button>
+          <button class="action-btn" onclick="recordSegmentAudio(${seg.id})" title="为该句录音" style="font-size: 0.9rem; color: var(--primary);">🎤</button>
+          <button class="action-btn" onclick="deleteSegment(${seg.id})" title="删除" style="font-size: 0.75rem;">🗑️</button>
         </div>
       `;
     });
@@ -2542,15 +2544,15 @@
         <div class="record-info" style="flex: 1;">
           <div class="record-meta">
             <span class="record-index">${audio.order_index || 1}</span>
-            <span style="color: #888; font-size: 0.7rem;">${audio.duration ? audio.duration + 's' : ''}</span>
+            <span style="color: #888; font-size: 0.8rem;">${audio.duration ? audio.duration + 's' : ''}</span>
           </div>
           <textarea class="manual-text ${audio.source === 'auto' ? 'source-auto' : 'source-manual'}" 
             onblur="updateInterviewAudioText(${audio.id}, this.value)" 
             placeholder="识别/输入文字..."
-            style="min-height: 40px; font-size: 0.8rem;"
+            style="min-height: 40px; padding: 6px 10px; font-size: 0.95rem; resize: vertical; line-height: 1.5;"
           >${audio.text || ''}</textarea>
         </div>
-        <div style="display: flex; flex-direction: column; gap: 4px; min-width: 22px;">
+        <div style="display: flex; flex-direction: column; gap: 4px; min-width: 24px;">
           <button class="action-btn" onclick="deleteInterviewAudio(${audio.id})" title="删除">🗑️</button>
         </div>
       </div>
