@@ -2349,21 +2349,22 @@
           padding: 10px 12px;
           border-radius: 6px;
           border-left: 4px solid var(--success);
-          min-height: 70px;
+          min-height: 60px;
+          position: relative;
         ">
-          <div style="display: inline-block; vertical-align: top; margin-right: 8px;">
-            <input type="checkbox" class="segment-checkbox" value="${seg.id}" style="margin-top: 4px; cursor: pointer;">
-            <span style="color: #ff9f43; font-size: 0.75rem; font-weight: bold; margin-left: 4px;">${idx + 1}</span>
+          <div style="position: absolute; left: 12px; top: 10px;">
+            <input type="checkbox" class="segment-checkbox" value="${seg.id}" style="cursor: pointer; vertical-align: middle;">
+            <span style="color: #ff9f43; font-size: 0.75rem; font-weight: bold; margin-left: 4px; vertical-align: middle;">${idx + 1}</span>
           </div>
-          <div style="display: inline-block; vertical-align: top; width: calc(100% - 80px);">
+          <div style="margin-left: 50px; margin-right: 70px;">
             <textarea class="segment-text" id="seg-${seg.id}" 
               onblur="updateSegment(${seg.id}, this.value)"
-              style="width: 100%; min-height: 44px; padding: 6px 8px; border-radius: 4px; background: rgba(0,0,0,0.3); border: 1px solid #444; color: #ff9f43; font-size: 0.9rem; resize: vertical; line-height: 1.5;"
+              style="width: 100%; min-height: 40px; padding: 6px 8px; border-radius: 4px; background: rgba(0,0,0,0.3); border: 1px solid #444; color: #ff9f43; font-size: 0.9rem; resize: none; line-height: 1.5;"
             >${seg.text}</textarea>
           </div>
-          <div style="display: inline-block; vertical-align: top; margin-left: 4px;">
+          <div style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%);">
             <button class="action-btn" onclick="recordSegmentAudio(${seg.id})" title="为该句录音" style="font-size: 0.85rem; color: var(--primary);">🎤</button>
-            <button class="action-btn" onclick="deleteSegment(${seg.id})" title="删除" style="font-size: 0.7rem;">🗑️</button>
+            <button class="action-btn" onclick="deleteSegment(${seg.id})" title="删除" style="font-size: 0.7rem; margin-left: 4px;">🗑️</button>
           </div>
         </div>
       `;
@@ -2557,21 +2558,22 @@
     }
 
     container.innerHTML = interviewAudios.map(audio => `
-      <div class="record-item" id="interview-audio-${audio.id}" style="min-height: 70px;">
-        <div style="display: inline-block; vertical-align: top; margin-right: 8px;">
+      <div class="record-item" id="interview-audio-${audio.id}" style="min-height: 60px; position: relative;">
+        <div style="position: absolute; left: 12px; top: 10px;">
           <button class="action-btn" onclick="playInterviewAudio('${audio.audio_key || ''}', ${audio.id})" title="播放">${audio.audio_key ? '🔊' : '❌'}</button>
           <button id="interview-rec-${audio.id}" class="action-btn" onclick="reRecordInterviewAudio(${audio.id}, '${audio.audio_key || ''}')" title="重录">🎤</button>
-          <span style="color: #888; font-size: 0.7rem; display: block; margin-top: 2px;">${audio.duration ? audio.duration + 's' : ''}</span>
+          <span style="color: #888; font-size: 0.7rem; display: block; margin-top: 2px;">${audio.order_index || 1}</span>
         </div>
-        <div style="display: inline-block; vertical-align: top; width: calc(100% - 70px);">
+        <div style="margin-left: 70px; margin-right: 50px;">
           <textarea class="manual-text ${audio.source === 'auto' ? 'source-auto' : 'source-manual'}" 
             onblur="updateInterviewAudioText(${audio.id}, this.value)" 
             placeholder="识别/输入文字..."
-            style="min-height: 44px; padding: 6px 8px; font-size: 0.9rem; resize: vertical; line-height: 1.5;"
+            style="min-height: 40px; padding: 6px 8px; font-size: 0.9rem; resize: none; line-height: 1.5;"
           >${audio.text || ''}</textarea>
         </div>
-        <div style="display: inline-block; vertical-align: top; margin-left: 4px;">
+        <div style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%);">
           <button class="action-btn" onclick="deleteInterviewAudio(${audio.id})" title="删除">🗑️</button>
+          <span style="color: #888; font-size: 0.65rem; display: block; margin-top: 2px;">${audio.duration ? audio.duration + 's' : ''}</span>
         </div>
       </div>
     `).join('');
