@@ -2321,27 +2321,41 @@
   function renderSegments() {
     const container = document.getElementById('interviewTextArea');
     
-    let html = '<div style="display: flex; flex-direction: column; gap: 10px;">';
+    let html = '<div style="display: flex; flex-direction: column; gap: 10px; height: 100%;">';
     
-    // 显示已分割的句子 - 大字显示
+    // 批量操作栏
+    if (questionSegments.length > 0) {
+      html += `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 6px; margin-bottom: 5px;">
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.8rem; color: #888;">
+            <input type="checkbox" id="selectAllSegments" onchange="toggleSelectAllSegments(this)"> 全选
+          </label>
+          <button onclick="deleteSelectedSegments()" style="background: var(--danger); color: white; border: none; padding: 4px 10px; border-radius: 4px; font-size: 0.75rem; cursor: pointer;">🗑️ 删除选中</button>
+        </div>
+      `;
+    }
+    
+    // 显示已分割的句子
     questionSegments.forEach((seg, idx) => {
       html += `
         <div class="segment-item" style="
           background: rgba(255,255,255,0.05);
-          padding: 12px 15px;
+          padding: 10px 12px;
           border-radius: 8px;
           border-left: 4px solid var(--success);
           display: flex;
           gap: 10px;
           align-items: flex-start;
         ">
+          <input type="checkbox" class="segment-checkbox" value="${seg.id}" style="margin-top: 4px; cursor: pointer;">
           <span style="color: var(--success); font-size: 0.7rem; min-width: 18px; padding-top: 2px;">${idx + 1}</span>
           <div style="flex: 1;">
             <textarea class="segment-text" id="seg-${seg.id}" 
               onblur="updateSegment(${seg.id}, this.value)"
-              style="width: 100%; min-height: 36px; padding: 6px 8px; border-radius: 4px; background: rgba(0,0,0,0.2); border: 1px solid #333; color: white; font-size: 1rem; resize: vertical; line-height: 1.5;"
+              style="width: 100%; min-height: 32px; padding: 4px 6px; border-radius: 4px; background: rgba(0,0,0,0.2); border: 1px solid #333; color: white; font-size: 0.9rem; resize: vertical; line-height: 1.4;"
             >${seg.text}</textarea>
           </div>
+          <button class="action-btn" onclick="recordSegmentAudio(${seg.id})" title="为该句录音" style="font-size: 0.8rem; color: var(--primary);">🎤</button>
           <button class="action-btn" onclick="deleteSegment(${seg.id})" title="删除" style="font-size: 0.7rem;">🗑️</button>
         </div>
       `;
@@ -2354,15 +2368,17 @@
         padding: 12px;
         border-radius: 8px;
         border: 2px dashed var(--primary);
+        margin-top: 5px;
       ">
         <div style="font-size: 0.75rem; color: var(--primary); margin-bottom: 8px;">📋 粘贴回答，自动按句子分割：</div>
         <textarea id="segmentInput" 
-          placeholder="粘贴大段回答文字，系统会自动按句子分割...\n支持句号、换行等分隔"
-          style="width: 100%; min-height: 80px; padding: 8px; border-radius: 6px; background: #1a1a2e; border: 1px solid #444; color: white; font-size: 0.85rem; resize: vertical; line-height: 1.5;"
+          placeholder="粘贴大段回答文字..."
+          style="width: 100%; min-height: 60px; padding: 8px; border-radius: 6px; background: #1a1a2e; border: 1px solid #444; color: white; font-size: 0.85rem; resize: vertical; line-height: 1.5;"
           oninput="previewSegments(this.value)"
         ></textarea>
-        <div style="display: flex; gap: 10px; margin-top: 8px; align-items: center;">
+        <div style="display: flex; gap: 10px; margin-top: 8px; align-items: center; flex-wrap: wrap;">
           <button class="btn-secondary" onclick="splitAndSaveSegments()" style="padding: 6px 12px; font-size: 0.75rem;">✂️ 分割保存</button>
+          <button class="btn-main" onclick="saveFullText()" style="padding: 6px 12px; font-size: 0.75rem;">💾 整段保存</button>
           <span id="segmentCountPreview" style="font-size: 0.7rem; color: #888;"></span>
         </div>
       </div>
@@ -2370,6 +2386,58 @@
 
     html += '</div>';
     container.innerHTML = html;
+  }
+
+  function toggleSelectAllSegments(master) {
+    document.querySelectorAll('.segment-checkbox').forEach(cb => cb.checked = master.checked);
+  }
+
+  async function deleteSelectedSegments() {
+    const checked = document.querySelectorAll('.segment-checkbox:checked');
+    if (checked.length === 0) {
+      alert('请先选择要删除的句子');
+      return;
+    }
+    if (!confirm(`确定删除选中的 ${checked.length} 句吗？`)) return;
+
+    for (const cb of checked) {
+      await fetch(`${API_BASE}/segment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', id: parseInt(cb.value) })
+      });
+    }
+    await selectQuestion(currentQuestionId);
+  }
+
+  async function saveFullText() {
+    const input = document.getElementById('segmentInput');
+    if (!input || !input.value.trim() || !currentQuestionId) return;
+
+    // 整段保存为一个句子
+    await fetch(`${API_BASE}/segment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'add',
+        question_id: currentQuestionId,
+        text: input.value.trim(),
+        order_index: questionSegments.length + 1
+      })
+    });
+    
+    input.value = '';
+    document.getElementById('segmentCountPreview').innerText = '';
+    await selectQuestion(currentQuestionId);
+  }
+
+  async function recordSegmentAudio(segmentId) {
+    // 启动录音，录完后关联到该句子
+    if (interviewRecording) {
+      stopInterviewRecording();
+    }
+    interviewReRecordId = 'seg_' + segmentId;
+    startInterviewRecording();
   }
 
   function previewSegments(text) {
@@ -2561,22 +2629,39 @@
         return;
       }
 
+      // 判断是录给句子还是问题
+      let payload = {
+        action: 'add',
+        audio_key: upData.key,
+        duration: duration,
+        text: upData.autoText || '',
+        source: upData.autoText ? 'auto' : 'manual',
+        order_index: interviewAudios.length + 1
+      };
+      
+      if (interviewReRecordId) {
+        // interviewReRecordId 可能是 segment_id（数字）或 audio_id（字符串）
+        if (typeof interviewReRecordId === 'number') {
+          payload.segment_id = interviewReRecordId;
+          payload.question_id = currentQuestionId;
+        } else if (typeof interviewReRecordId === 'string' && interviewReRecordId.startsWith('seg_')) {
+          // seg_123 格式表示给 id=123 的句子录音
+          payload.segment_id = parseInt(interviewReRecordId.replace('seg_', ''));
+          payload.question_id = currentQuestionId;
+        }
+      } else {
+        payload.question_id = currentQuestionId;
+      }
+
       const res = await fetch(`${API_BASE}/interview_audio`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'add',
-          question_id: currentQuestionId,
-          audio_key: upData.key,
-          duration: duration,
-          text: upData.autoText || '',
-          source: upData.autoText ? 'auto' : 'manual',
-          order_index: interviewAudios.length + 1
-        })
+        body: JSON.stringify(payload)
       });
 
       const resData = await res.json();
       if (res.ok) {
+        interviewReRecordId = null;
         await selectQuestion(currentQuestionId);
       } else {
         console.error('Save interview audio failed:', resData);
@@ -2619,6 +2704,7 @@
 
       const resData = await res.json();
       if (res.ok) {
+        interviewReRecordId = null;
         await selectQuestion(currentQuestionId);
       } else {
         console.error('Update interview audio failed:', resData);

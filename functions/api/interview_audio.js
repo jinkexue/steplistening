@@ -2,15 +2,21 @@ export async function onRequestGet(context) {
   const { request, env } = context;
   const url = new URL(request.url);
   const question_id = url.searchParams.get("question_id");
+  const segment_id = url.searchParams.get("segment_id");
 
   try {
-    if (!question_id) {
-      return new Response(JSON.stringify({ error: "question_id is required" }), { status: 400 });
+    let query, params;
+    if (segment_id) {
+      query = "SELECT * FROM interview_audios WHERE segment_id = ? ORDER BY order_index ASC";
+      params = segment_id;
+    } else if (question_id) {
+      query = "SELECT * FROM interview_audios WHERE question_id = ? ORDER BY order_index ASC";
+      params = question_id;
+    } else {
+      return new Response(JSON.stringify({ error: "question_id or segment_id is required" }), { status: 400 });
     }
 
-    const result = await env.DB.prepare(
-      "SELECT * FROM interview_audios WHERE question_id = ? ORDER BY order_index ASC"
-    ).bind(question_id).all();
+    const result = await env.DB.prepare(query).bind(params).all();
 
     return new Response(JSON.stringify(result.results), {
       headers: { "Content-Type": "application/json" },
@@ -30,20 +36,20 @@ export async function onRequestPost(context) {
     }
 
     const data = await request.json();
-    const { action, id, interview_id, question_id, user_id, audio_key, duration, text, source, order_index } = data;
+    const { action, id, question_id, segment_id, audio_key, duration, text, source, order_index } = data;
 
     if (action === 'add') {
-      if (!question_id) {
-        return new Response(JSON.stringify({ error: "question_id is required" }), { status: 400 });
+      if (!question_id && !segment_id) {
+        return new Response(JSON.stringify({ error: "question_id or segment_id is required" }), { status: 400 });
       }
-      // 只使用 question_id，不使用 interview_id（避免外键约束问题）
       const result = await env.DB.prepare(
-        "INSERT INTO interview_audios (question_id, audio_key, duration, text, source, order_index) VALUES (?, ?, ?, ?, ?, ?)"
-      ).bind(question_id, audio_key || null, duration || 0, text || '', source || 'manual', order_index || 1).run();
+        "INSERT INTO interview_audios (question_id, segment_id, audio_key, duration, text, source, order_index) VALUES (?, ?, ?, ?, ?, ?, ?)"
+      ).bind(question_id || 0, segment_id || 0, audio_key || null, duration || 0, text || '', source || 'manual', order_index || 1).run();
 
       return new Response(JSON.stringify({ 
         id: result.meta.last_row_id, 
-        question_id: question_id,
+        question_id: question_id || 0,
+        segment_id: segment_id || 0,
         audio_key: audio_key || null, 
         duration: duration || 0,
         text: text || '',
