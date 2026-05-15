@@ -232,13 +232,12 @@
     }
     
     /* 句子分段样式 */
-    .segment-item { cursor: default; }
+    .segment-item { cursor: default; background: rgba(255,255,255,0.03); padding: 10px 12px; border-radius: 4px; border-left: 3px solid var(--primary); }
     .segment-item.active { cursor: default; }
     .segment-item, .record-item { 
       background: rgba(255,255,255,0.03); 
       padding: 10px 12px; 
-      border-radius: 6px;
-      border: none;
+      border-radius: 4px;
     }
     .source-auto { color: #2ecc71 !important; }
     .source-manual { color: #888; }
@@ -2351,21 +2350,18 @@
     questionSegments.forEach((seg, idx) => {
       html += `
         <div class="segment-item" style="
-          background: rgba(255,255,255,0.05);
-          padding: 10px 12px;
-          border-radius: 4px;
           display: flex;
           align-items: stretch;
         ">
           <div style="flex: 1; padding: 0 10px; display: flex; align-items: stretch;">
             <textarea class="segment-text" id="seg-${seg.id}" 
               onblur="updateSegment(${seg.id}, this.value)"
-              style="width: 100%; background: transparent; border: none; color: #ff9f43; font-size: 0.9rem; resize: none; line-height: 1.6; overflow: visible; height: 100%; padding: 4px 6px;"
+              style="width: 100%; background: transparent; border: none; color: #ff9f43; font-size: 0.9rem; resize: none; line-height: 1.6; overflow: visible; height: auto; min-height: 100px; padding: 6px 8px;"
               onfocus="this.style.outline='1px solid #444'"
               onblur="this.style.outline='none'"
             >${seg.text}</textarea>
           </div>
-          <div style="width: 50px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; flex-shrink: 0; border-left: 1px solid #333; padding-left: 10px;">
+          <div style="width: 50px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 3px; flex-shrink: 0; border-left: 1px solid #333; padding-left: 10px; padding-top: 4px;">
             <span style="color: #ff9f43; font-size: 0.7rem; font-weight: bold;">${idx + 1}</span>
             <input type="checkbox" class="segment-checkbox" value="${seg.id}" style="cursor: pointer; width: 14px; height: 14px;">
             <button class="action-btn" onclick="recordSegmentAudio(${seg.id})" title="录音" style="font-size: 0.85rem; color: var(--primary); padding: 2px;">🎤</button>
@@ -2564,7 +2560,7 @@
 
     container.innerHTML = interviewAudios.map(audio => `
       <div class="record-item" style="display: flex; align-items: stretch; padding: 10px 12px;">
-        <div style="width: 50px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; flex-shrink: 0; border-right: 1px solid #333; padding-right: 10px;">
+        <div style="width: 50px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 3px; flex-shrink: 0; border-right: 1px solid #333; padding-right: 10px; padding-top: 4px;">
           <span style="color: #888; font-size: 0.7rem; font-weight: bold;">${audio.order_index || 1}</span>
           <button class="action-btn" onclick="playInterviewAudio('${audio.audio_key || ''}', ${audio.id})" title="播放" style="font-size: 0.85rem; padding: 2px;">${audio.audio_key ? '🔊' : '❌'}</button>
           <button id="interview-rec-${audio.id}" class="action-btn" onclick="reRecordInterviewAudio(${audio.id}, '${audio.audio_key || ''}')" title="重录" style="font-size: 0.85rem; padding: 2px;">🎤</button>
@@ -2574,7 +2570,7 @@
           <textarea class="manual-text ${audio.source === 'auto' ? 'source-auto' : 'source-manual'}" 
             onblur="updateInterviewAudioText(${audio.id}, this.value)" 
             placeholder="识别/输入文字..."
-            style="width: 100%; background: transparent; border: none; font-size: 0.9rem; resize: none; line-height: 1.6; overflow: visible; height: 100%; padding: 4px 6px;"
+            style="width: 100%; background: transparent; border: none; font-size: 0.9rem; resize: none; line-height: 1.6; overflow: visible; height: auto; min-height: 100px; padding: 6px 8px;"
             onfocus="this.style.outline='1px solid #444'"
             onblur="this.style.outline='none'"
           >${audio.text || ''}</textarea>
