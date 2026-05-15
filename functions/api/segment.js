@@ -66,6 +66,7 @@ export async function onRequestPost(context) {
 
     return new Response(JSON.stringify({ error: "Invalid action" }), { status: 400 });
   } catch (err) {
+    console.error('segment error:', err);
     return new Response(JSON.stringify({ error: err.message }), { status: 500 });
   }
 }

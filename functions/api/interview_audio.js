@@ -64,9 +64,18 @@ export async function onRequestPost(context) {
       if (!id) {
         return new Response(JSON.stringify({ error: "id is required" }), { status: 400 });
       }
-      await env.DB.prepare(
-        "UPDATE interview_audios SET audio_key = ?, duration = ?, text = ?, source = ? WHERE id = ?"
-      ).bind(audio_key || null, duration || 0, text || null, source || 'manual', id).run();
+      // 动态构建更新字段
+      const updates = [];
+      const values = [];
+      if (audio_key !== undefined) { updates.push("audio_key = ?"); values.push(audio_key || null); }
+      if (duration !== undefined) { updates.push("duration = ?"); values.push(duration || 0); }
+      if (text !== undefined) { updates.push("text = ?"); values.push(text || null); }
+      if (source !== undefined) { updates.push("source = ?"); values.push(source || 'manual'); }
+      values.push(id);
+      
+      if (updates.length > 0) {
+        await env.DB.prepare(`UPDATE interview_audios SET ${updates.join(", ")} WHERE id = ?`).bind(...values).run();
+      }
       return new Response(JSON.stringify({ success: true }));
     }
 
@@ -80,6 +89,7 @@ export async function onRequestPost(context) {
 
     return new Response(JSON.stringify({ error: "Invalid action" }), { status: 400 });
   } catch (err) {
+    console.error('interview_audio error:', err);
     return new Response(JSON.stringify({ error: err.message }), { status: 500 });
   }
 }
