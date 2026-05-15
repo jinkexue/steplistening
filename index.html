@@ -2461,24 +2461,28 @@
     countEl.innerText = interviewAudios.length;
 
     if (!interviewAudios.length) {
-      container.innerHTML = '<div style="color: #888; text-align: center; padding: 40px; font-size: 0.85rem;">暂无录音<br>点击下方按钮录音</div>';
+      container.innerHTML = '<div style="color: #888; text-align: center; padding: 30px 10px; font-size: 0.8rem;">暂无录音<br>点击下方按钮录音</div>';
       return;
     }
 
     container.innerHTML = interviewAudios.map(audio => `
       <div class="record-item" id="interview-audio-${audio.id}">
         <div class="record-actions-col">
-          <button class="action-btn" onclick="playInterviewAudio('${audio.audio_key}', ${audio.id})" title="播放">${audio.audio_key ? '🔊' : '❌'}</button>
+          <button class="action-btn" onclick="playInterviewAudio('${audio.audio_key || ''}', ${audio.id})" title="播放">${audio.audio_key ? '🔊' : '❌'}</button>
           <button id="interview-rec-${audio.id}" class="action-btn" onclick="reRecordInterviewAudio(${audio.id}, '${audio.audio_key || ''}')" title="重录">🎤</button>
         </div>
         <div class="record-info" style="flex: 1;">
           <div class="record-meta">
-            <span class="record-index">#${audio.order_index || 1}</span>
-            <span style="color: #888; font-size: 0.75rem;">${audio.duration ? audio.duration + 's' : ''}</span>
+            <span class="record-index">${audio.order_index || 1}</span>
+            <span style="color: #888; font-size: 0.7rem;">${audio.duration ? audio.duration + 's' : ''}</span>
           </div>
-          <textarea class="manual-text ${audio.source === 'auto' ? 'source-auto' : 'source-manual'}" onchange="updateInterviewAudioText(${audio.id}, this.value)" placeholder="识别/输入文字..." style="min-height: 50px; font-size: 0.85rem;">${audio.text || ''}</textarea>
+          <textarea class="manual-text ${audio.source === 'auto' ? 'source-auto' : 'source-manual'}" 
+            onblur="updateInterviewAudioText(${audio.id}, this.value)" 
+            placeholder="识别/输入文字..."
+            style="min-height: 40px; font-size: 0.8rem;"
+          >${audio.text || ''}</textarea>
         </div>
-        <div style="display: flex; flex-direction: column; gap: 4px; min-width: 25px;">
+        <div style="display: flex; flex-direction: column; gap: 4px; min-width: 22px;">
           <button class="action-btn" onclick="deleteInterviewAudio(${audio.id})" title="删除">🗑️</button>
         </div>
       </div>
@@ -2550,13 +2554,19 @@
       const upRes = await fetch(`${API_BASE}/save`, { method: 'POST', body: formData });
       const upData = await upRes.json();
 
+      if (!upRes.ok) {
+        console.error('Audio upload failed:', upData);
+        alert('音频上传失败: ' + (upData.error || '未知错误'));
+        document.getElementById('interviewMicStatus').innerText = '点击录音';
+        return;
+      }
+
       const res = await fetch(`${API_BASE}/interview_audio`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'add',
           question_id: currentQuestionId,
-          user_id: currentUser.id,
           audio_key: upData.key,
           duration: duration,
           text: upData.autoText || '',
@@ -2565,11 +2575,16 @@
         })
       });
 
+      const resData = await res.json();
       if (res.ok) {
         await selectQuestion(currentQuestionId);
+      } else {
+        console.error('Save interview audio failed:', resData);
+        alert('保存失败: ' + (resData.error || '未知错误'));
       }
       document.getElementById('interviewMicStatus').innerText = '点击录音';
     } catch (e) {
+      console.error('saveInterviewAudio error:', e);
       alert('保存失败');
       document.getElementById('interviewMicStatus').innerText = '点击录音';
     }
@@ -2584,7 +2599,14 @@
       const upRes = await fetch(`${API_BASE}/save`, { method: 'POST', body: formData });
       const upData = await upRes.json();
 
-      await fetch(`${API_BASE}/interview_audio`, {
+      if (!upRes.ok) {
+        console.error('Audio upload failed:', upData);
+        alert('音频上传失败: ' + (upData.error || '未知错误'));
+        document.getElementById('interviewMicStatus').innerText = '点击录音';
+        return;
+      }
+
+      const res = await fetch(`${API_BASE}/interview_audio`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -2595,9 +2617,16 @@
         })
       });
 
-      await selectQuestion(currentQuestionId);
+      const resData = await res.json();
+      if (res.ok) {
+        await selectQuestion(currentQuestionId);
+      } else {
+        console.error('Update interview audio failed:', resData);
+        alert('更新失败: ' + (resData.error || '未知错误'));
+      }
       document.getElementById('interviewMicStatus').innerText = '点击录音';
     } catch (e) {
+      console.error('uploadAndUpdateInterviewAudio error:', e);
       alert('更新失败');
       document.getElementById('interviewMicStatus').innerText = '点击录音';
     }

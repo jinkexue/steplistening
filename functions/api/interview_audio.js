@@ -52,10 +52,10 @@ export async function onRequestPost(context) {
         id: result.meta.last_row_id, 
         interview_id: interview_id || null,
         question_id: question_id || null,
-        audio_key, 
-        duration,
-        text,
-        source,
+        audio_key: audio_key || null, 
+        duration: duration || 0,
+        text: text || '',
+        source: source || 'manual',
         order_index: order_index || 1 
       }), { status: 201 });
     }
@@ -64,13 +64,12 @@ export async function onRequestPost(context) {
       if (!id) {
         return new Response(JSON.stringify({ error: "id is required" }), { status: 400 });
       }
-      // 动态构建更新字段
       const updates = [];
       const values = [];
-      if (audio_key !== undefined) { updates.push("audio_key = ?"); values.push(audio_key || null); }
-      if (duration !== undefined) { updates.push("duration = ?"); values.push(duration || 0); }
-      if (text !== undefined) { updates.push("text = ?"); values.push(text || null); }
-      if (source !== undefined) { updates.push("source = ?"); values.push(source || 'manual'); }
+      if (audio_key !== undefined) { updates.push("audio_key = ?"); values.push(audio_key); }
+      if (duration !== undefined) { updates.push("duration = ?"); values.push(duration); }
+      if (text !== undefined) { updates.push("text = ?"); values.push(text); }
+      if (source !== undefined) { updates.push("source = ?"); values.push(source); }
       values.push(id);
       
       if (updates.length > 0) {
@@ -89,7 +88,7 @@ export async function onRequestPost(context) {
 
     return new Response(JSON.stringify({ error: "Invalid action" }), { status: 400 });
   } catch (err) {
-    console.error('interview_audio error:', err);
+    console.error('interview_audio POST error:', err.message, err.stack);
     return new Response(JSON.stringify({ error: err.message }), { status: 500 });
   }
 }
