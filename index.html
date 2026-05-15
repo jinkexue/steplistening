@@ -183,6 +183,46 @@
     .interview-item.active { border-left-color: var(--primary); background: rgba(233, 69, 96, 0.1); }
     .interview-item .action-btn { padding: 2px; }
     
+    /* 岗位列表样式 */
+    .position-item {
+      background: rgba(255,255,255,0.03);
+      padding: 10px;
+      border-radius: 8px;
+      border-left: 3px solid var(--accent);
+      transition: all 0.2s;
+    }
+    .position-item:hover { background: rgba(255,255,255,0.06); }
+    .position-item.active { border-left-color: var(--primary); }
+    .position-header { cursor: pointer; }
+    .question-list { border-left: 2px solid rgba(255,255,255,0.1); }
+    
+    /* 问题列表样式 */
+    .question-item {
+      padding: 6px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .question-item:hover { background: rgba(255,255,255,0.05); }
+    .question-item.active { background: rgba(233,69,96,0.2); }
+    .question-card {
+      background: rgba(255,255,255,0.03);
+      padding: 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      border-left: 3px solid var(--accent);
+    }
+    .question-card:hover { background: rgba(255,255,255,0.06); }
+    .question-card.active { 
+      background: rgba(233,69,96,0.15); 
+      border-left-color: var(--primary);
+    }
+    
+    /* 句子分段样式 */
+    .segment-item { cursor: default; }
+    .segment-item.active { cursor: default; }
+    
     /* 片段操作按钮组 */
     .fragment-ops { display: flex; gap: 8px; margin-top: 5px; }
     .op-btn { 
@@ -480,26 +520,28 @@
     <h1>🎤 面试练习</h1>
     <button class="btn-main" onclick="closeInterview()">🔙 返回听写</button>
   </div>
-  <div style="display: grid; grid-template-columns: 250px 1fr 280px; gap: 20px; height: calc(100vh - 140px);">
-    <!-- 左侧：面试清单 -->
-    <div style="display: flex; flex-direction: column; gap: 15px;">
-      <button class="btn-main" onclick="createNewInterview()">➕ 新建面试</button>
-      <div id="interviewList" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;"></div>
+  <div style="display: grid; grid-template-columns: 220px 1fr 260px; gap: 20px; height: calc(100vh - 140px);">
+    <!-- 左侧：岗位清单 -->
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      <button class="btn-main" onclick="createNewPosition()">➕ 新建岗位</button>
+      <div id="interviewList" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;"></div>
     </div>
     
-    <!-- 中间：文字输入区 -->
+    <!-- 中间：问题列表 + 回答输入区 -->
     <div style="display: flex; flex-direction: column; gap: 15px; background: var(--card); border-radius: 12px; border: 1px solid #333; padding: 15px;">
+      <!-- 问题列表标题栏 -->
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 10px;">
-        <span style="font-weight: bold; color: var(--primary);">📝 面试题目文字 (<span id="interviewTextCount">0</span>)</span>
-        <button class="btn-secondary" onclick="addInterviewText()" style="padding: 6px 12px; font-size: 0.8rem;">➕ 添加段落</button>
+        <span style="font-weight: bold; color: var(--primary);">📋 面试问题 (<span id="interviewTextCount">0</span>)</span>
+        <button id="addQuestionBtn" class="btn-secondary" onclick="showQuestionInput()" style="padding: 6px 12px; font-size: 0.8rem; display: none;">➕ 新建问题</button>
       </div>
-      <div id="interviewTextArea" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px;"></div>
+      <!-- 问题列表 -->
+      <div id="interviewTextArea" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;"></div>
     </div>
     
     <!-- 右侧：录音界面 -->
     <div style="display: flex; flex-direction: column; gap: 15px; background: var(--card); border-radius: 12px; border: 1px solid #333; padding: 15px;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 10px;">
-        <span style="font-weight: bold; color: var(--primary);">🎙️ 录音片段 (<span id="interviewAudioCount">0</span>)</span>
+        <span style="font-weight: bold; color: var(--primary);">🎙️ 面试回答 (<span id="interviewAudioCount">0</span>)</span>
         <div style="display: flex; gap: 5px;">
           <select id="interviewSttLang" style="background: #1a1a2e; color: #888; border: 1px solid #444; border-radius: 4px; font-size: 10px; padding: 2px 4px; width: 55px;">
             <option value="">自动</option>
@@ -512,8 +554,8 @@
       </div>
       <div id="interviewAudioArea" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;"></div>
       <div style="display: flex; justify-content: center; padding-top: 10px; border-top: 1px solid #333;">
-        <button id="interviewMicBtn" class="mic-btn" onclick="toggleInterviewRecording()" style="width: 70px; height: 70px;">
-          <span class="mic-icon" style="font-size: 28px;">🎤</span>
+        <button id="interviewMicBtn" class="mic-btn" onclick="toggleInterviewRecording()" style="width: 60px; height: 60px;">
+          <span class="mic-icon" style="font-size: 24px;">🎤</span>
           <div id="interviewMicProgress" class="mic-progress"></div>
         </button>
       </div>
@@ -732,9 +774,9 @@
       document.getElementById('vocabPanel').style.display = 'block';
       loadVocab();
     } else if (viewId === 'interview') {
-      document.getElementById('interviewPanel').style.display = 'block';
-      loadInterviews();
-    }
+       document.getElementById('interviewPanel').style.display = 'block';
+       loadPositions();
+     }
   }
 
   // --- 任务管理 ---
@@ -1940,65 +1982,77 @@
   });
 
   // ============ 面试练习功能 ============
-  let interviewList = []; // 面试列表
-  let currentInterviewId = null; // 当前选中的面试ID
-  let interviewTexts = []; // 当前面试的文字段落
-  let interviewAudios = []; // 当前面试的录音片段
+  let positionList = []; // 岗位列表
+  let currentPositionId = null; // 当前选中的岗位ID
+  let questionList = []; // 当前岗位的问题列表
+  let currentQuestionId = null; // 当前选中的问题ID
+  let questionSegments = []; // 当前问题的分段句子（回答）
+  let interviewAudios = []; // 当前问题的录音片段
   let interviewRecorder = null;
   let interviewRecording = false;
   let interviewRecordingStart = null;
   let interviewAudioChunks = [];
   let interviewRecordingInterval = null;
-  let interviewReRecordId = null; // 当前重录的录音ID
+  let interviewReRecordId = null;
+  let currentSegmentIndex = 0; // 当前正在输入/录音的句子索引
 
   function closeInterview() {
-    // 停止任何正在进行的录音
     if (interviewRecording) {
       stopInterviewRecording();
     }
     showView('main');
   }
 
-  async function loadInterviews() {
+  async function loadPositions() {
     try {
-      const res = await fetch(`${API_BASE}/interview?user_id=${currentUser.id}`);
-      interviewList = await res.json();
-      renderInterviewList();
+      const res = await fetch(`${API_BASE}/position?user_id=${currentUser.id}`);
+      positionList = await res.json();
+      renderPositionList();
     } catch (e) {
-      console.error('加载面试列表失败', e);
-      interviewList = [];
-      renderInterviewList();
+      positionList = [];
+      renderPositionList();
     }
   }
 
-  function renderInterviewList() {
+  function renderPositionList() {
     const container = document.getElementById('interviewList');
-    if (!interviewList.length) {
-      container.innerHTML = '<div style="color: #888; text-align: center; padding: 20px; font-size: 0.85rem;">暂无面试记录<br>点击上方按钮新建</div>';
+    if (!positionList.length) {
+      container.innerHTML = '<div style="color: #888; text-align: center; padding: 15px; font-size: 0.8rem;">暂无岗位<br>点击上方按钮新建</div>';
       return;
     }
-    container.innerHTML = interviewList.map(itv => `
-      <div class="interview-item ${itv.id === currentInterviewId ? 'active' : ''}" onclick="selectInterview(${itv.id})">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <div style="font-weight: bold; font-size: 0.9rem;">${itv.title || '未命名面试'}</div>
-          <button class="action-btn" onclick="event.stopPropagation(); deleteInterview(${itv.id})" style="font-size: 0.8rem;" title="删除">🗑️</button>
+    container.innerHTML = positionList.map(pos => `
+      <div class="position-item ${pos.id === currentPositionId ? 'active' : ''}">
+        <div class="position-header" onclick="selectPosition(${pos.id})">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="font-weight: bold; font-size: 0.85rem;">${pos.title || '未命名岗位'}</div>
+            <button class="action-btn" onclick="event.stopPropagation(); deletePosition(${pos.id})" title="删除">🗑️</button>
+          </div>
+          <div style="font-size: 0.7rem; color: #666; margin-top: 3px;">
+            ${new Date(pos.created_at || pos.createdAt).toLocaleDateString()}
+          </div>
         </div>
-        <div style="font-size: 0.75rem; color: #888; margin-top: 5px;">
-          ${itv.text_count || 0} 段落 · ${itv.audio_count || 0} 录音
-        </div>
-        <div style="font-size: 0.7rem; color: #666; margin-top: 3px;">
-          ${new Date(itv.created_at || itv.createdAt).toLocaleDateString()}
-        </div>
+        ${pos.id === currentPositionId && pos.questions && pos.questions.length > 0 ? `
+          <div class="question-list" style="margin-top: 8px; padding-left: 10px;">
+            ${pos.questions.map(q => `
+              <div class="question-item ${q.id === currentQuestionId ? 'active' : ''}" onclick="event.stopPropagation(); selectQuestion(${q.id})">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <span style="font-size: 0.8rem;">📌 ${q.title || '问题'}</span>
+                  <button class="action-btn" onclick="event.stopPropagation(); deleteQuestion(${q.id})" style="font-size: 0.7rem;">🗑️</button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
       </div>
     `).join('');
   }
 
-  async function createNewInterview() {
-    const title = prompt('请输入面试名称:', `面试 ${new Date().toLocaleString()}`);
+  async function createNewPosition() {
+    const title = prompt('请输入岗位名称:', `岗位 ${new Date().toLocaleDateString()}`);
     if (!title) return;
 
     try {
-      const res = await fetch(`${API_BASE}/interview`, {
+      const res = await fetch(`${API_BASE}/position`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -2009,136 +2063,287 @@
       });
       const data = await res.json();
       if (res.ok) {
-        await loadInterviews();
-        selectInterview(data.id);
-      } else {
-        alert(data.error || '创建失败');
+        await loadPositions();
+        selectPosition(data.id);
       }
     } catch (e) {
       alert('网络错误');
     }
   }
 
-  async function selectInterview(id) {
-    // 如果有正在进行的录音，先停止
-    if (interviewRecording) {
-      stopInterviewRecording();
-    }
+  async function selectPosition(id) {
+    if (interviewRecording) stopInterviewRecording();
+    currentPositionId = id;
+    currentQuestionId = null;
+    questionList = [];
+    questionSegments = [];
+    interviewAudios = [];
 
-    currentInterviewId = id;
-    renderInterviewList();
-
-    // 加载该面试的文字和录音
     try {
-      const [textRes, audioRes] = await Promise.all([
-        fetch(`${API_BASE}/interview_text?interview_id=${id}`),
-        fetch(`${API_BASE}/interview_audio?interview_id=${id}`)
-      ]);
-      interviewTexts = await textRes.json();
-      interviewAudios = await audioRes.json();
+      const res = await fetch(`${API_BASE}/question?position_id=${id}`);
+      questionList = await res.json();
     } catch (e) {
-      interviewTexts = [];
-      interviewAudios = [];
+      questionList = [];
     }
 
-    renderInterviewTexts();
+    // 更新 positionList 中当前岗位的问题
+    positionList = positionList.map(p => 
+      p.id === id ? { ...p, questions: questionList } : p
+    );
+    renderPositionList();
+    document.getElementById('addQuestionBtn').style.display = 'block';
+    renderQuestions();
+    renderSegments();
     renderInterviewAudios();
   }
 
-  async function deleteInterview(id) {
-    if (!confirm('确定要删除该面试吗？')) return;
+  async function deletePosition(id) {
+    if (!confirm('确定要删除该岗位吗？')) return;
     try {
-      await fetch(`${API_BASE}/interview`, {
+      await fetch(`${API_BASE}/position`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'delete', id, user_id: currentUser.id })
       });
-      if (currentInterviewId === id) {
-        currentInterviewId = null;
-        interviewTexts = [];
+      if (currentPositionId === id) {
+        currentPositionId = null;
+        currentQuestionId = null;
+        questionList = [];
+        questionSegments = [];
         interviewAudios = [];
-        renderInterviewTexts();
+        renderQuestions();
+        renderSegments();
         renderInterviewAudios();
       }
-      await loadInterviews();
+      await loadPositions();
     } catch (e) {
       alert('删除失败');
     }
   }
 
-  function renderInterviewTexts() {
+  function showQuestionInput() {
+    if (!currentPositionId) return;
     const container = document.getElementById('interviewTextArea');
-    const countEl = document.getElementById('interviewTextCount');
-    countEl.innerText = interviewTexts.length;
-
-    if (!interviewTexts.length) {
-      container.innerHTML = '<div style="color: #888; text-align: center; padding: 40px; font-size: 0.85rem;">暂无文字段落<br>点击"添加段落"创建</div>';
-      return;
-    }
-
-    container.innerHTML = interviewTexts.map(txt => `
-      <div class="record-item" style="border-left-color: var(--success);">
-        <div class="record-actions-col">
-          <button class="action-btn" onclick="deleteInterviewText(${txt.id})" title="删除">🗑️</button>
-        </div>
-        <div class="record-info" style="flex: 1;">
-          <div class="record-meta">
-            <span class="record-index">#${txt.order_index || 1}</span>
-          </div>
-          <textarea class="manual-text source-manual" onchange="updateInterviewText(${txt.id}, this.value)" placeholder="输入面试题目/文字..." style="min-height: 60px;">${txt.text}</textarea>
-        </div>
+    container.innerHTML = `
+      <div class="question-input-wrapper" style="background: rgba(255,255,255,0.03); padding: 15px; border-radius: 8px; border: 1px solid var(--primary);">
+        <div style="margin-bottom: 10px; color: var(--primary); font-size: 0.85rem;">📌 新建问题</div>
+        <input type="text" id="newQuestionInput" placeholder="输入问题标题，按回车确认..." 
+          style="width: 100%; padding: 10px; border-radius: 6px; background: #1a1a2e; border: 1px solid #444; color: white; font-size: 0.9rem;"
+          onkeydown="if(event.key==='Enter') { event.preventDefault(); addNewQuestion(); }">
       </div>
-    `).join('');
+    `;
+    document.getElementById('newQuestionInput').focus();
   }
 
-  async function addInterviewText() {
-    if (!currentInterviewId) return alert('请先选择一个面试');
-    const text = prompt('请输入面试题目/文字:');
-    if (!text) return;
+  async function addNewQuestion() {
+    const title = document.getElementById('newQuestionInput').value.trim();
+    if (!title) return;
 
     try {
-      await fetch(`${API_BASE}/interview_text`, {
+      await fetch(`${API_BASE}/question`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'add',
-          interview_id: currentInterviewId,
+          position_id: currentPositionId,
           user_id: currentUser.id,
-          text: text,
-          order_index: interviewTexts.length + 1
+          title: title
         })
       });
-      await selectInterview(currentInterviewId);
-      await loadInterviews();
+      await selectPosition(currentPositionId);
     } catch (e) {
       alert('添加失败');
     }
   }
 
-  async function updateInterviewText(id, text) {
+  async function selectQuestion(id) {
+    if (interviewRecording) stopInterviewRecording();
+    currentQuestionId = id;
+    questionSegments = [];
+    interviewAudios = [];
+    currentSegmentIndex = 0;
+
+    // 加载该问题的分段
     try {
-      await fetch(`${API_BASE}/interview_text`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'update', id, text })
-      });
+      const segRes = await fetch(`${API_BASE}/segment?question_id=${id}`);
+      questionSegments = await segRes.json();
     } catch (e) {
-      console.error('更新失败', e);
+      questionSegments = [];
     }
+
+    // 加载该问题的录音
+    try {
+      const audioRes = await fetch(`${API_BASE}/interview_audio?question_id=${id}`);
+      interviewAudios = await audioRes.json();
+    } catch (e) {
+      interviewAudios = [];
+    }
+
+    // 更新选中状态
+    positionList = positionList.map(p => ({
+      ...p,
+      questions: p.questions?.map(q => ({ ...q, active: q.id === id }))
+    }));
+    renderPositionList();
+    renderQuestions();
+    renderSegments();
+    renderInterviewAudios();
   }
 
-  async function deleteInterviewText(id) {
-    if (!confirm('确定删除该段落吗？')) return;
+  async function deleteQuestion(id) {
+    if (!confirm('确定删除该问题吗？')) return;
     try {
-      await fetch(`${API_BASE}/interview_text`, {
+      await fetch(`${API_BASE}/question`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'delete', id })
       });
-      if (currentInterviewId) {
-        await selectInterview(currentInterviewId);
-        await loadInterviews();
+      if (currentQuestionId === id) {
+        currentQuestionId = null;
+        questionSegments = [];
+        interviewAudios = [];
+        renderSegments();
+        renderInterviewAudios();
       }
+      await selectPosition(currentPositionId);
+    } catch (e) {
+      alert('删除失败');
+    }
+  }
+
+  function renderQuestions() {
+    const container = document.getElementById('interviewTextArea');
+    const countEl = document.getElementById('interviewTextCount');
+    
+    if (!currentPositionId) {
+      countEl.innerText = '0';
+      container.innerHTML = '<div style="color: #888; text-align: center; padding: 40px;">请先选择一个岗位</div>';
+      return;
+    }
+
+    if (!questionList.length) {
+      countEl.innerText = '0';
+      container.innerHTML = '<div style="color: #888; text-align: center; padding: 40px;">暂无问题<br>点击"新建问题"添加</div>';
+      return;
+    }
+
+    countEl.innerText = questionList.length;
+    container.innerHTML = questionList.map(q => `
+      <div class="question-card ${q.id === currentQuestionId ? 'active' : ''}" onclick="selectQuestion(${q.id})">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 1rem;">📌</span>
+          <span style="font-weight: bold; font-size: 0.9rem;">${q.title}</span>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function renderSegments() {
+    const container = document.getElementById('interviewTextArea');
+    const countEl = document.getElementById('interviewTextCount');
+    const addBtn = document.getElementById('addQuestionBtn');
+    
+    if (!currentQuestionId) {
+      renderQuestions();
+      return;
+    }
+
+    addBtn.style.display = 'none';
+    countEl.innerText = questionSegments.length;
+
+    let html = '<div style="display: flex; flex-direction: column; gap: 8px;">';
+    
+    // 显示已分割的句子
+    questionSegments.forEach((seg, idx) => {
+      const isActive = idx === currentSegmentIndex;
+      html += `
+        <div class="segment-item ${isActive ? 'active' : ''}" style="
+          background: ${isActive ? 'rgba(233,69,96,0.15)' : 'rgba(255,255,255,0.03)'};
+          padding: ${isActive ? '15px' : '10px'};
+          border-radius: 8px;
+          border-left: 3px solid ${isActive ? 'var(--primary)' : 'var(--success)'};
+          transition: all 0.2s;
+        ">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 0.75rem; color: #888;">#${idx + 1}</span>
+            <button class="action-btn" onclick="deleteSegment(${seg.id})" title="删除" style="font-size: 0.7rem;">🗑️</button>
+          </div>
+          <div style="font-size: ${isActive ? '1.1rem' : '0.9rem'}; line-height: 1.5; margin-top: 5px;">${seg.text}</div>
+        </div>
+      `;
+    });
+
+    // 当前输入区域
+    html += `
+      <div class="segment-input-wrapper" style="
+        background: rgba(255,255,255,0.03);
+        padding: 12px;
+        border-radius: 8px;
+        border: 2px dashed var(--primary);
+      ">
+        <div style="font-size: 0.75rem; color: var(--primary); margin-bottom: 8px;">✏️ 输入回答句子，按回车分割：</div>
+        <textarea id="segmentInput" 
+          placeholder="在这里输入句子..." 
+          style="width: 100%; min-height: 60px; padding: 8px; border-radius: 6px; background: #1a1a2e; border: 1px solid #444; color: white; font-size: 0.9rem; resize: none;"
+          onkeydown="handleSegmentInput(event)"
+        ></textarea>
+      </div>
+    `;
+
+    html += '</div>';
+    container.innerHTML = html;
+    
+    // 聚焦输入框
+    setTimeout(() => {
+      const input = document.getElementById('segmentInput');
+      if (input) input.focus();
+    }, 50);
+  }
+
+  function handleSegmentInput(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      const input = document.getElementById('segmentInput');
+      const text = input.value.trim();
+      if (!text) return;
+
+      // 保存句子
+      addSegment(text);
+    }
+  }
+
+  async function addSegment(text) {
+    if (!currentQuestionId) return;
+
+    try {
+      await fetch(`${API_BASE}/segment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'add',
+          question_id: currentQuestionId,
+          text: text,
+          order_index: questionSegments.length + 1
+        })
+      });
+
+      // 更新 currentSegmentIndex 并刷新
+      currentSegmentIndex = questionSegments.length;
+      await selectQuestion(currentQuestionId);
+    } catch (e) {
+      alert('添加失败');
+    }
+  }
+
+  async function deleteSegment(id) {
+    if (!confirm('确定删除该句子吗？')) return;
+    try {
+      await fetch(`${API_BASE}/segment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', id })
+      });
+      await selectQuestion(currentQuestionId);
     } catch (e) {
       alert('删除失败');
     }
@@ -2176,7 +2381,7 @@
 
   async function toggleInterviewRecording() {
     if (!currentUser) return;
-    if (!currentInterviewId) return alert('请先选择一个面试');
+    if (!currentQuestionId) return alert('请先选择一个问题');
     interviewRecording ? stopInterviewRecording() : startInterviewRecording();
   }
 
@@ -2204,7 +2409,6 @@
 
         const lang = document.getElementById('interviewSttLang').value;
 
-        // 如果是重录
         if (interviewReRecordId) {
           await uploadAndUpdateInterviewAudio(interviewReRecordId, blob, duration, lang);
           interviewReRecordId = null;
@@ -2240,13 +2444,12 @@
       const upRes = await fetch(`${API_BASE}/save`, { method: 'POST', body: formData });
       const upData = await upRes.json();
 
-      // 保存到数据库
       const res = await fetch(`${API_BASE}/interview_audio`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'add',
-          interview_id: currentInterviewId,
+          question_id: currentQuestionId,
           user_id: currentUser.id,
           audio_key: upData.key,
           duration: duration,
@@ -2257,8 +2460,7 @@
       });
 
       if (res.ok) {
-        await selectInterview(currentInterviewId);
-        await loadInterviews();
+        await selectQuestion(currentQuestionId);
       }
       document.getElementById('interviewMicStatus').innerText = '点击录音';
     } catch (e) {
@@ -2276,7 +2478,6 @@
       const upRes = await fetch(`${API_BASE}/save`, { method: 'POST', body: formData });
       const upData = await upRes.json();
 
-      // 更新数据库
       await fetch(`${API_BASE}/interview_audio`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2288,7 +2489,7 @@
         })
       });
 
-      await selectInterview(currentInterviewId);
+      await selectQuestion(currentQuestionId);
       document.getElementById('interviewMicStatus').innerText = '点击录音';
     } catch (e) {
       alert('更新失败');
@@ -2348,9 +2549,8 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'delete', id })
       });
-      if (currentInterviewId) {
-        await selectInterview(currentInterviewId);
-        await loadInterviews();
+      if (currentQuestionId) {
+        await selectQuestion(currentQuestionId);
       }
     } catch (e) {
       alert('删除失败');
@@ -2359,7 +2559,6 @@
 
   // 键盘快捷键 - 面试练习页面
   document.addEventListener('keydown', (e) => {
-    // 只在面试页面启用快捷键
     if (document.getElementById('interviewPanel').style.display === 'block') {
       if (e.code === 'KeyR' && !e.ctrlKey && !e.shiftKey) {
         const activeEl = document.activeElement;

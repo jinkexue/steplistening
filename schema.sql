@@ -91,13 +91,47 @@ CREATE INDEX IF NOT EXISTS idx_interview_texts_interview_id ON interview_texts(i
 -- 面试录音表
 CREATE TABLE IF NOT EXISTS interview_audios (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  interview_id INTEGER NOT NULL,
+  interview_id INTEGER,
+  question_id INTEGER,
   audio_key TEXT,
   duration INTEGER DEFAULT 0,
   text TEXT,
   source TEXT DEFAULT 'manual',
   order_index INTEGER DEFAULT 1,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (interview_id) REFERENCES interviews(id) ON DELETE CASCADE
+  FOREIGN KEY (interview_id) REFERENCES interviews(id) ON DELETE CASCADE,
+  FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_interview_audios_interview_id ON interview_audios(interview_id);
+CREATE INDEX IF NOT EXISTS idx_interview_audios_question_id ON interview_audios(question_id);
+
+-- 岗位表
+CREATE TABLE IF NOT EXISTS positions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_positions_user_id ON positions(user_id);
+
+-- 面试问题表
+CREATE TABLE IF NOT EXISTS questions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  position_id INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (position_id) REFERENCES positions(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_questions_position_id ON questions(position_id);
+
+-- 回答句子分段表
+CREATE TABLE IF NOT EXISTS segments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  question_id INTEGER NOT NULL,
+  text TEXT NOT NULL,
+  order_index INTEGER DEFAULT 1,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_segments_question_id ON segments(question_id);

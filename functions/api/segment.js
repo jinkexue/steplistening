@@ -1,24 +1,16 @@
 export async function onRequestGet(context) {
   const { request, env } = context;
   const url = new URL(request.url);
-  const interview_id = url.searchParams.get("interview_id");
   const question_id = url.searchParams.get("question_id");
 
   try {
-    if (!interview_id && !question_id) {
-      return new Response(JSON.stringify({ error: "interview_id or question_id is required" }), { status: 400 });
+    if (!question_id) {
+      return new Response(JSON.stringify({ error: "question_id is required" }), { status: 400 });
     }
 
-    let query = "";
-    if (question_id) {
-      query = "SELECT * FROM interview_audios WHERE question_id = ? ORDER BY order_index ASC";
-      var params = question_id;
-    } else {
-      query = "SELECT * FROM interview_audios WHERE interview_id = ? ORDER BY order_index ASC";
-      var params = interview_id;
-    }
-
-    const result = await env.DB.prepare(query).bind(params).all();
+    const result = await env.DB.prepare(
+      "SELECT * FROM segments WHERE question_id = ? ORDER BY order_index ASC"
+    ).bind(question_id).all();
 
     return new Response(JSON.stringify(result.results), {
       headers: { "Content-Type": "application/json" },
@@ -38,24 +30,20 @@ export async function onRequestPost(context) {
     }
 
     const data = await request.json();
-    const { action, id, interview_id, question_id, user_id, audio_key, duration, text, source, order_index } = data;
+    const { action, id, question_id, text, order_index } = data;
 
     if (action === 'add') {
-      if (!interview_id && !question_id) {
-        return new Response(JSON.stringify({ error: "interview_id or question_id is required" }), { status: 400 });
+      if (!question_id || !text) {
+        return new Response(JSON.stringify({ error: "question_id and text are required" }), { status: 400 });
       }
       const result = await env.DB.prepare(
-        "INSERT INTO interview_audios (interview_id, question_id, audio_key, duration, text, source, order_index) VALUES (?, ?, ?, ?, ?, ?, ?)"
-      ).bind(interview_id || null, question_id || null, audio_key || null, duration || 0, text || '', source || 'manual', order_index || 1).run();
+        "INSERT INTO segments (question_id, text, order_index) VALUES (?, ?, ?)"
+      ).bind(question_id, text, order_index || 1).run();
 
       return new Response(JSON.stringify({ 
         id: result.meta.last_row_id, 
-        interview_id: interview_id || null,
-        question_id: question_id || null,
-        audio_key, 
-        duration,
-        text,
-        source,
+        question_id, 
+        text, 
         order_index: order_index || 1 
       }), { status: 201 });
     }
@@ -64,9 +52,7 @@ export async function onRequestPost(context) {
       if (!id) {
         return new Response(JSON.stringify({ error: "id is required" }), { status: 400 });
       }
-      await env.DB.prepare(
-        "UPDATE interview_audios SET audio_key = ?, duration = ?, text = ?, source = ? WHERE id = ?"
-      ).bind(audio_key || null, duration || 0, text || null, source || 'manual', id).run();
+      await env.DB.prepare("UPDATE segments SET text = ? WHERE id = ?").bind(text, id).run();
       return new Response(JSON.stringify({ success: true }));
     }
 
@@ -74,7 +60,7 @@ export async function onRequestPost(context) {
       if (!id) {
         return new Response(JSON.stringify({ error: "id is required" }), { status: 400 });
       }
-      await env.DB.prepare("DELETE FROM interview_audios WHERE id = ?").bind(id).run();
+      await env.DB.prepare("DELETE FROM segments WHERE id = ?").bind(id).run();
       return new Response(JSON.stringify({ success: true }));
     }
 
