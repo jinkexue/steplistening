@@ -2109,18 +2109,12 @@
   }
 
   function renderPositionView() {
-    const addBtn = document.getElementById('addQuestionBtn');
-    const titleEl = document.getElementById('currentQuestionTitle');
-    
-    addBtn.style.display = 'flex';
-    titleEl.innerText = '面试回答';
-    
     if (!questionList.length) {
       renderEmptyState();
       return;
     }
     
-    // 如果没有选中问题，自动显示问题列表供选择
+    // 如果没有选中问题，显示问题列表
     if (!currentQuestionId) {
       renderQuestionList();
     }
@@ -2129,27 +2123,25 @@
   function renderEmptyState() {
     const container = document.getElementById('interviewTextArea');
     container.innerHTML = `
-      <div style="text-align: center; padding: 60px 20px; color: #888;">
-        <div style="font-size: 2rem; margin-bottom: 15px;">📋</div>
+      <div style="text-align: center; padding: 40px 20px; color: #888; flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+        <div style="font-size: 1.5rem; margin-bottom: 10px;">📋</div>
         <div>点击岗位旁边的 ➕ 添加面试问题</div>
-        <div style="font-size: 0.8rem; margin-top: 10px;">问题添加后会显示在下方</div>
+        <div style="font-size: 0.8rem; margin-top: 8px;">问题添加后会显示在下方</div>
       </div>
     `;
   }
 
   function renderQuestionList() {
     const container = document.getElementById('interviewTextArea');
-    const addBtn = document.getElementById('addQuestionBtn');
-    addBtn.style.display = 'flex';
     
     container.innerHTML = `
-      <div style="display: flex; flex-direction: column; gap: 8px;">
-        <div style="color: #888; font-size: 0.85rem; margin-bottom: 5px;">选择或添加问题：</div>
+      <div style="display: flex; flex-direction: column; gap: 6px; flex: 1; padding: 10px;">
+        <div style="color: #888; font-size: 0.8rem; margin-bottom: 5px;">选择或添加问题：</div>
         ${questionList.map(q => `
           <div class="question-card ${q.id === currentQuestionId ? 'active' : ''}" onclick="selectQuestion(${q.id})">
             <div style="display: flex; align-items: center; gap: 8px;">
               <span>📌</span>
-              <span style="font-weight: bold; font-size: 0.9rem;">${q.title}</span>
+              <span style="font-weight: bold; font-size: 0.85rem;">${q.title}</span>
             </div>
           </div>
         `).join('')}
@@ -2244,11 +2236,7 @@
     interviewAudios = [];
     currentSegmentIndex = 0;
 
-    // 获取当前问题的标题
-    const q = questionList.find(item => item.id === id);
-    document.getElementById('currentQuestionTitle').innerText = q ? q.title : '面试回答';
-    document.getElementById('addQuestionBtn').style.display = 'none';
-
+    // 加载数据和更新选中状态
     try {
       const segRes = await fetch(`${API_BASE}/segment?question_id=${id}`);
       questionSegments = await segRes.json();
@@ -2263,6 +2251,7 @@
       interviewAudios = [];
     }
 
+    // 更新选中状态
     positionList = positionList.map(p => ({
       ...p,
       questions: p.questions?.map(q => ({ ...q, active: q.id === id }))
