@@ -66,3 +66,38 @@ CREATE TABLE IF NOT EXISTS vocab (
 );
 CREATE INDEX IF NOT EXISTS idx_vocab_user_id ON vocab(user_id);
 CREATE INDEX IF NOT EXISTS idx_vocab_video_id ON vocab(video_id);
+
+-- 面试练习主表
+CREATE TABLE IF NOT EXISTS interviews (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_interviews_user_id ON interviews(user_id);
+
+-- 面试文字段落表
+CREATE TABLE IF NOT EXISTS interview_texts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  interview_id INTEGER NOT NULL,
+  text TEXT NOT NULL,
+  order_index INTEGER DEFAULT 1,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (interview_id) REFERENCES interviews(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_interview_texts_interview_id ON interview_texts(interview_id);
+
+-- 面试录音表
+CREATE TABLE IF NOT EXISTS interview_audios (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  interview_id INTEGER NOT NULL,
+  audio_key TEXT,
+  duration INTEGER DEFAULT 0,
+  text TEXT,
+  source TEXT DEFAULT 'manual',
+  order_index INTEGER DEFAULT 1,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (interview_id) REFERENCES interviews(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_interview_audios_interview_id ON interview_audios(interview_id);
