@@ -2046,7 +2046,7 @@
         <div class="position-header" onclick="selectPosition(${pos.id})">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <div style="flex: 1;">
-              <button class="btn-new-question" onclick="event.stopPropagation(); showQuestionInputInline(${pos.id})" title="新建问题">➕</button>
+              <button class="btn-new-question" onclick="event.stopPropagation(); showQuestionInputInline(${pos.id})" title="新建提问">➕</button>
               <span style="font-weight: bold; font-size: 0.85rem; margin-left: 5px;">${pos.title || '未命名岗位'}</span>
             </div>
             <button class="action-btn" onclick="event.stopPropagation(); deletePosition(${pos.id})" title="删除">🗑️</button>
@@ -2250,10 +2250,9 @@
     interviewAudios = [];
     currentSegmentIndex = 0;
 
-    // 获取当前问题的标题
-    const q = questionList.find(item => item.id === id);
-    document.getElementById('currentQuestionTitle').innerText = q ? q.title : '面试回答';
-    document.getElementById('addQuestionBtn').style.display = 'none';
+    // 隐藏新建问题输入框
+    const addQuestionBtn = document.getElementById('addQuestionBtn');
+    if (addQuestionBtn) addQuestionBtn.style.display = 'none';
 
     try {
       const segRes = await fetch(`${API_BASE}/segment?question_id=${id}`);
@@ -2311,7 +2310,7 @@
 
     if (!questionList.length) {
       countEl.innerText = '0';
-      container.innerHTML = '<div style="color: #888; text-align: center; padding: 40px;">暂无问题<br>点击"新建问题"添加</div>';
+      container.innerHTML = '<div style="color: #888; text-align: center; padding: 40px;">暂无问题<br>点击"新建提问"添加</div>';
       return;
     }
 
