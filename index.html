@@ -2087,18 +2087,11 @@
   }
 
   function renderPositionView() {
-    const addBtn = document.getElementById('addQuestionBtn');
-    const titleEl = document.getElementById('currentQuestionTitle');
-    
-    addBtn.style.display = 'flex';
-    titleEl.innerText = '面试回答';
-    
     if (!questionList.length) {
       renderEmptyState();
       return;
     }
     
-    // 如果没有选中问题，自动显示问题列表供选择
     if (!currentQuestionId) {
       renderQuestionList();
     }
@@ -2221,11 +2214,6 @@
     questionSegments = [];
     interviewAudios = [];
     currentSegmentIndex = 0;
-
-    // 获取当前问题的标题
-    const q = questionList.find(item => item.id === id);
-    document.getElementById('currentQuestionTitle').innerText = q ? q.title : '面试回答';
-    document.getElementById('addQuestionBtn').style.display = 'none';
 
     try {
       const segRes = await fetch(`${API_BASE}/segment?question_id=${id}`);
