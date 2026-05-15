@@ -196,6 +196,18 @@
     .position-header { cursor: pointer; }
     .question-list { border-left: 2px solid rgba(255,255,255,0.1); }
     
+    .btn-new-question {
+      background: none;
+      border: none;
+      color: var(--primary);
+      cursor: pointer;
+      font-size: 0.8rem;
+      padding: 2px 4px;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+    .btn-new-question:hover { background: rgba(233,69,96,0.2); }
+    
     /* 问题列表样式 */
     .question-item {
       padding: 6px 8px;
@@ -520,7 +532,7 @@
     <h1>🎤 面试练习</h1>
     <button class="btn-main" onclick="closeInterview()">🔙 返回听写</button>
   </div>
-  <div style="display: grid; grid-template-columns: 220px 1fr 260px; gap: 20px; height: calc(100vh - 140px);">
+  <div style="display: grid; grid-template-columns: 200px 1fr 180px; gap: 20px; height: calc(100vh - 140px);">
     <!-- 左侧：岗位清单 -->
     <div style="display: flex; flex-direction: column; gap: 12px;">
       <button class="btn-main" onclick="createNewPosition()">➕ 新建岗位</button>
@@ -529,37 +541,38 @@
     
     <!-- 中间：问题列表 + 回答输入区 -->
     <div style="display: flex; flex-direction: column; gap: 15px; background: var(--card); border-radius: 12px; border: 1px solid #333; padding: 15px;">
-      <!-- 问题列表标题栏 -->
+      <!-- 问题标题栏 -->
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 10px;">
-        <span style="font-weight: bold; color: var(--primary);">📋 面试问题 (<span id="interviewTextCount">0</span>)</span>
-        <button id="addQuestionBtn" class="btn-secondary" onclick="showQuestionInput()" style="padding: 6px 12px; font-size: 0.8rem; display: none;">➕ 新建问题</button>
+        <span style="font-weight: bold; color: var(--primary);">📋 <span id="currentQuestionTitle">面试回答</span></span>
+        <div id="addQuestionBtn" style="display: none; align-items: center; gap: 8px;">
+          <input type="text" id="newQuestionInput" placeholder="输入问题名称..." 
+            style="padding: 6px 10px; border-radius: 6px; background: #1a1a2e; border: 1px solid #444; color: white; font-size: 0.8rem; width: 150px;"
+            onkeydown="if(event.key==='Enter') { event.preventDefault(); addNewQuestion(); }">
+          <button class="btn-secondary" onclick="addNewQuestion()" style="padding: 6px 10px; font-size: 0.75rem;">✓ 确认</button>
+        </div>
       </div>
-      <!-- 问题列表 -->
+      <!-- 回答输入区 -->
       <div id="interviewTextArea" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;"></div>
     </div>
     
     <!-- 右侧：录音界面 -->
     <div style="display: flex; flex-direction: column; gap: 15px; background: var(--card); border-radius: 12px; border: 1px solid #333; padding: 15px;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 10px;">
-        <span style="font-weight: bold; color: var(--primary);">🎙️ 面试回答 (<span id="interviewAudioCount">0</span>)</span>
-        <div style="display: flex; gap: 5px;">
-          <select id="interviewSttLang" style="background: #1a1a2e; color: #888; border: 1px solid #444; border-radius: 4px; font-size: 10px; padding: 2px 4px; width: 55px;">
-            <option value="">自动</option>
-            <option value="en">英语</option>
-            <option value="zh">中文</option>
-            <option value="ja">日语</option>
-            <option value="ko">韩语</option>
-          </select>
-        </div>
+        <span style="font-weight: bold; color: var(--primary);">🎙️ 录音 (<span id="interviewAudioCount">0</span>)</span>
+        <select id="interviewSttLang" style="background: #1a1a2e; color: #888; border: 1px solid #444; border-radius: 4px; font-size: 10px; padding: 2px 4px; width: 50px;">
+          <option value="">自动</option>
+          <option value="zh">中文</option>
+          <option value="en">英语</option>
+        </select>
       </div>
-      <div id="interviewAudioArea" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;"></div>
-      <div style="display: flex; justify-content: center; padding-top: 10px; border-top: 1px solid #333;">
-        <button id="interviewMicBtn" class="mic-btn" onclick="toggleInterviewRecording()" style="width: 60px; height: 60px;">
-          <span class="mic-icon" style="font-size: 24px;">🎤</span>
+      <div id="interviewAudioArea" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;"></div>
+      <div style="display: flex; justify-content: center; padding-top: 8px; border-top: 1px solid #333;">
+        <button id="interviewMicBtn" class="mic-btn" onclick="toggleInterviewRecording()" style="width: 50px; height: 50px;">
+          <span class="mic-icon" style="font-size: 20px;">🎤</span>
           <div id="interviewMicProgress" class="mic-progress"></div>
         </button>
       </div>
-      <div id="interviewMicStatus" style="text-align: center; font-size: 12px; color: #888;">点击录音</div>
+      <div id="interviewMicStatus" style="text-align: center; font-size: 11px; color: #888;">R键录音</div>
     </div>
   </div>
 </div>
@@ -2024,11 +2037,11 @@
       <div class="position-item ${pos.id === currentPositionId ? 'active' : ''}">
         <div class="position-header" onclick="selectPosition(${pos.id})">
           <div style="display: flex; justify-content: space-between; align-items: center;">
-            <div style="font-weight: bold; font-size: 0.85rem;">${pos.title || '未命名岗位'}</div>
+            <div style="flex: 1;">
+              <button class="btn-new-question" onclick="event.stopPropagation(); showQuestionInputInline(${pos.id})" title="新建问题">➕</button>
+              <span style="font-weight: bold; font-size: 0.85rem; margin-left: 5px;">${pos.title || '未命名岗位'}</span>
+            </div>
             <button class="action-btn" onclick="event.stopPropagation(); deletePosition(${pos.id})" title="删除">🗑️</button>
-          </div>
-          <div style="font-size: 0.7rem; color: #666; margin-top: 3px;">
-            ${new Date(pos.created_at || pos.createdAt).toLocaleDateString()}
           </div>
         </div>
         ${pos.id === currentPositionId && pos.questions && pos.questions.length > 0 ? `
@@ -2086,15 +2099,60 @@
       questionList = [];
     }
 
-    // 更新 positionList 中当前岗位的问题
     positionList = positionList.map(p => 
       p.id === id ? { ...p, questions: questionList } : p
     );
     renderPositionList();
-    document.getElementById('addQuestionBtn').style.display = 'block';
-    renderQuestions();
-    renderSegments();
-    renderInterviewAudios();
+    renderPositionView();
+  }
+
+  function renderPositionView() {
+    const addBtn = document.getElementById('addQuestionBtn');
+    const titleEl = document.getElementById('currentQuestionTitle');
+    
+    addBtn.style.display = 'flex';
+    titleEl.innerText = '面试回答';
+    
+    if (!questionList.length) {
+      renderEmptyState();
+      return;
+    }
+    
+    // 如果没有选中问题，自动显示问题列表供选择
+    if (!currentQuestionId) {
+      renderQuestionList();
+    }
+  }
+
+  function renderEmptyState() {
+    const container = document.getElementById('interviewTextArea');
+    container.innerHTML = `
+      <div style="text-align: center; padding: 60px 20px; color: #888;">
+        <div style="font-size: 2rem; margin-bottom: 15px;">📋</div>
+        <div>点击岗位旁边的 ➕ 添加面试问题</div>
+        <div style="font-size: 0.8rem; margin-top: 10px;">问题添加后会显示在下方</div>
+      </div>
+    `;
+  }
+
+  function renderQuestionList() {
+    const container = document.getElementById('interviewTextArea');
+    const addBtn = document.getElementById('addQuestionBtn');
+    addBtn.style.display = 'flex';
+    
+    container.innerHTML = `
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <div style="color: #888; font-size: 0.85rem; margin-bottom: 5px;">选择或添加问题：</div>
+        ${questionList.map(q => `
+          <div class="question-card ${q.id === currentQuestionId ? 'active' : ''}" onclick="selectQuestion(${q.id})">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span>📌</span>
+              <span style="font-weight: bold; font-size: 0.9rem;">${q.title}</span>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
   }
 
   async function deletePosition(id) {
@@ -2121,26 +2179,40 @@
     }
   }
 
-  function showQuestionInput() {
-    if (!currentPositionId) return;
-    const container = document.getElementById('interviewTextArea');
-    container.innerHTML = `
-      <div class="question-input-wrapper" style="background: rgba(255,255,255,0.03); padding: 15px; border-radius: 8px; border: 1px solid var(--primary);">
-        <div style="margin-bottom: 10px; color: var(--primary); font-size: 0.85rem;">📌 新建问题</div>
-        <input type="text" id="newQuestionInput" placeholder="输入问题标题，按回车确认..." 
-          style="width: 100%; padding: 10px; border-radius: 6px; background: #1a1a2e; border: 1px solid #444; color: white; font-size: 0.9rem;"
-          onkeydown="if(event.key==='Enter') { event.preventDefault(); addNewQuestion(); }">
-      </div>
-    `;
-    document.getElementById('newQuestionInput').focus();
+  function showQuestionInputInline(positionId) {
+    const title = prompt('请输入问题名称:');
+    if (!title) return;
+    addNewQuestionToPosition(positionId, title);
+  }
+
+  async function addNewQuestionToPosition(positionId, title) {
+    try {
+      const res = await fetch(`${API_BASE}/question`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'add',
+          position_id: positionId,
+          user_id: currentUser.id,
+          title: title
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        await selectPosition(positionId);
+        selectQuestion(data.id);
+      }
+    } catch (e) {
+      alert('添加失败');
+    }
   }
 
   async function addNewQuestion() {
     const title = document.getElementById('newQuestionInput').value.trim();
-    if (!title) return;
+    if (!title || !currentPositionId) return;
 
     try {
-      await fetch(`${API_BASE}/question`, {
+      const res = await fetch(`${API_BASE}/question`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -2150,7 +2222,14 @@
           title: title
         })
       });
-      await selectPosition(currentPositionId);
+      const data = await res.json();
+      if (res.ok) {
+        document.getElementById('newQuestionInput').value = '';
+        document.getElementById('addQuestionBtn').style.display = 'none';
+        await selectPosition(currentPositionId);
+        selectQuestion(data.id);
+        alert('问题已创建！现在可以在下方输入该问题的回答。');
+      }
     } catch (e) {
       alert('添加失败');
     }
@@ -2163,7 +2242,11 @@
     interviewAudios = [];
     currentSegmentIndex = 0;
 
-    // 加载该问题的分段
+    // 获取当前问题的标题
+    const q = questionList.find(item => item.id === id);
+    document.getElementById('currentQuestionTitle').innerText = q ? q.title : '面试回答';
+    document.getElementById('addQuestionBtn').style.display = 'none';
+
     try {
       const segRes = await fetch(`${API_BASE}/segment?question_id=${id}`);
       questionSegments = await segRes.json();
@@ -2171,7 +2254,6 @@
       questionSegments = [];
     }
 
-    // 加载该问题的录音
     try {
       const audioRes = await fetch(`${API_BASE}/interview_audio?question_id=${id}`);
       interviewAudios = await audioRes.json();
@@ -2179,13 +2261,11 @@
       interviewAudios = [];
     }
 
-    // 更新选中状态
     positionList = positionList.map(p => ({
       ...p,
       questions: p.questions?.map(q => ({ ...q, active: q.id === id }))
     }));
     renderPositionList();
-    renderQuestions();
     renderSegments();
     renderInterviewAudios();
   }
@@ -2240,98 +2320,120 @@
 
   function renderSegments() {
     const container = document.getElementById('interviewTextArea');
-    const countEl = document.getElementById('interviewTextCount');
-    const addBtn = document.getElementById('addQuestionBtn');
     
-    if (!currentQuestionId) {
-      renderQuestions();
-      return;
-    }
-
-    addBtn.style.display = 'none';
-    countEl.innerText = questionSegments.length;
-
     let html = '<div style="display: flex; flex-direction: column; gap: 8px;">';
     
     // 显示已分割的句子
     questionSegments.forEach((seg, idx) => {
-      const isActive = idx === currentSegmentIndex;
       html += `
-        <div class="segment-item ${isActive ? 'active' : ''}" style="
-          background: ${isActive ? 'rgba(233,69,96,0.15)' : 'rgba(255,255,255,0.03)'};
-          padding: ${isActive ? '15px' : '10px'};
-          border-radius: 8px;
-          border-left: 3px solid ${isActive ? 'var(--primary)' : 'var(--success)'};
-          transition: all 0.2s;
+        <div class="segment-item" style="
+          background: rgba(255,255,255,0.03);
+          padding: 10px;
+          border-radius: 6px;
+          border-left: 3px solid var(--success);
+          display: flex;
+          gap: 8px;
+          align-items: flex-start;
         ">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-size: 0.75rem; color: #888;">#${idx + 1}</span>
-            <button class="action-btn" onclick="deleteSegment(${seg.id})" title="删除" style="font-size: 0.7rem;">🗑️</button>
+          <span style="color: #888; font-size: 0.7rem; min-width: 20px;">#${idx + 1}</span>
+          <div style="flex: 1;">
+            <textarea class="segment-text" id="seg-${seg.id}" 
+              onchange="updateSegment(${seg.id}, this.value)"
+              style="width: 100%; min-height: 40px; padding: 6px 8px; border-radius: 4px; background: #1a1a2e; border: 1px solid #333; color: white; font-size: 0.85rem; resize: vertical; line-height: 1.4;"
+            >${seg.text}</textarea>
           </div>
-          <div style="font-size: ${isActive ? '1.1rem' : '0.9rem'}; line-height: 1.5; margin-top: 5px;">${seg.text}</div>
+          <button class="action-btn" onclick="deleteSegment(${seg.id})" title="删除" style="font-size: 0.7rem;">🗑️</button>
         </div>
       `;
     });
 
-    // 当前输入区域
+    // 粘贴输入区域 - 自动分段
     html += `
-      <div class="segment-input-wrapper" style="
+      <div style="
         background: rgba(255,255,255,0.03);
         padding: 12px;
         border-radius: 8px;
         border: 2px dashed var(--primary);
       ">
-        <div style="font-size: 0.75rem; color: var(--primary); margin-bottom: 8px;">✏️ 输入回答句子，按回车分割：</div>
+        <div style="font-size: 0.75rem; color: var(--primary); margin-bottom: 8px;">📋 粘贴或输入回答，自动按句子分割：</div>
         <textarea id="segmentInput" 
-          placeholder="在这里输入句子..." 
-          style="width: 100%; min-height: 60px; padding: 8px; border-radius: 6px; background: #1a1a2e; border: 1px solid #444; color: white; font-size: 0.9rem; resize: none;"
-          onkeydown="handleSegmentInput(event)"
+          placeholder="粘贴大段回答文字，系统会自动按句子分割...\n支持中文句号、英文句号、换行符作为分隔符"
+          style="width: 100%; min-height: 100px; padding: 10px; border-radius: 6px; background: #1a1a2e; border: 1px solid #444; color: white; font-size: 0.9rem; resize: vertical; line-height: 1.6;"
+          oninput="previewSegments(this.value)"
         ></textarea>
+        <div style="display: flex; gap: 10px; margin-top: 10px; align-items: center;">
+          <button class="btn-secondary" onclick="splitAndSaveSegments()" style="padding: 8px 16px; font-size: 0.8rem;">✂️ 分割保存</button>
+          <span id="segmentCountPreview" style="font-size: 0.75rem; color: #888;"></span>
+        </div>
       </div>
     `;
 
     html += '</div>';
     container.innerHTML = html;
-    
-    // 聚焦输入框
-    setTimeout(() => {
-      const input = document.getElementById('segmentInput');
-      if (input) input.focus();
-    }, 50);
   }
 
-  function handleSegmentInput(e) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      const input = document.getElementById('segmentInput');
-      const text = input.value.trim();
-      if (!text) return;
-
-      // 保存句子
-      addSegment(text);
+  function previewSegments(text) {
+    const segments = splitTextToSegments(text);
+    const countEl = document.getElementById('segmentCountPreview');
+    if (countEl) {
+      countEl.innerText = segments.length > 0 ? `将分割为 ${segments.length} 句` : '';
     }
   }
 
-  async function addSegment(text) {
-    if (!currentQuestionId) return;
+  function splitTextToSegments(text) {
+    if (!text.trim()) return [];
+    
+    // 按换行符、中文句号、英文句号、分号分割
+    let segments = text
+      .replace(/([。！？；!?;])\s*/g, '$1\n')  // 句号后面加换行
+      .replace(/([。！？；!?;])/g, '$1')  // 确保标点保留
+      .split(/\n+/)
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+    
+    return segments;
+  }
 
+  async function splitAndSaveSegments() {
+    const input = document.getElementById('segmentInput');
+    if (!input) return;
+    
+    const text = input.value.trim();
+    if (!text || !currentQuestionId) return;
+
+    const segments = splitTextToSegments(text);
+    if (segments.length === 0) return;
+
+    try {
+      // 批量保存所有分段
+      for (let i = 0; i < segments.length; i++) {
+        await fetch(`${API_BASE}/segment`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'add',
+            question_id: currentQuestionId,
+            text: segments[i],
+            order_index: questionSegments.length + i + 1
+          })
+        });
+      }
+      
+      await selectQuestion(currentQuestionId);
+    } catch (e) {
+      alert('保存失败');
+    }
+  }
+
+  async function updateSegment(id, text) {
     try {
       await fetch(`${API_BASE}/segment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'add',
-          question_id: currentQuestionId,
-          text: text,
-          order_index: questionSegments.length + 1
-        })
+        body: JSON.stringify({ action: 'update', id, text })
       });
-
-      // 更新 currentSegmentIndex 并刷新
-      currentSegmentIndex = questionSegments.length;
-      await selectQuestion(currentQuestionId);
     } catch (e) {
-      alert('添加失败');
+      console.error('更新失败', e);
     }
   }
 
