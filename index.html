@@ -559,7 +559,7 @@
             onkeydown="if(event.key==='Enter') { event.preventDefault(); addNewQuestion(); }">
         </div>
         <!-- 回答输入区 - 自适应高度 -->
-        <div id="interviewTextArea" style="flex: 1; display: flex; flex-direction: column; gap: 8px;"></div>
+        <div id="interviewTextArea" style="flex: 1; display: flex; flex-direction: column; gap: 8px; align-items: stretch;"></div>
       </div>
       
       <!-- 右侧：录音界面 -->
@@ -572,7 +572,7 @@
             <option value="en">英语</option>
           </select>
         </div>
-        <div id="interviewAudioArea" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;"></div>
+        <div id="interviewAudioArea" style="flex: 1; display: flex; flex-direction: column; gap: 8px;"></div>
         <div style="display: flex; justify-content: center; padding-top: 8px; border-top: 1px solid #333;">
           <button id="interviewMicBtn" class="mic-btn" onclick="toggleInterviewRecording()" style="width: 50px; height: 50px;">
             <span class="mic-icon" style="font-size: 20px;">🎤</span>
