@@ -543,48 +543,18 @@
     
     <!-- 中间+右侧：问题回答 + 录音（联动滚动） -->
     <div style="grid-column: 2 / 4; display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-      <!-- 中间：问题列表 + 回答输入区 -->
-      <div style="display: flex; flex-direction: column; gap: 12px; background: var(--card); border-radius: 12px; border: 1px solid #333; padding: 12px;">
-        <!-- 批量操作栏 - 移到最上方 -->
-        <div id="segmentBatchBar" style="display: none; justify-content: space-between; align-items: center; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 6px; margin-bottom: 5px;">
-          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.8rem; color: #888;">
-            <input type="checkbox" id="selectAllSegments" onchange="toggleSelectAllSegments(this)"> 全选
-          </label>
-          <button onclick="deleteSelectedSegments()" style="background: var(--danger); color: white; border: none; padding: 4px 10px; border-radius: 4px; font-size: 0.75rem; cursor: pointer;">🗑️ 删除选中</button>
-        </div>
-        <!-- 问题标题栏 -->
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 8px;">
-          <span style="font-weight: bold; color: var(--primary);">📋 <span id="currentQuestionTitle">面试回答</span></span>
-          <div id="addQuestionBtn" style="display: none; align-items: center; gap: 8px;">
-            <input type="text" id="newQuestionInput" placeholder="输入问题..." 
-              style="padding: 5px 8px; border-radius: 6px; background: #1a1a2e; border: 1px solid #444; color: white; font-size: 0.75rem; width: 120px;"
-              onkeydown="if(event.key==='Enter') { event.preventDefault(); addNewQuestion(); }">
-            <button class="btn-secondary" onclick="addNewQuestion()" style="padding: 5px 8px; font-size: 0.7rem;">✓</button>
-          </div>
-        </div>
-        <!-- 回答输入区 - 自适应高度 -->
-        <div id="interviewTextArea" style="flex: 1; display: flex; flex-direction: column; gap: 8px;"></div>
+      <!-- 批量操作栏 - 移到最上方 -->
+      <div id="segmentBatchBar" style="display: none; justify-content: space-between; align-items: center; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 6px; margin-bottom: 5px;">
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.8rem; color: #888;">
+          <input type="checkbox" id="selectAllSegments" onchange="toggleSelectAllSegments(this)"> 全选
+        </label>
+        <button onclick="deleteSelectedSegments()" style="background: var(--danger); color: white; border: none; padding: 4px 10px; border-radius: 4px; font-size: 0.75rem; cursor: pointer;">🗑️ 删除选中</button>
       </div>
+      <!-- 中间：回答输入区 -->
+      <div id="interviewTextArea" style="flex: 1; display: flex; flex-direction: column; gap: 8px;"></div>
       
       <!-- 右侧：录音界面 -->
-      <div id="interviewAudioAreaWrapper" style="display: flex; flex-direction: column; gap: 12px; background: var(--card); border-radius: 12px; border: 1px solid #333; padding: 12px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 8px;">
-          <span style="font-weight: bold; color: var(--primary);">🎙️ 录音 (<span id="interviewAudioCount">0</span>)</span>
-          <select id="interviewSttLang" style="background: #1a1a2e; color: #888; border: 1px solid #444; border-radius: 4px; font-size: 10px; padding: 2px 4px; width: 45px;">
-            <option value="">自动</option>
-            <option value="zh">中文</option>
-            <option value="en">英语</option>
-          </select>
-        </div>
-        <div id="interviewAudioArea" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;"></div>
-        <div style="display: flex; justify-content: center; padding-top: 8px; border-top: 1px solid #333;">
-          <button id="interviewMicBtn" class="mic-btn" onclick="toggleInterviewRecording()" style="width: 50px; height: 50px;">
-            <span class="mic-icon" style="font-size: 20px;">🎤</span>
-            <div id="interviewMicProgress" class="mic-progress"></div>
-          </button>
-        </div>
-        <div id="interviewMicStatus" style="text-align: center; font-size: 11px; color: #888;">R键录音</div>
-      </div>
+      <div id="interviewAudioAreaWrapper" style="display: flex; flex-direction: column; gap: 8px;"></div>
     </div>
   </div>
 </div>
@@ -2334,79 +2304,55 @@
     const container = document.getElementById('interviewTextArea');
     const batchBar = document.getElementById('segmentBatchBar');
     
-    // 显示/隐藏批量操作栏
     if (batchBar) {
       batchBar.style.display = questionSegments.length > 0 ? 'flex' : 'none';
     }
     
-    let html = '<div style="display: flex; flex-direction: column; gap: 10px; flex: 1; overflow-y: auto; padding-right: 5px;">';
+    let html = '<div style="display: flex; flex-direction: column; gap: 8px; flex: 1; overflow-y: auto; padding-right: 5px;">';
     
-    // 显示已分割的句子
     questionSegments.forEach((seg, idx) => {
       html += `
         <div class="segment-item" style="
           background: rgba(255,255,255,0.05);
-          padding: 12px 15px;
-          border-radius: 8px;
+          padding: 10px 12px;
+          border-radius: 6px;
           border-left: 4px solid var(--success);
           display: flex;
-          gap: 10px;
+          gap: 8px;
           align-items: flex-start;
         ">
-          <input type="checkbox" class="segment-checkbox" value="${seg.id}" style="margin-top: 6px; cursor: pointer;">
-          <span style="color: #ff9f43; font-size: 0.8rem; min-width: 20px; padding-top: 4px; font-weight: bold;">${idx + 1}</span>
-          <div style="flex: 1;">
-            <textarea class="segment-text" id="seg-${seg.id}" 
-              onblur="updateSegment(${seg.id}, this.value)"
-              style="width: 100%; min-height: 40px; padding: 6px 10px; border-radius: 4px; background: rgba(0,0,0,0.3); border: 1px solid #444; color: #ff9f43; font-size: 0.95rem; resize: vertical; line-height: 1.5;"
-            >${seg.text}</textarea>
-          </div>
-          <button class="action-btn" onclick="recordSegmentAudio(${seg.id})" title="为该句录音" style="font-size: 0.9rem; color: var(--primary);">🎤</button>
-          <button class="action-btn" onclick="deleteSegment(${seg.id})" title="删除" style="font-size: 0.75rem;">🗑️</button>
+          <input type="checkbox" class="segment-checkbox" value="${seg.id}" style="margin-top: 4px; cursor: pointer;">
+          <span style="color: #ff9f43; font-size: 0.75rem; min-width: 18px; padding-top: 2px; font-weight: bold;">${idx + 1}</span>
+          <div style="flex: 1; color: #ff9f43; font-size: 0.9rem; line-height: 1.5; word-break: break-word; white-space: pre-wrap;">${seg.text}</div>
+          <button class="action-btn" onclick="recordSegmentAudio(${seg.id})" title="为该句录音" style="font-size: 0.8rem; color: var(--primary);">🎤</button>
+          <button class="action-btn" onclick="deleteSegment(${seg.id})" title="删除" style="font-size: 0.7rem;">🗑️</button>
         </div>
       `;
     });
 
-    // 粘贴输入区域 - 固定在底部
+    // 粘贴输入区域
     html += `
       <div style="
         background: rgba(255,255,255,0.03);
-        padding: 12px;
-        border-radius: 8px;
+        padding: 10px;
+        border-radius: 6px;
         border: 2px dashed var(--primary);
         margin-top: 5px;
-        flex-shrink: 0;
       ">
         <div style="font-size: 0.75rem; color: var(--primary); margin-bottom: 8px;">📋 粘贴回答，自动按句子分割：</div>
         <textarea id="segmentInput" 
           placeholder="粘贴大段回答文字..."
-          style="width: 100%; min-height: 60px; padding: 8px; border-radius: 6px; background: #1a1a2e; border: 1px solid #444; color: white; font-size: 0.85rem; resize: vertical; line-height: 1.5;"
-          oninput="previewSegments(this.value)"
+          style="width: 100%; min-height: 50px; padding: 6px 8px; border-radius: 4px; background: #1a1a2e; border: 1px solid #444; color: white; font-size: 0.85rem; resize: vertical;"
         ></textarea>
-        <div style="display: flex; gap: 10px; margin-top: 8px; align-items: center; flex-wrap: wrap;">
-          <button class="btn-secondary" onclick="splitAndSaveSegments()" style="padding: 6px 12px; font-size: 0.75rem;">✂️ 分割保存</button>
-          <button class="btn-main" onclick="saveFullText()" style="padding: 6px 12px; font-size: 0.75rem;">💾 整段保存</button>
-          <span id="segmentCountPreview" style="font-size: 0.7rem; color: #888;"></span>
+        <div style="display: flex; gap: 8px; margin-top: 8px;">
+          <button class="btn-secondary" onclick="splitAndSaveSegments()" style="padding: 5px 10px; font-size: 0.75rem;">✂️ 分割保存</button>
+          <button class="btn-main" onclick="saveFullText()" style="padding: 5px 10px; font-size: 0.75rem;">💾 整段保存</button>
         </div>
       </div>
     `;
 
     html += '</div>';
     container.innerHTML = html;
-    
-    // 添加滚动同步
-    setTimeout(() => {
-      const textArea = document.getElementById('interviewTextArea');
-      const audioArea = document.getElementById('interviewAudioArea');
-      if (textArea && audioArea) {
-        textArea.onscroll = () => {
-          audioArea.scrollTop = textArea.scrollTop;
-        };
-        audioArea.onscroll = () => {
-          textArea.scrollTop = audioArea.scrollTop;
-        };
-      }
-    }, 100);
   }
 
   function toggleSelectAllSegments(master) {
@@ -2461,13 +2407,7 @@
     startInterviewRecording();
   }
 
-  function previewSegments(text) {
-    const segments = splitTextToSegments(text);
-    const countEl = document.getElementById('segmentCountPreview');
-    if (countEl) {
-      countEl.innerText = segments.length > 0 ? `将分割为 ${segments.length} 句` : '';
-    }
-  }
+  function previewSegments(text) {}
 
   function splitTextToSegments(text) {
     if (!text.trim()) return [];
@@ -2545,37 +2485,59 @@
   }
 
   function renderInterviewAudios() {
-    const container = document.getElementById('interviewAudioArea');
+    const wrapper = document.getElementById('interviewAudioAreaWrapper');
     const countEl = document.getElementById('interviewAudioCount');
+    const container = document.getElementById('interviewAudioArea');
+    
+    if (!container) return;
     countEl.innerText = interviewAudios.length;
 
-    if (!interviewAudios.length) {
-      container.innerHTML = '<div style="color: #888; text-align: center; padding: 30px 10px; font-size: 0.8rem;">暂无录音<br>点击下方按钮录音</div>';
-      return;
-    }
-
-    container.innerHTML = interviewAudios.map(audio => `
-      <div class="record-item" id="interview-audio-${audio.id}">
-        <div class="record-actions-col">
-          <button class="action-btn" onclick="playInterviewAudio('${audio.audio_key || ''}', ${audio.id})" title="播放">${audio.audio_key ? '🔊' : '❌'}</button>
-          <button id="interview-rec-${audio.id}" class="action-btn" onclick="reRecordInterviewAudio(${audio.id}, '${audio.audio_key || ''}')" title="重录">🎤</button>
-        </div>
-        <div class="record-info" style="flex: 1;">
-          <div class="record-meta">
-            <span class="record-index">${audio.order_index || 1}</span>
-            <span style="color: #888; font-size: 0.8rem;">${audio.duration ? audio.duration + 's' : ''}</span>
+    let html = '';
+    
+    // 录音列表
+    if (interviewAudios.length > 0) {
+      html += '<div style="display: flex; flex-direction: column; gap: 6px;">';
+      interviewAudios.forEach(audio => {
+        html += `
+          <div class="record-item" id="interview-audio-${audio.id}" style="
+            background: rgba(255,255,255,0.03);
+            padding: 8px 10px;
+            border-radius: 6px;
+            border-left: 3px solid var(--accent);
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+          ">
+            <button class="action-btn" onclick="playInterviewAudio('${audio.audio_key || ''}', ${audio.id})" title="播放" style="font-size: 0.8rem;">${audio.audio_key ? '🔊' : '❌'}</button>
+            <div style="flex: 1;">
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                <span style="color: #2ecc71; font-size: 0.75rem; font-weight: bold;">${audio.order_index || 1}</span>
+                <span style="color: #888; font-size: 0.7rem;">${audio.duration ? audio.duration + 's' : ''}</span>
+              </div>
+              <div style="color: ${audio.source === 'auto' ? '#2ecc71' : '#888'}; font-size: 0.9rem; line-height: 1.4;">${audio.text || ''}</div>
+            </div>
+            <button class="action-btn" onclick="reRecordInterviewAudio(${audio.id}, '${audio.audio_key || ''}')" title="重录" style="font-size: 0.8rem; color: var(--primary);">🎤</button>
+            <button class="action-btn" onclick="deleteInterviewAudio(${audio.id})" title="删除" style="font-size: 0.7rem;">🗑️</button>
           </div>
-          <textarea class="manual-text ${audio.source === 'auto' ? 'source-auto' : 'source-manual'}" 
-            onblur="updateInterviewAudioText(${audio.id}, this.value)" 
-            placeholder="识别/输入文字..."
-            style="min-height: 40px; padding: 6px 10px; font-size: 0.95rem; resize: vertical; line-height: 1.5;"
-          >${audio.text || ''}</textarea>
-        </div>
-        <div style="display: flex; flex-direction: column; gap: 4px; min-width: 24px;">
-          <button class="action-btn" onclick="deleteInterviewAudio(${audio.id})" title="删除">🗑️</button>
-        </div>
+        `;
+      });
+      html += '</div>';
+    } else {
+      html = '<div style="color: #888; text-align: center; padding: 20px; font-size: 0.8rem;">暂无录音<br>点击下方按钮录音</div>';
+    }
+    
+    // 录音按钮固定在底部
+    html += `
+      <div style="display: flex; justify-content: center; padding: 10px 0; border-top: 1px solid #333; margin-top: 8px; flex-shrink: 0;">
+        <button id="interviewMicBtn" class="mic-btn" onclick="toggleInterviewRecording()" style="width: 50px; height: 50px;">
+          <span class="mic-icon" style="font-size: 20px;">🎤</span>
+          <div id="interviewMicProgress" class="mic-progress"></div>
+        </button>
       </div>
-    `).join('');
+      <div style="text-align: center; font-size: 11px; color: #888;">R键录音</div>
+    `;
+    
+    container.innerHTML = html;
   }
 
   async function toggleInterviewRecording() {
