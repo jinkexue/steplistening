@@ -46,12 +46,12 @@ export async function onRequestPost(context) {
       }
       const result = await env.DB.prepare(
         "INSERT INTO interview_audios (interview_id, question_id, audio_key, duration, text, source, order_index) VALUES (?, ?, ?, ?, ?, ?, ?)"
-      ).bind(interview_id || null, question_id || null, audio_key || null, duration || 0, text || '', source || 'manual', order_index || 1).run();
+      ).bind(interview_id || 0, question_id || 0, audio_key || null, duration || 0, text || '', source || 'manual', order_index || 1).run();
 
       return new Response(JSON.stringify({ 
         id: result.meta.last_row_id, 
-        interview_id: interview_id || null,
-        question_id: question_id || null,
+        interview_id: interview_id || 0,
+        question_id: question_id || 0,
         audio_key: audio_key || null, 
         duration: duration || 0,
         text: text || '',
