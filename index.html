@@ -671,7 +671,7 @@
 
 <script>
   const API_BASE = '/api';
-  let currentLang = localStorage.getItem('appLang') || 'zh';
+  let currentLang = localStorage.getItem('appLang') || 'en';
   let player, mediaRecorder, recordingStartTime, recordingInterval;
   let audioChunks = [];
   let isRecording = false;
@@ -708,12 +708,37 @@
 
   function updatePageTexts() {
     const isZh = currentLang === 'zh';
-    // 根据语言更新页面文本
     // 登录页
-    document.querySelector('#loginOverlay h2').innerHTML = isZh ? '🔐 听写达人' : '🔐 Dictation Master';
-    document.getElementById('loginUser').placeholder = isZh ? '用户名/邮箱' : 'Username / Email';
-    document.getElementById('loginPass').placeholder = isZh ? '密码' : 'Password';
-    document.querySelector('#loginOverlay .btn-main').textContent = isZh ? '登录系统' : 'Login';
+    const loginOverlay = document.getElementById('loginOverlay');
+    if (loginOverlay && loginOverlay.style.display !== 'none') {
+      const h2 = loginOverlay.querySelector('h2');
+      const loginBtn = loginOverlay.querySelector('.btn-main');
+      if (h2) h2.innerHTML = isZh ? '🔐 听写达人' : '🔐 Dictation Master';
+      document.getElementById('loginUser').placeholder = isZh ? '用户名/邮箱' : 'Username / Email';
+      document.getElementById('loginPass').placeholder = isZh ? '密码' : 'Password';
+      if (loginBtn) loginBtn.textContent = isZh ? '登录系统' : 'Login';
+    }
+    
+    // 学习控制台
+    const taskPanel = document.getElementById('taskPanel');
+    if (taskPanel && taskPanel.style.display !== 'none') {
+      const h1 = taskPanel.querySelector('h1');
+      const h2s = taskPanel.querySelectorAll('h2');
+      const backBtn = taskPanel.querySelector('button[onclick="closeTasks()"]');
+      const addBtn = taskPanel.querySelector('button[onclick="addPlan()"]');
+      const ths = taskPanel.querySelectorAll('th');
+      if (h1) h1.innerHTML = isZh ? '🎯 学习控制台' : '🎯 Learning Console';
+      if (h2s[0]) h2s[0].innerHTML = isZh ? '📝 计划听写' : '📝 Planned Dictation';
+      document.getElementById('planUrl').placeholder = isZh ? '输入 YouTube 链接...' : 'Enter YouTube link...';
+      if (addBtn) addBtn.textContent = isZh ? '+ 加入计划' : '+ Add to Plan';
+      if (h2s[1]) h2s[1].innerHTML = isZh ? '📊 我的听写任务' : '📊 My Dictation Tasks';
+      if (ths[0]) ths[0].textContent = isZh ? '最近活动' : 'Recent Activity';
+      if (ths[1]) ths[1].textContent = isZh ? '视频标题' : 'Video Title';
+      if (ths[2]) ths[2].textContent = isZh ? '片段数' : 'Segments';
+      if (ths[3]) ths[3].textContent = isZh ? '完成度' : 'Completion';
+      if (ths[4]) ths[4].textContent = isZh ? '操作' : 'Actions';
+      if (backBtn) backBtn.textContent = isZh ? '🔙 返回听写' : '🔙 Back to Dictation';
+    }
   }
 
   // 初始化语言设置
@@ -848,6 +873,7 @@
       document.getElementById('taskPanel').style.display = 'block';
       loadMyTasks();
       loadPlannedTasks();
+      updatePageTexts(); // 更新语言文本
     } else if (viewId === 'admin') {
       document.getElementById('adminPanel').style.display = 'block';
       loadUsers();
@@ -1480,10 +1506,10 @@
   async function addPlan() {
     const url = document.getElementById('planUrl').value;
     const vid = url.match(/(?:v=|be\/|embed\/)([a-zA-Z0-9_-]{11})/)?.[1];
-    if (!vid) return alert("链接无效");
+    if (!vid) return alert(currentLang === 'zh' ? "链接无效" : "Invalid link");
     
     // 尝试获取视频标题
-    let finalTitle = "待处理视频 " + vid;
+    let finalTitle = currentLang === 'zh' ? "待处理视频 " : "Pending video " + vid;
     try {
       const response = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${vid}`);
       const data = await response.json();
@@ -1499,8 +1525,9 @@
     document.getElementById('planUrl').value = "";
     if (result.success) {
       loadPlannedTasks();
+      loadMyTasks(); // 同时刷新"我的听写任务"列表
     } else {
-      alert("添加失败: " + (result.error || '未知错误'));
+      alert(currentLang === 'zh' ? "添加失败" : "Add failed");
     }
   }
 
