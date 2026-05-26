@@ -744,6 +744,7 @@
   // 初始化语言设置
   document.addEventListener('DOMContentLoaded', () => {
     updateLanguageUI();
+    updatePageTexts(); // 初始化页面文本
   });
 
   const tag = document.createElement('script');
@@ -1524,8 +1525,14 @@
     const result = await res.json();
     document.getElementById('planUrl').value = "";
     if (result.success) {
+      // 同时保存到 tasks 表（插入一条空白记录以便在列表中显示）
+      await fetch(`${API_BASE}/tasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'add', userId: currentUser.id, videoId: vid, videoTitle: finalTitle })
+      });
       loadPlannedTasks();
-      loadMyTasks(); // 同时刷新"我的听写任务"列表
+      loadMyTasks();
     } else {
       alert(currentLang === 'zh' ? "添加失败" : "Add failed");
     }

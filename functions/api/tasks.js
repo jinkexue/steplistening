@@ -38,7 +38,7 @@ export async function onRequestPost(context) {
   
   try {
     const data = await request.json();
-    const { action, userId, videoId } = data;
+    const { action, userId, videoId, videoTitle } = data;
 
     if (action === 'delete') {
       // 删除该用户该视频的所有记录
@@ -48,7 +48,21 @@ export async function onRequestPost(context) {
       return new Response(JSON.stringify({ success: true }));
     }
 
-    return new Response(JSON.stringify({ error: "未知操作" }), { status: 400 });
+    if (action === 'add') {
+      // 检查是否已存在
+      const existing = await env.DB.prepare("SELECT id FROM records WHERE user_id = ? AND video_id = ? LIMIT 1")
+        .bind(userId, videoId)
+        .first();
+      if (!existing) {
+        // 插入一条空白记录以标记该视频已添加到任务列表
+        await env.DB.prepare("INSERT INTO records (user_id, video_id, video_title, text) VALUES (?, ?, ?, '')")
+          .bind(userId, videoId, videoTitle || '新任务')
+          .run();
+      }
+      return new Response(JSON.stringify({ success: true }));
+    }
+
+    return new Response(JSON.stringify({ error: "Unknown action" }), { status: 400 });
   } catch (err) {
     return new Response(JSON.stringify({ error: err.message }), { status: 500 });
   }
