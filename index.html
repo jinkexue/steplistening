@@ -362,32 +362,14 @@
       <button class="btn-main" onclick="closeAdmin()">❌ 关闭后台</button>
     </div>
     
-    <div class="panel-section" style="background: linear-gradient(135deg, #1a1a2e, #16213e);">
-      <h2>🗄️ 数据库管理</h2>
-      <div style="margin-top: 15px;">
-        <div id="dbStatus" style="margin-bottom: 15px; padding: 15px; background: rgba(0,0,0,0.2); border-radius: 8px;">
-          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-            <span id="dbStatusIcon">⏳</span>
-            <span id="dbStatusText">正在检查数据库状态...</span>
-          </div>
-          <div id="dbColumns" style="font-size: 0.85rem; color: #888;"></div>
-        </div>
-        <button id="migrateBtn" class="btn-main" onclick="runDatabaseMigration()" disabled>
-          🔧 执行数据库迁移
-        </button>
-        <div style="margin-top: 10px; font-size: 0.8rem; color: #666;">
-          自动添加 SM-2 记忆算法所需的字段 (efactor, interval, repetitions)
-        </div>
-      </div>
-    </div>
-
     <div class="panel-section">
-      <h2>新增用户</h2>
+      <h2>Add New User</h2>
       <div style="display: flex; gap: 15px; margin-top: 15px;">
-        <input type="text" id="newUsername" placeholder="新用户名" style="flex:1; padding: 12px; border-radius: 8px; background: #0f3460; border: 1px solid #444; color: white;">
-        <input type="password" id="newPassword" placeholder="初始密码" style="flex:1; padding: 12px; border-radius: 8px; background: #0f3460; border: 1px solid #444; color: white;">
-        <button class="btn-main" onclick="addUser()">➕ 添加用户</button>
+        <input type="text" id="newUsername" placeholder="Username" style="flex:1; padding: 12px; border-radius: 8px; background: #0f3460; border: 1px solid #444; color: white;">
+        <input type="password" id="newPassword" placeholder="Password" style="flex:1; padding: 12px; border-radius: 8px; background: #0f3460; border: 1px solid #444; color: white;">
+        <button class="btn-main" onclick="addUser()">➕ Add User</button>
       </div>
+      <div id="addUserMsg" style="margin-top: 10px; font-size: 0.9rem;"></div>
     </div>
 
     <div class="panel-section">
@@ -715,6 +697,40 @@
       if (loginBtn) loginBtn.textContent = isZh ? '登录系统' : 'Login';
     }
     
+    // 顶部导航栏按钮
+    const btns = {
+      'interview': { zh: '🎤 面试练习', en: '🎤 Interview Practice' },
+      'main': { zh: '🏠 听写主页', en: '🏠 Dictation Home' },
+      'openTasks': { zh: '📂 任务列表', en: '📂 Task List' },
+      'openVocab': { zh: '📖 生词本', en: '📖 Vocabulary' },
+      'openAdmin': { zh: '⚙️ 管理后台', en: '⚙️ Admin Panel' },
+      'changePassword': { zh: '🔑 修改密码', en: '🔑 Change Password' },
+      'logout': { zh: '退出', en: 'Logout' }
+    };
+    document.querySelector('button[onclick="showView(\'interview\')"]').textContent = isZh ? btns.interview.zh : btns.interview.en;
+    document.querySelector('button[onclick="showView(\'main\')"]').textContent = isZh ? btns.main.zh : btns.main.en;
+    document.querySelector('button[onclick="openTasks()"]').textContent = isZh ? btns.openTasks.zh : btns.openTasks.en;
+    document.querySelector('button[onclick="openVocab()"]').textContent = isZh ? btns.openVocab.zh : btns.openVocab.en;
+    document.querySelector('button[onclick="openAdmin()"]').textContent = isZh ? btns.openAdmin.zh : btns.openAdmin.en;
+    document.querySelector('button[onclick="changePassword()"]').textContent = isZh ? btns.changePassword.zh : btns.changePassword.en;
+    document.querySelector('button[onclick="handleLogout()"]').textContent = isZh ? btns.logout.zh : btns.logout.en;
+    
+    // 管理后台
+    const adminPanel = document.getElementById('adminPanel');
+    if (adminPanel && adminPanel.style.display !== 'none') {
+      adminPanel.querySelector('h1').innerHTML = isZh ? '⚙️ 用户管理中心' : '⚙️ Admin Panel';
+      adminPanel.querySelector('button[onclick="closeAdmin()"]').textContent = isZh ? '❌ 关闭后台' : '❌ Close Panel';
+      const h2s = adminPanel.querySelectorAll('h2');
+      if (h2s[0]) h2s[0].innerHTML = isZh ? '新增用户' : 'Add New User';
+      if (h2s[1]) h2s[1].innerHTML = isZh ? '现有用户列表' : 'User List';
+      const ths = adminPanel.querySelectorAll('th');
+      if (ths[0]) ths[0].textContent = isZh ? 'ID' : 'ID';
+      if (ths[1]) ths[1].textContent = isZh ? '用户名' : 'Username';
+      if (ths[2]) ths[2].textContent = isZh ? '角色' : 'Role';
+      if (ths[3]) ths[3].textContent = isZh ? '创建日期' : 'Created';
+      if (ths[4]) ths[4].textContent = isZh ? '操作' : 'Actions';
+    }
+    
     // 学习控制台
     const taskPanel = document.getElementById('taskPanel');
     if (taskPanel && taskPanel.style.display !== 'none') {
@@ -868,10 +884,11 @@
     if (viewId === 'tasks') {
       document.getElementById('taskPanel').style.display = 'block';
       loadMyTasks();
-      updatePageTexts(); // 更新语言文本
+      updatePageTexts();
     } else if (viewId === 'admin') {
       document.getElementById('adminPanel').style.display = 'block';
       loadUsers();
+      updatePageTexts();
     } else if (viewId === 'vocab') {
       document.getElementById('vocabPanel').style.display = 'block';
       loadVocab();
@@ -1649,23 +1666,37 @@
   async function addUser() {
     const username = document.getElementById('newUsername').value.trim();
     const password = document.getElementById('newPassword').value.trim();
-    if (!username || !password) return alert("请填写完整信息");
+    const msgEl = document.getElementById('addUserMsg');
+    if (!username || !password) {
+      msgEl.style.color = 'red';
+      msgEl.textContent = 'Please fill in all fields';
+      return;
+    }
 
     try {
       const res = await fetch(`${API_BASE}/user`, {
         method: 'POST',
         body: JSON.stringify({ action: 'register', username, password })
       });
+      const data = await res.json();
       if (res.ok) {
-        alert("添加成功");
+        msgEl.style.color = 'green';
+        msgEl.textContent = '✅ User added successfully';
         document.getElementById('newUsername').value = "";
         document.getElementById('newPassword').value = "";
         loadUsers();
       } else {
-        const data = await res.json();
-        alert(data.error || "添加失败");
+        msgEl.style.color = 'red';
+        if (data.error && data.error.includes('UNIQUE constraint')) {
+          msgEl.textContent = '❌ Username already exists';
+        } else {
+          msgEl.textContent = '❌ ' + (data.error || 'Failed to add user');
+        }
       }
-    } catch (e) { alert("网络错误"); }
+    } catch (e) { 
+      msgEl.style.color = 'red';
+      msgEl.textContent = '❌ Network error'; 
+    }
   }
 
   async function deleteUser(id) {
