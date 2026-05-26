@@ -286,6 +286,12 @@
     .manual-text:focus { color: #fff; border-bottom-color: var(--primary); outline: none; }
     .action-btn { cursor: pointer; font-size: 0.9rem; background: none; border: none; color: #aaa; transition: 0.2s; }
     .action-btn:hover { color: var(--primary); transform: scale(1.1); }
+    
+    /* 中英双语切换 */
+    .lang-switch { display: flex; align-items: center; gap: 8px; }
+    .lang-btn { background: rgba(255,255,255,0.1); border: 1px solid #444; color: #888; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; transition: all 0.3s; }
+    .lang-btn:hover { background: rgba(255,255,255,0.15); color: #fff; }
+    .lang-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
 
     /* 底部控制栏 */
     .controls-footer { position: fixed; bottom: 0; left: 0; width: 100%; background: var(--card); padding: 12px 20px; border-top: 1px solid #333; z-index: 100; }
@@ -336,6 +342,10 @@
 
 <div id="loginOverlay">
   <div class="login-box">
+    <div class="lang-switch" style="justify-content: center; margin-bottom: 20px;">
+      <button class="lang-btn active" id="langZhBtn" onclick="setLanguage('zh')">中文</button>
+      <button class="lang-btn" id="langEnBtn" onclick="setLanguage('en')">English</button>
+    </div>
     <h2>🔐 听写达人</h2>
     <input type="text" id="loginUser" placeholder="用户名/邮箱">
     <input type="password" id="loginPass" placeholder="密码">
@@ -519,7 +529,13 @@
 </div>
 
 <div class="top-bar">
-  <div class="user-info" id="userInfo">未登录</div>
+  <div style="display: flex; align-items: center; gap: 15px;">
+    <div class="lang-switch" style="margin-right: 10px;">
+      <button class="lang-btn" id="langZhBtnTop" onclick="setLanguage('zh')">中文</button>
+      <button class="lang-btn" id="langEnBtnTop" onclick="setLanguage('en')">English</button>
+    </div>
+    <div class="user-info" id="userInfo">未登录</div>
+  </div>
   <div style="display: flex; gap: 15px; align-items: center;">
     <button class="btn-secondary" onclick="showView('interview')" style="background: var(--accent);">🎤 面试练习</button>
     <button class="btn-secondary" onclick="showView('main')" style="background: var(--accent);">🏠 听写主页</button>
@@ -655,6 +671,7 @@
 
 <script>
   const API_BASE = '/api';
+  let currentLang = localStorage.getItem('appLang') || 'zh';
   let player, mediaRecorder, recordingStartTime, recordingInterval;
   let audioChunks = [];
   let isRecording = false;
@@ -670,6 +687,39 @@
   let reviewQueue = [];
   let currentReviewIdx = 0;
   let timeOffsetValue = 0; // 整体时间偏移量（秒）
+
+  // 中英双语切换
+  function setLanguage(lang) {
+    currentLang = lang;
+    localStorage.setItem('appLang', lang);
+    updateLanguageUI();
+    updatePageTexts();
+  }
+
+  function updateLanguageUI() {
+    const isZh = currentLang === 'zh';
+    // 更新登录页按钮
+    document.getElementById('langZhBtn').classList.toggle('active', isZh);
+    document.getElementById('langEnBtn').classList.toggle('active', !isZh);
+    // 更新顶部按钮
+    document.getElementById('langZhBtnTop').classList.toggle('active', isZh);
+    document.getElementById('langEnBtnTop').classList.toggle('active', !isZh);
+  }
+
+  function updatePageTexts() {
+    const isZh = currentLang === 'zh';
+    // 根据语言更新页面文本
+    // 登录页
+    document.querySelector('#loginOverlay h2').innerHTML = isZh ? '🔐 听写达人' : '🔐 Dictation Master';
+    document.getElementById('loginUser').placeholder = isZh ? '用户名/邮箱' : 'Username / Email';
+    document.getElementById('loginPass').placeholder = isZh ? '密码' : 'Password';
+    document.querySelector('#loginOverlay .btn-main').textContent = isZh ? '登录系统' : 'Login';
+  }
+
+  // 初始化语言设置
+  document.addEventListener('DOMContentLoaded', () => {
+    updateLanguageUI();
+  });
 
   const tag = document.createElement('script');
   tag.src = "https://www.youtube.com/iframe_api";
@@ -1440,12 +1490,18 @@
       if (data.title) finalTitle = data.title;
     } catch (e) {}
 
-    await fetch(`${API_BASE}/planned`, {
+    const res = await fetch(`${API_BASE}/planned`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'add', userId: currentUser.id, videoId: vid, videoTitle: finalTitle, videoUrl: url })
     });
+    const result = await res.json();
     document.getElementById('planUrl').value = "";
-    loadPlannedTasks();
+    if (result.success) {
+      loadPlannedTasks();
+    } else {
+      alert("添加失败: " + (result.error || '未知错误'));
+    }
   }
 
   async function deletePlan(id) {
