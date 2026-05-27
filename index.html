@@ -527,6 +527,32 @@
   </div>
 </div>
 
+<!-- 编辑用户模态框 -->
+<div id="editUserModal" style="display:none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 3000; align-items: center; justify-content: center;">
+  <div style="background: var(--card); padding: 30px; border-radius: 16px; width: 90%; max-width: 400px; border: 1px solid #444;">
+    <h2 id="editUserTitle" style="margin-bottom: 20px; color: var(--primary);">✏️ Edit User</h2>
+    <div style="margin-bottom: 15px;">
+      <label style="display: block; font-size: 0.85rem; color: #888; margin-bottom: 5px;">Username</label>
+      <input type="text" id="editUsername" style="width: 100%; padding: 12px; border-radius: 8px; background: #1a1a2e; border: 1px solid #444; color: white;">
+    </div>
+    <div style="margin-bottom: 15px;">
+      <label style="display: block; font-size: 0.85rem; color: #888; margin-bottom: 5px;">Password (leave empty to keep)</label>
+      <input type="password" id="editPassword" style="width: 100%; padding: 12px; border-radius: 8px; background: #1a1a2e; border: 1px solid #444; color: white;" placeholder="••••••••">
+    </div>
+    <div style="margin-bottom: 20px;">
+      <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+        <input type="checkbox" id="editIsAdmin">
+        <span>Admin</span>
+      </label>
+    </div>
+    <div id="editUserMsg" style="margin-bottom: 15px; font-size: 0.9rem;"></div>
+    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+      <button class="btn-secondary" onclick="closeEditUserModal()">Cancel</button>
+      <button class="btn-main" onclick="saveUserEdit()">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- 面试练习页面 -->
 <div id="interviewPanel" style="display:none; position: fixed; top: 60px; left: 0; width: 100%; height: calc(100vh - 60px); background: var(--bg); z-index: 500; padding: 20px; overflow-y: auto;">
   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
@@ -594,7 +620,7 @@
     <div class="video-pane">
       <div class="link-section">
         <input type="text" id="videoUrlMain" placeholder="输入 YouTube 链接快速开始听写任务...">
-        <button class="btn-main" onclick="addTaskFromMain()">🚀 添加并开始</button>
+        <button class="btn-main" onclick="addTaskFromMain()" id="addTaskBtn">🚀 Add & Start</button>
       </div>
       <div id="currentTaskTitle" style="font-weight: bold; font-size: 1.1rem; color: var(--primary); min-height: 1.5rem; margin-bottom: 5px;"></div>
       <div class="video-wrapper"><div id="player"></div></div>
@@ -729,6 +755,8 @@
       if (ths[2]) ths[2].textContent = isZh ? '角色' : 'Role';
       if (ths[3]) ths[3].textContent = isZh ? '创建日期' : 'Created';
       if (ths[4]) ths[4].textContent = isZh ? '操作' : 'Actions';
+      // 角色标签
+      document.querySelectorAll('.admin-tag').forEach(el => el.textContent = isZh ? '管理员' : 'Admin');
     }
     
     // 听写页面（主布局）
@@ -758,6 +786,11 @@
       // 提交按钮
       const submitBtn = document.querySelector('.controls-footer .btn-main');
       if (submitBtn) submitBtn.textContent = isZh ? '提交' : 'Submit';
+      // Dictation Home 链接输入框和按钮
+      const videoUrlMain = document.getElementById('videoUrlMain');
+      if (videoUrlMain) videoUrlMain.placeholder = isZh ? '输入 YouTube 链接快速开始听写任务...' : 'Enter YouTube link to start dictation...';
+      const addTaskBtn = document.getElementById('addTaskBtn');
+      if (addTaskBtn) addTaskBtn.textContent = isZh ? '🚀 添加并开始' : '🚀 Add & Start';
     }
     
     // 学习控制台
@@ -793,6 +826,8 @@
       if (ths[1]) ths[1].textContent = isZh ? '释义' : 'Definition';
       if (ths[2]) ths[2].textContent = isZh ? '复习状态' : 'Status';
       if (ths[3]) ths[3].textContent = isZh ? '操作' : 'Actions';
+      const vocabSearchInput = vocabPanel.querySelector('#vocabSearchInput');
+      if (vocabSearchInput) vocabSearchInput.placeholder = isZh ? '🔍 随时复习 (全部)' : '🔍 Review anytime (all)';
     }
     
     // 面试练习页面
@@ -904,11 +939,13 @@
         currentUser = data;
         document.body.classList.remove('not-logged-in');
         document.getElementById('loginOverlay').style.display = 'none';
-        document.getElementById('userInfo').innerHTML = `👤 ${data.username} ${data.is_admin ? '<span class="admin-tag">管理员</span>' : ''}`;
+        const adminLabel = currentLang === 'zh' ? '管理员' : 'Admin';
+        document.getElementById('userInfo').innerHTML = `👤 ${data.username} ${data.is_admin ? `<span class="admin-tag">${adminLabel}</span>` : ''}`;
         if (data.is_admin) {
           document.getElementById('adminLink').style.display = 'block';
         }
         openTasks();
+        updatePageTexts(); // 同步语言
       } else { msg.innerText = data.error; }
     } catch (e) { msg.innerText = "网络错误"; }
   }
@@ -989,7 +1026,8 @@
     const limit = parseInt(document.getElementById('dailyLimit').value) || 20;
     const dueWords = vocab.filter(v => new Date(v.next_review) <= new Date());
     const reviewCount = Math.min(dueWords.length, limit);
-    document.getElementById('startReviewBtn').innerText = `🚀 开始复习 (${reviewCount})`;
+    const isZh = currentLang === 'zh';
+    document.getElementById('startReviewBtn').innerText = isZh ? `🚀 开始复习 (${reviewCount})` : `🚀 Start Review (${reviewCount})`;
     document.getElementById('startReviewBtn').disabled = reviewCount === 0;
     
     const tbody = document.querySelector('#vocabTable tbody');
@@ -998,10 +1036,10 @@
         <td class="vocab-word-td">
           <div style="display:flex; align-items:center; gap:8px">
             ${v.word}
-            <button class="action-btn" onclick="speakWord('${v.word}')" title="朗读" style="font-size: 1rem">🔊</button>
+            <button class="action-btn" onclick="speakWord('${v.word}')" title="${isZh ? '朗读' : 'Speak'}" style="font-size: 1rem">🔊</button>
           </div>
         </td>
-        <td ondblclick="editVocabDef(${v.id}, '${v.definition || ""}')">${v.definition || '<span style="color:#666">双击添加释义</span>'}</td>
+        <td ondblclick="editVocabDef(${v.id}, '${(v.definition || "").replace(/'/g, "\\'")}')">${v.definition || `<span style="color:#666">${isZh ? '双击添加释义' : 'Double-click to add definition'}</span>`}</td>
         <td style="font-size:0.8rem">
           <a href="https://youtu.be/${v.video_id}" target="_blank" style="color:var(--primary);text-decoration:none">🔗 ${v.video_title || v.video_id}</a>
         </td>
@@ -1009,12 +1047,12 @@
         <td style="font-size:0.8rem">${new Date(v.next_review).toLocaleDateString()}</td>
         <td>
           <div style="display:flex; gap:5px">
-            <button class="btn-secondary" style="padding:4px 10px; font-size:0.7rem" onclick="locateSource('${v.video_id}', '${(v.video_title || "").replace(/'/g, "\\'")}', ${v.timestamp || 0}, ${v.record_id || 0})">定位出处</button>
-            <button class="btn-secondary btn-danger" style="padding:4px 10px; font-size:0.7rem" onclick="deleteVocab(${v.id})">删除</button>
+            <button class="btn-secondary" style="padding:4px 10px; font-size:0.7rem" onclick="locateSource('${v.video_id}', '${(v.video_title || "").replace(/'/g, "\\'")}', ${v.timestamp || 0}, ${v.record_id || 0})">${isZh ? '定位出处' : 'Locate'}</button>
+            <button class="btn-secondary btn-danger" style="padding:4px 10px; font-size:0.7rem" onclick="deleteVocab(${v.id})">${isZh ? '🗑️ 删除' : '🗑️ Delete'}</button>
           </div>
         </td>
       </tr>
-    `).join('') || '<tr><td colspan="6" style="text-align:center; color:#888">暂无生词</td></tr>';
+    `).join('') || `<tr><td colspan="6" style="text-align:center; color:#888">${isZh ? '暂无生词' : 'No words yet'}</td></tr>`;
   }
 
   function locateSource(vid, title, timestamp, recordId) {
@@ -1717,8 +1755,8 @@
           <td>${new Date(u.created_at).toLocaleDateString()}</td>
           <td>
             <div style="display:flex; gap:5px">
-              <button class="btn-secondary" style="padding:4px 10px; font-size:0.7rem" onclick="editUser(${u.id}, '${u.username}', ${u.is_admin})">编辑</button>
-              <button class="btn-secondary btn-danger" style="padding:4px 10px; font-size:0.7rem" onclick="deleteUser(${u.id})">删除</button>
+              <button class="btn-secondary" style="padding:4px 10px; font-size:0.7rem" onclick="editUser(${u.id}, '${u.username}', ${u.is_admin})">✏️ Edit</button>
+              <button class="btn-secondary btn-danger" style="padding:4px 10px; font-size:0.7rem" onclick="deleteUser(${u.id})">🗑️ Delete</button>
             </div>
           </td>
         </tr>
@@ -1779,30 +1817,72 @@
     } catch (e) { alert("网络错误"); }
   }
 
-  async function editUser(id, username, isAdmin) {
-    const newName = prompt(currentLang === 'zh' ? "修改用户名:" : "Edit username:", username);
-    if (newName === null) return;
-    const newPass = prompt(currentLang === 'zh' ? "重置密码 (留空则不修改):" : "Reset password (leave empty to keep):");
-    const role = confirm(currentLang === 'zh' ? "设置为管理员吗？" : "Set as admin?") ? 1 : 0;
+  let editingUserId = null;
+
+  function editUser(id, username, isAdmin) {
+    editingUserId = id;
+    document.getElementById('editUsername').value = username;
+    document.getElementById('editPassword').value = '';
+    document.getElementById('editIsAdmin').checked = isAdmin === 1;
+    document.getElementById('editUserMsg').textContent = '';
+    document.getElementById('editUserModal').style.display = 'flex';
+    updateEditUserModalTexts();
+  }
+
+  function closeEditUserModal() {
+    document.getElementById('editUserModal').style.display = 'none';
+    editingUserId = null;
+  }
+
+  function updateEditUserModalTexts() {
+    const isZh = currentLang === 'zh';
+    document.getElementById('editUserTitle').textContent = isZh ? '✏️ 编辑用户' : '✏️ Edit User';
+    document.querySelector('#editUserModal label:nth-child(1)').textContent = isZh ? '用户名' : 'Username';
+    document.querySelector('#editUserModal label:nth-child(3)').textContent = isZh ? '密码 (留空则不修改)' : 'Password (leave empty to keep)';
+    document.querySelector('#editUserModal label:nth-child(5) span').textContent = isZh ? '管理员' : 'Admin';
+    document.querySelector('#editUserModal .btn-secondary').textContent = isZh ? '取消' : 'Cancel';
+    document.querySelector('#editUserModal .btn-main').textContent = isZh ? '保存' : 'Save';
+  }
+
+  async function saveUserEdit() {
+    const username = document.getElementById('editUsername').value.trim();
+    const password = document.getElementById('editPassword').value;
+    const isAdmin = document.getElementById('editIsAdmin').checked ? 1 : 0;
+    const msgEl = document.getElementById('editUserMsg');
+
+    if (!username) {
+      msgEl.style.color = 'red';
+      msgEl.textContent = currentLang === 'zh' ? '用户名不能为空' : 'Username required';
+      return;
+    }
 
     try {
       const res = await fetch(`${API_BASE}/user`, {
         method: 'POST',
-        body: JSON.stringify({ 
-          action: 'update', 
-          id, 
-          username: newName || username, 
-          password: newPass || undefined, 
-          is_admin: role 
+        body: JSON.stringify({
+          action: 'update',
+          id: editingUserId,
+          username,
+          password: password || undefined,
+          is_admin: isAdmin
         })
       });
       if (res.ok) {
-        alert(currentLang === 'zh' ? "修改成功" : "Updated successfully");
-        loadUsers();
+        msgEl.style.color = 'green';
+        msgEl.textContent = currentLang === 'zh' ? '✅ 修改成功' : '✅ Updated successfully';
+        setTimeout(() => {
+          closeEditUserModal();
+          loadUsers();
+        }, 1000);
       } else {
-        alert(currentLang === 'zh' ? "修改失败" : "Update failed");
+        const data = await res.json();
+        msgEl.style.color = 'red';
+        msgEl.textContent = '❌ ' + (data.error || (currentLang === 'zh' ? '修改失败' : 'Update failed'));
       }
-    } catch (e) { alert(currentLang === 'zh' ? "网络错误" : "Network error"); }
+    } catch (e) {
+      msgEl.style.color = 'red';
+      msgEl.textContent = currentLang === 'zh' ? '❌ 网络错误' : '❌ Network error';
+    }
   }
 
   // --- 录音逻辑 ---
