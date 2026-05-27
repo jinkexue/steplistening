@@ -613,7 +613,7 @@
             <input type="number" id="timeOffset" value="0" step="0.1" style="width: 60px; background: #1a1a2e; border: 1px solid #444; color: white; padding: 3px 5px; border-radius: 4px; font-size: 0.75rem;" title="正值推迟(延后)，负值提前">
             <button class="btn-secondary" onclick="applyTimeOffset()" style="font-size: 0.7rem; padding: 4px 10px;">✓</button>
           </div>
-          <button id="playSelectedBtn" class="btn-secondary" onclick="playSelectedRecords()" style="font-size: 0.75rem;">▶️ 播放选中</button>
+          <button id="playSelectedBtn" class="btn-secondary" onclick="playSelectedRecords()" style="font-size: 0.75rem;">▶ Play Selected</button>
           <button id="pauseAllBtn" class="btn-secondary" onclick="pauseAllRecords()" style="font-size: 0.75rem; display: none;">⏸️ 停止</button>
         </div>
       </div>
@@ -731,6 +731,35 @@
       if (ths[4]) ths[4].textContent = isZh ? '操作' : 'Actions';
     }
     
+    // 听写页面（主布局）
+    const mainLayout = document.querySelector('.main-layout');
+    if (mainLayout && mainLayout.style.display !== 'none') {
+      // 听写片段标题
+      const recTitle = document.querySelector('.results-header > div:first-child');
+      if (recTitle) recTitle.innerHTML = isZh ? `📜 听写片段 (<span id="recordCount">0</span>)` : `📜 Dictation (<span id="recordCount">0</span>)`;
+      // 偏移标签
+      const offsetLabel = document.querySelector('.results-header span');
+      if (offsetLabel) offsetLabel.textContent = isZh ? '偏移(s):' : 'Offset(s):';
+      // 播放选中按钮
+      const playBtn = document.getElementById('playSelectedBtn');
+      if (playBtn) playBtn.textContent = isZh ? '▶ 播放选中' : '▶ Play Selected';
+      // 停止按钮
+      const stopBtn = document.getElementById('pauseAllBtn');
+      if (stopBtn) stopBtn.textContent = isZh ? '⏸ 停止' : '⏸ Stop';
+      // 批量删除按钮
+      const batchDelBtn = document.getElementById('batchDeleteBtn');
+      if (batchDelBtn) batchDelBtn.textContent = isZh ? '批量删除' : 'Batch Delete';
+      // 输入框占位符
+      const manualInput = document.getElementById('manualInput');
+      if (manualInput) manualInput.placeholder = isZh ? '在此输入文字，回车提交记录...' : 'Type here, Enter to submit...';
+      // 录音状态
+      const micStatus = document.getElementById('micStatus');
+      if (micStatus) micStatus.textContent = isZh ? 'R 键录音' : 'R to record';
+      // 提交按钮
+      const submitBtn = document.querySelector('.controls-footer .btn-main');
+      if (submitBtn) submitBtn.textContent = isZh ? '提交' : 'Submit';
+    }
+    
     // 学习控制台
     const taskPanel = document.getElementById('taskPanel');
     if (taskPanel && taskPanel.style.display !== 'none') {
@@ -749,6 +778,40 @@
       if (ths[3]) ths[3].textContent = isZh ? '完成度' : 'Completion';
       if (ths[4]) ths[4].textContent = isZh ? '操作' : 'Actions';
       if (backBtn) backBtn.textContent = isZh ? '🔙 返回听写' : '🔙 Back to Dictation';
+    }
+    
+    // 生词本页面
+    const vocabPanel = document.getElementById('vocabPanel');
+    if (vocabPanel && vocabPanel.style.display !== 'none') {
+      vocabPanel.querySelector('h1').innerHTML = isZh ? '📖 生词本 (记忆曲线复习)' : '📖 Vocabulary (Spaced Repetition)';
+      vocabPanel.querySelector('button[onclick="closeVocab()"]').textContent = isZh ? '🔙 返回听写' : '🔙 Back to Dictation';
+      const h2s = vocabPanel.querySelectorAll('h2');
+      if (h2s[0]) h2s[0].innerHTML = isZh ? '正在复习' : 'In Review';
+      if (h2s[1]) h2s[1].innerHTML = isZh ? '生词列表' : 'Word List';
+      const ths = vocabPanel.querySelectorAll('th');
+      if (ths[0]) ths[0].textContent = isZh ? '单词' : 'Word';
+      if (ths[1]) ths[1].textContent = isZh ? '释义' : 'Definition';
+      if (ths[2]) ths[2].textContent = isZh ? '复习状态' : 'Status';
+      if (ths[3]) ths[3].textContent = isZh ? '操作' : 'Actions';
+    }
+    
+    // 面试练习页面
+    const interviewPanel = document.getElementById('interviewPanel');
+    if (interviewPanel && interviewPanel.style.display !== 'none') {
+      interviewPanel.querySelector('h1').innerHTML = isZh ? '🎤 面试练习' : '🎤 Interview Practice';
+      interviewPanel.querySelector('button[onclick="closeInterview()"]').textContent = isZh ? '🔙 返回听写' : '🔙 Back to Dictation';
+      interviewPanel.querySelector('button[onclick="createNewPosition()"]').textContent = isZh ? '➕ 新建岗位' : '➕ New Position';
+      const segmentBatchLabel = interviewPanel.querySelector('#segmentBatchBar label');
+      if (segmentBatchLabel) {
+        segmentBatchLabel.innerHTML = `<input type="checkbox" id="selectAllSegments" onchange="toggleSelectAllSegments(this)"> ${isZh ? '全选' : 'Select All'}`;
+      }
+      const deleteSelectedBtn = interviewPanel.querySelector('#segmentBatchBar button');
+      if (deleteSelectedBtn) deleteSelectedBtn.textContent = isZh ? '🗑️ 删除选中' : '🗑️ Delete Selected';
+      interviewPanel.querySelector('#newQuestionInput').placeholder = isZh ? '输入问题...' : 'Enter question...';
+      const audioCountSpan = interviewPanel.querySelector('#interviewAudioCount')?.parentElement;
+      if (audioCountSpan) audioCountSpan.innerHTML = isZh ? '🎙️ 录音 (<span id="interviewAudioCount">0</span>)' : '🎙️ Recording (<span id="interviewAudioCount">0</span>)';
+      const micStatus = interviewPanel.querySelector('#interviewMicStatus');
+      if (micStatus) micStatus.textContent = isZh ? 'R键录音' : 'R to record';
     }
   }
 
@@ -892,9 +955,11 @@
     } else if (viewId === 'vocab') {
       document.getElementById('vocabPanel').style.display = 'block';
       loadVocab();
+      updatePageTexts();
     } else if (viewId === 'interview') {
        document.getElementById('interviewPanel').style.display = 'block';
        loadPositions();
+       updatePageTexts();
      }
   }
 
@@ -1715,10 +1780,10 @@
   }
 
   async function editUser(id, username, isAdmin) {
-    const newName = prompt("修改用户名:", username);
+    const newName = prompt(currentLang === 'zh' ? "修改用户名:" : "Edit username:", username);
     if (newName === null) return;
-    const newPass = prompt("重置密码 (留空则不修改):");
-    const role = confirm("设置为管理员吗？") ? 1 : 0;
+    const newPass = prompt(currentLang === 'zh' ? "重置密码 (留空则不修改):" : "Reset password (leave empty to keep):");
+    const role = confirm(currentLang === 'zh' ? "设置为管理员吗？" : "Set as admin?") ? 1 : 0;
 
     try {
       const res = await fetch(`${API_BASE}/user`, {
@@ -1732,12 +1797,12 @@
         })
       });
       if (res.ok) {
-        alert("修改成功");
+        alert(currentLang === 'zh' ? "修改成功" : "Updated successfully");
         loadUsers();
       } else {
-        alert("修改失败");
+        alert(currentLang === 'zh' ? "修改失败" : "Update failed");
       }
-    } catch (e) { alert("网络错误"); }
+    } catch (e) { alert(currentLang === 'zh' ? "网络错误" : "Network error"); }
   }
 
   // --- 录音逻辑 ---
@@ -1959,7 +2024,7 @@
         <input type="checkbox" class="record-checkbox" value="${record.id}" onclick="updateBatchBtn()">
       </div>
       <div class="record-actions-col">
-        <button class="action-btn" title="播放音频" onclick="playAudio('${record.audio_key || ""}', ${record.id})">${record.audio_key ? '🔊' : '❌'}</button>
+        <button class="action-btn" title="播放音频" onclick="playAudio('${record.audio_key || ""}', ${record.id})">${record.audio_key ? '▶' : '○'}</button>
         <button id="recBtn-${record.id}" class="action-btn" title="重录当前片段" onclick="reRecordDirect(${record.id}, '${record.audio_key || ""}')">🎤</button>
       </div>
       <div class="record-info">
@@ -1968,10 +2033,10 @@
           <span class="record-time" onclick="seekVideo(${record.timestamp})">⏱️ ${Math.floor(record.timestamp/60)}:${(record.timestamp%60).toString().padStart(2,'0')}${record.duration ? ' + ' + record.duration + 's' : ''}</span>
           <button class="action-btn" title="复制文字" onclick="copyText(this, \`${record.text}\`)">📋</button>
         </div>
-        <textarea id="text-${record.id}" class="manual-text ${textClass}" onchange="updateText(${record.id}, this.value)" placeholder="在这里输入听写内容...">${record.text}</textarea>
+        <textarea id="text-${record.id}" class="manual-text ${textClass}" onchange="updateText(${record.id}, this.value)" placeholder="${currentLang === 'zh' ? '在这里输入听写内容...' : 'Type dictation here...'}">${record.text}</textarea>
         <div class="fragment-ops">
-          <button class="op-btn btn-insert" onclick="insertRecord(${record.order_index})">➕ 插入片段</button>
-          <button class="op-btn btn-delete" onclick="deleteRecord(${record.id}, ${record.order_index})">🗑️ 删除</button>
+          <button class="op-btn btn-insert" onclick="insertRecord(${record.order_index})">${currentLang === 'zh' ? '➕ 插入片段' : '➕ Insert'}</button>
+          <button class="op-btn btn-delete" onclick="deleteRecord(${record.id}, ${record.order_index})">${currentLang === 'zh' ? '🗑️ 删除' : '🗑️ Delete'}</button>
         </div>
       </div>
     `;
@@ -1987,7 +2052,10 @@
   function applyTimeOffset() {
     const offset = parseFloat(document.getElementById('timeOffset').value) || 0;
     timeOffsetValue = offset;
-    alert(`时间偏移已应用: ${offset >= 0 ? '+' : ''}${offset}秒 (${offset >= 0 ? '推迟' : '提前'})`);
+    const msg = currentLang === 'zh' 
+      ? `时间偏移已应用: ${offset >= 0 ? '+' : ''}${offset}秒 (${offset >= 0 ? '推迟' : '提前'})`
+      : `Time offset applied: ${offset >= 0 ? '+' : ''}${offset}s (${offset >= 0 ? 'delay' : 'advance'})`;
+    alert(msg);
   }
   function playAudio(key, id, timestamp = null) {
     if (!key) return;
