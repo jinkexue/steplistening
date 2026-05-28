@@ -211,7 +211,7 @@
     /* Interview Practice 响应式三栏布局 */
     .interview-grid {
       display: grid;
-      grid-template-columns: var(--col1-width, 200px) 6px var(--col2-width, 300px) 6px 1fr;
+      grid-template-columns: var(--col1-width, 200px) 6px var(--col2-width, 1fr);
       height: calc(100vh - 140px);
     }
     .interview-col { overflow-y: auto; }
@@ -596,45 +596,26 @@
   </div>
   <div class="interview-grid" id="interviewGrid">
     <!-- 左侧：岗位清单 -->
-    <div class="interview-col" style="display: flex; flex-direction: column; gap: 12px;">
-      <button class="btn-main" onclick="createNewPosition()">➕ 新建岗位</button>
+    <div class="interview-col" id="leftCol" style="display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+        <button class="btn-main" onclick="createNewPosition()" id="newPosBtn">➕ 新建岗位</button>
+        <button onclick="toggleLeftCol()" id="collapseLeftBtn" style="background: var(--card); border: 1px solid #444; color: white; padding: 6px 10px; border-radius: 6px; cursor: pointer;">◀</button>
+      </div>
       <div id="interviewList" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;"></div>
     </div>
     <div class="resize-handle" data-resize="col1"></div>
-    <!-- 中间：问题列表 + 回答输入区 -->
-    <div class="interview-col" style="display: flex; flex-direction: column; background: var(--card); border-radius: 12px; border: 1px solid #333; padding: 10px;">
-      <div id="segmentBatchBar" style="display: none; justify-content: space-between; align-items: center; padding: 6px 0; min-height: 28px; border-bottom: 1px solid #333;">
-        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.75rem; color: #888;">
-          <input type="checkbox" id="selectAllSegments" onchange="toggleSelectAllSegments(this)"> 全选
-        </label>
-        <button onclick="deleteSelectedSegments()" style="background: var(--danger); color: white; border: none; padding: 3px 8px; border-radius: 4px; font-size: 0.7rem; cursor: pointer;">🗑️ 删除选中</button>
-      </div>
+    <!-- 右侧：问题列表 + 录音区 -->
+    <div class="interview-col" id="rightCol" style="display: flex; flex-direction: column; gap: 15px; background: var(--card); border-radius: 12px; border: 1px solid #333; padding: 10px;">
+      <!-- 问题输入区 -->
       <div id="addQuestionBtn" style="display: none; padding: 6px 0; border-bottom: 1px solid #333;">
         <input type="text" id="newQuestionInput" placeholder="输入问题..." 
           style="width: 100%; padding: 4px 6px; border-radius: 4px; background: #1a1a2e; border: 1px solid #444; color: white; font-size: 0.75rem;"
           onkeydown="if(event.key==='Enter') { event.preventDefault(); addNewQuestion(); }">
       </div>
-      <div id="interviewTextArea" style="flex: 1; display: flex; flex-direction: column; gap: 8px; min-height: 200px;"></div>
+      <!-- 问题回答区域 -->
+      <div id="interviewTextArea" style="flex: 1; display: flex; flex-direction: column; gap: 8px; min-height: 200px; overflow-y: auto;"></div>
+      <!-- 录音区 -->
       <div style="padding-top: 8px; border-top: 1px solid #333;">
-        <button disabled style="width: 50px; height: 50px; border-radius: 50%; border: none; background: #333; opacity: 0.3; cursor: default;">🎤</button>
-      </div>
-      <div style="text-align: center; font-size: 11px; color: #888;">空白占位</div>
-    </div>
-    
-    <div class="resize-handle" data-resize="col2"></div>
-    
-    <!-- 右侧：录音界面 -->
-    <div class="interview-col" style="display: flex; flex-direction: column; background: var(--card); border-radius: 12px; border: 1px solid #333; padding: 10px;">
-      <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; min-height: 28px; border-bottom: 1px solid #333;">
-        <span style="font-weight: bold; color: var(--primary);">🎙️ 录音 (<span id="interviewAudioCount">0</span>)</span>
-        <select id="interviewSttLang" style="background: #1a1a2e; color: #888; border: 1px solid #444; border-radius: 4px; font-size: 10px; padding: 2px 4px; width: 40px;">
-          <option value="">自动</option>
-          <option value="zh">中文</option>
-          <option value="en">英语</option>
-        </select>
-      </div>
-      <div id="interviewAudioArea" style="flex: 1; display: flex; flex-direction: column; gap: 8px; min-height: 200px;"></div>
-      <div style="display: flex; justify-content: center; padding-top: 8px; border-top: 1px solid #333;">
         <button id="interviewMicBtn" class="mic-btn" onclick="toggleInterviewRecording()" style="width: 50px; height: 50px;">
           <span class="mic-icon" style="font-size: 20px;">🎤</span>
           <div id="interviewMicProgress" class="mic-progress"></div>
@@ -902,11 +883,11 @@
     initInterviewResize(); // 初始化Interview Practice拖动调整宽度
   });
 
-  // Interview Practice 三栏拖动调整宽度
+  // Interview Practice 两栏拖动调整宽度
   function initInterviewResize() {
     const handles = document.querySelectorAll('.resize-handle');
     handles.forEach(handle => {
-      let startX, startWidth1, startWidth2, currentHandle;
+      let startX, startWidth1, currentHandle;
       
       handle.addEventListener('mousedown', (e) => {
         currentHandle = handle;
@@ -915,12 +896,11 @@
         const grid = document.getElementById('interviewGrid');
         const style = getComputedStyle(grid);
         startWidth1 = parseInt(style.getPropertyValue('--col1-width')) || 200;
-        startWidth2 = parseInt(style.getPropertyValue('--col2-width')) || 300;
         
         document.addEventListener('mousemove', onMouseMove);
         document.addEventListener('mouseup', onMouseUp);
         e.preventDefault();
-        e.stopPropagation(); // 阻止事件冒泡
+        e.stopPropagation();
       });
       
       function onMouseMove(e) {
@@ -930,13 +910,8 @@
         const handleType = currentHandle.dataset.resize;
         
         if (handleType === 'col1') {
-          // 第一个拖动条：调整左侧列
           const newWidth = Math.max(150, startWidth1 + delta);
           grid.style.setProperty('--col1-width', newWidth + 'px');
-        } else if (handleType === 'col2') {
-          // 第二个拖动条：调整中间列，右侧自动计算
-          const newWidth = Math.max(200, startWidth2 + delta);
-          grid.style.setProperty('--col2-width', newWidth + 'px');
         }
       }
       
@@ -2377,6 +2352,30 @@
   let interviewIsNewSegment = false; // 大按钮新建段落模式
   let interviewPendingAudio = null; // 录音处理中状态
   let currentSegmentIndex = 0;
+  let leftColCollapsed = false;
+
+  function toggleLeftCol() {
+    const leftCol = document.getElementById('leftCol');
+    const handle = document.querySelector('.resize-handle[data-resize="col1"]');
+    const collapseBtn = document.getElementById('collapseLeftBtn');
+    const isZh = currentLang === 'zh';
+    
+    if (leftColCollapsed) {
+      // 展开
+      leftCol.style.display = 'flex';
+      if (handle) handle.style.display = 'block';
+      collapseBtn.innerHTML = '◀';
+      collapseBtn.title = isZh ? '折叠' : 'Collapse';
+      leftColCollapsed = false;
+    } else {
+      // 折叠
+      leftCol.style.display = 'none';
+      if (handle) handle.style.display = 'none';
+      collapseBtn.innerHTML = '▶';
+      collapseBtn.title = isZh ? '展开' : 'Expand';
+      leftColCollapsed = true;
+    }
+  }
 
   function closeInterview() {
     if (interviewRecording) {
