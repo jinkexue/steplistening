@@ -621,7 +621,7 @@
         </div>
         <div id="interviewAudioArea" style="flex: 1; display: flex; flex-direction: column; gap: 8px; min-height: 200px;"></div>
         <div style="display: flex; justify-content: center; padding-top: 8px; border-top: 1px solid #333;">
-          <button id="interviewMicBtn" class="mic-btn" onclick="toggleInterviewRecording()" style="width: 50px; height: 50px;">
+          <button id="interviewMicBtn" class="mic-btn" onclick="startInterviewRecording(true)" style="width: 50px; height: 50px;">
             <span class="mic-icon" style="font-size: 20px;">🎤</span>
             <div id="interviewMicProgress" class="mic-progress"></div>
           </button>
@@ -2360,7 +2360,9 @@
   let interviewAudioChunks = [];
   let interviewRecordingInterval = null;
   let interviewReRecordId = null;
-  let currentSegmentIndex = 0; // 当前正在输入/录音的句子索引
+  let interviewIsNewSegment = false; // 大按钮新建段落模式
+  let interviewPendingAudio = null; // 录音处理中状态
+  let currentSegmentIndex = 0;
 
   function closeInterview() {
     if (interviewRecording) {
@@ -2992,16 +2994,17 @@
 
   async function toggleInterviewRecording() {
     if (!currentUser) return;
-    if (!currentQuestionId) return alert('请先选择一个问题');
+    if (!currentQuestionId) return alert(currentLang === 'zh' ? '请先选择一个问题' : 'Please select a question first');
     interviewRecording ? stopInterviewRecording() : startInterviewRecording();
   }
 
-  async function startInterviewRecording() {
+  async function startInterviewRecording(isNewSegment = false) {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       interviewRecorder = new MediaRecorder(stream);
       interviewAudioChunks = [];
       interviewRecordingStart = Date.now();
+      interviewIsNewSegment = isNewSegment;
 
       const progressBar = document.getElementById('interviewMicProgress');
       if (interviewRecordingInterval) clearInterval(interviewRecordingInterval);
@@ -3015,25 +3018,64 @@
       interviewRecorder.onstop = async () => {
         clearInterval(interviewRecordingInterval);
         progressBar.style.width = '0%';
-        const blob = new Blob(interviewAudioChunks, { type: 'audio/mpeg' });
+        const blob = new Blob(interviewAudioChunks, { type: 'audio/webm' });
         const duration = Math.round((Date.now() - interviewRecordingStart) / 1000);
 
-        const lang = document.getElementById('interviewSttLang').value;
-
-        if (interviewReRecordId) {
-          await uploadAndUpdateInterviewAudio(interviewReRecordId, blob, duration, lang);
-          interviewReRecordId = null;
+        if (interviewIsNewSegment) {
+          // 新段落模式：上传音频 + 语音识别，但不保存到数据库
+          const isZh = currentLang === 'zh';
+          document.getElementById('interviewMicStatus').innerText = isZh ? '处理中...' : 'Processing...';
+          document.getElementById('interviewMicStatus').style.color = '#ff9f43';
+          
+          try {
+            const formData = new FormData();
+            formData.append('file', blob, `interview-rec-${Date.now()}.webm`);
+            const lang = document.getElementById('interviewSttLang').value;
+            if (lang) formData.append('language', lang);
+            
+            const upRes = await fetch(`${API_BASE}/save`, { method: 'POST', body: formData });
+            const upData = await upRes.json();
+            
+            if (upRes.ok && upData.key) {
+              // 显示预览卡片
+              interviewPendingAudio = {
+                blob,
+                key: upData.key,
+                duration,
+                text: upData.autoText || ''
+              };
+              showPendingAudioCard(upData.autoText || '');
+              document.getElementById('interviewMicStatus').innerText = isZh ? 'R键录音' : 'R to record';
+              document.getElementById('interviewMicStatus').style.color = '';
+            } else {
+              alert(upData.error || (isZh ? '处理失败' : 'Processing failed'));
+              document.getElementById('interviewMicStatus').innerText = isZh ? 'R键录音' : 'R to record';
+              document.getElementById('interviewMicStatus').style.color = '';
+            }
+          } catch (e) {
+            alert(isZh ? '处理失败' : 'Processing failed');
+            document.getElementById('interviewMicStatus').innerText = isZh ? 'R键录音' : 'R to record';
+            document.getElementById('interviewMicStatus').style.color = '';
+          }
         } else {
-          await saveInterviewAudio(blob, duration, lang);
+          // 小按钮直接录音模式
+          const lang = document.getElementById('interviewSttLang').value;
+          if (interviewReRecordId) {
+            await uploadAndUpdateInterviewAudio(interviewReRecordId, blob, duration, lang);
+            interviewReRecordId = null;
+          } else {
+            await saveInterviewAudio(blob, duration, lang);
+          }
         }
       };
 
       interviewRecorder.start();
       interviewRecording = true;
       document.getElementById('interviewMicBtn').classList.add('recording');
-      document.getElementById('interviewMicStatus').innerText = '录音中...';
+      const isZh = currentLang === 'zh';
+      document.getElementById('interviewMicStatus').innerText = isZh ? '录音中...' : 'Recording...';
     } catch (e) {
-      alert('麦克风不可用');
+      alert(currentLang === 'zh' ? '麦克风不可用' : 'Microphone unavailable');
     }
   }
 
@@ -3042,10 +3084,92 @@
       interviewRecorder.stop();
       interviewRecording = false;
       document.getElementById('interviewMicBtn').classList.remove('recording');
-      document.getElementById('interviewMicStatus').innerText = '处理中...';
     }
   }
 
+  function showPendingAudioCard(autoText) {
+    const isZh = currentLang === 'zh';
+    const container = document.getElementById('interviewAudioArea');
+    container.innerHTML = `
+      <div style="background: rgba(255,159,67,0.1); border: 2px solid var(--primary); border-radius: 10px; padding: 15px; margin-bottom: 10px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <span style="color: var(--primary); font-weight: bold;">${isZh ? '📝 新建回答段落' : '📝 New Answer Segment'}</span>
+          <button onclick="discardPendingAudio()" style="background: none; border: none; color: #888; cursor: pointer; font-size: 1.2rem;">✕</button>
+        </div>
+        <textarea id="pendingTextArea" placeholder="${isZh ? '修改识别文字...' : 'Edit recognized text...'}" 
+          style="width: 100%; min-height: 80px; padding: 10px; border-radius: 6px; background: #1a1a2e; border: 1px solid #444; color: white; font-size: 0.9rem; resize: vertical; margin-bottom: 10px;">${autoText}</textarea>
+        <div style="display: flex; gap: 10px; justify-content: center;">
+          <button onclick="playPendingAudio()" style="background: var(--card); color: white; border: 1px solid #444; padding: 8px 20px; border-radius: 20px; cursor: pointer;">▶ ${isZh ? '预览' : 'Preview'}</button>
+          <button onclick="savePendingAudio()" style="background: var(--primary); color: white; border: none; padding: 8px 20px; border-radius: 20px; cursor: pointer; font-weight: bold;">✓ ${isZh ? '保存到段落' : 'Save to Segment'}</button>
+        </div>
+      </div>
+      <div id="interviewAudiosList"></div>
+    `;
+    
+    // 显示已有录音列表
+    renderInterviewAudiosCompact();
+  }
+
+  function playPendingAudio() {
+    if (interviewPendingAudio?.blob) {
+      const url = URL.createObjectURL(interviewPendingAudio.blob);
+      const audio = new Audio(url);
+      audio.play();
+    }
+  }
+
+  function discardPendingAudio() {
+    interviewPendingAudio = null;
+    renderInterviewAudios();
+  }
+
+  async function savePendingAudio() {
+    if (!interviewPendingAudio || !currentQuestionId) return;
+    const isZh = currentLang === 'zh';
+    const text = document.getElementById('pendingTextArea').value.trim();
+    
+    try {
+      // 保存录音到数据库
+      const res = await fetch(`${API_BASE}/interview_audio`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'add',
+          question_id: currentQuestionId,
+          audio_key: interviewPendingAudio.key,
+          duration: interviewPendingAudio.duration,
+          text: text,
+          source: 'manual',
+          order_index: interviewAudios.length + 1
+        })
+      });
+      
+      if (res.ok) {
+        interviewPendingAudio = null;
+        await selectQuestion(currentQuestionId);
+      } else {
+        alert(isZh ? '保存失败' : 'Save failed');
+      }
+    } catch (e) {
+      alert(isZh ? '保存失败' : 'Save failed');
+    }
+  }
+
+  function renderInterviewAudiosCompact() {
+    const container = document.getElementById('interviewAudiosList');
+    if (!container || !interviewAudios.length) {
+      if (container) container.innerHTML = '<div style="color: #666; text-align: center; font-size: 0.8rem;">' + (currentLang === 'zh' ? '暂无录音' : 'No recordings') + '</div>';
+      return;
+    }
+    container.innerHTML = interviewAudios.map(audio => `
+      <div style="display: flex; align-items: center; gap: 8px; padding: 8px; background: var(--card); border-radius: 8px; margin-bottom: 5px;">
+        <span style="color: #888; font-size: 0.7rem;">${audio.order_index || 1}</span>
+        <button onclick="playInterviewAudio('${audio.audio_key || ''}', ${audio.id})" style="background: none; border: none; color: ${audio.audio_key ? '#00ff00' : '#666'}; cursor: ${audio.audio_key ? 'pointer' : 'default'};">▶</button>
+        <span style="flex: 1; font-size: 0.85rem; color: #ff9f43;">${audio.text || (currentLang === 'zh' ? '录音' : 'Recording')}</span>
+      </div>
+    `).join('');
+  }
+      
   async function saveInterviewAudio(blob, duration, lang) {
     try {
       const formData = new FormData();

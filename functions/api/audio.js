@@ -13,9 +13,17 @@ export async function onRequestGet(context) {
       return new Response(JSON.stringify({ error: "Audio not found" }), { status: 404 });
     }
 
+    // 根据文件扩展名或原始content-type确定MIME类型
+    let contentType = object.httpMetadata?.contentType || 'audio/mpeg';
+    if (key.endsWith('.mp3')) contentType = 'audio/mpeg';
+    else if (key.endsWith('.webm')) contentType = 'audio/webm';
+    else if (key.endsWith('.wav')) contentType = 'audio/wav';
+    else if (key.endsWith('.ogg')) contentType = 'audio/ogg';
+    else if (key.endsWith('.m4a')) contentType = 'audio/mp4';
+
     return new Response(object.body, {
       headers: {
-        "Content-Type": "audio/webm",
+        "Content-Type": contentType,
         "Cache-Control": "public, max-age=3600",
       },
     });
