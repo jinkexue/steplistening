@@ -9,7 +9,7 @@ export async function onRequestGet(context) {
     }
 
     const result = await env.DB.prepare(
-      "SELECT * FROM questions WHERE position_id = ? ORDER BY COALESCE(order_index, 0) ASC, id ASC"
+      "SELECT id, position_id, title, COALESCE(order_index, id) as order_index FROM questions WHERE position_id = ? ORDER BY order_index ASC, id ASC"
     ).bind(position_id).all();
 
     return new Response(JSON.stringify(result.results), {
