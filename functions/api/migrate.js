@@ -98,16 +98,22 @@ export async function onRequestPost(context) {
 
       // 检查并添加 order_index 列到 questions 表
       try {
-        await env.DB.prepare("ALTER TABLE questions ADD COLUMN order_index INTEGER DEFAULT 0").run();
+        await env.DB.prepare("ALTER TABLE questions ADD COLUMN order_index INTEGER").run();
         results.push({ table: 'questions', column: 'order_index', status: 'added' });
-        // 初始化现有问题的 order_index 为 id 值
-        await env.DB.prepare("UPDATE questions SET order_index = id WHERE order_index = 0").run();
       } catch (e) {
         if (e.message.includes('duplicate column') || e.message.includes('already exists')) {
           results.push({ table: 'questions', column: 'order_index', status: 'already_exists' });
         } else {
           results.push({ table: 'questions', column: 'order_index', status: 'error', error: e.message });
         }
+      }
+      
+      // 确保所有问题的 order_index 都有值（初始化为 id）
+      try {
+        await env.DB.prepare("UPDATE questions SET order_index = id WHERE order_index IS NULL OR order_index = 0").run();
+        results.push({ table: 'questions', column: 'order_index', status: 'initialized' });
+      } catch (e) {
+        results.push({ table: 'questions', column: 'order_index init', status: 'error', error: e.message });
       }
 
       const hasErrors = results.some(r => r.status === 'error');
