@@ -18,16 +18,24 @@ export async function onRequestPost(context) {
 
     if (action === 'check_columns') {
       // 检查vocab表的列是否存在
-      const columns = await env.DB.prepare(
+      const vocabColumns = await env.DB.prepare(
         "SELECT name FROM pragma_table_info('vocab') WHERE name IN ('efactor', 'interval', 'repetitions')"
       ).all();
 
-      const existingColumns = columns.results.map(c => c.name);
+      const existingColumns = vocabColumns.results.map(c => c.name);
       const missingColumns = [];
 
       if (!existingColumns.includes('efactor')) missingColumns.push('efactor');
       if (!existingColumns.includes('interval')) missingColumns.push('interval');
       if (!existingColumns.includes('repetitions')) missingColumns.push('repetitions');
+
+      // 检查interview_audios表的列是否存在
+      const audioColumns = await env.DB.prepare(
+        "SELECT name FROM pragma_table_info('interview_audios') WHERE name = 'segment_id'"
+      ).all();
+      
+      const hasSegmentId = audioColumns.results.length > 0;
+      if (!hasSegmentId) missingColumns.push('interview_audios.segment_id');
 
       return new Response(JSON.stringify({
         success: true,
@@ -73,6 +81,18 @@ export async function onRequestPost(context) {
           results.push({ column: 'repetitions', status: 'already_exists' });
         } else {
           results.push({ column: 'repetitions', status: 'error', error: e.message });
+        }
+      }
+
+      // 检查并添加 segment_id 列到 interview_audios 表
+      try {
+        await env.DB.prepare("ALTER TABLE interview_audios ADD COLUMN segment_id INTEGER DEFAULT 0").run();
+        results.push({ table: 'interview_audios', column: 'segment_id', status: 'added' });
+      } catch (e) {
+        if (e.message.includes('duplicate column') || e.message.includes('already exists')) {
+          results.push({ table: 'interview_audios', column: 'segment_id', status: 'already_exists' });
+        } else {
+          results.push({ table: 'interview_audios', column: 'segment_id', status: 'error', error: e.message });
         }
       }
 
