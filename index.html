@@ -614,14 +614,23 @@
       </div>
       <!-- 问题回答区域 -->
       <div id="interviewTextArea" style="flex: 1; display: flex; flex-direction: column; gap: 8px; min-height: 200px; overflow-y: auto;"></div>
-      <!-- 录音区 -->
-      <div style="padding-top: 8px; border-top: 1px solid #333;">
-        <button id="interviewMicBtn" class="mic-btn" onclick="toggleInterviewRecording()" style="width: 50px; height: 50px;">
-          <span class="mic-icon" style="font-size: 20px;">🎤</span>
-          <div id="interviewMicProgress" class="mic-progress"></div>
-        </button>
+      <!-- 粘贴回答区域 + 录音 -->
+      <div style="background: rgba(255,255,255,0.03); padding: 12px; border-radius: 8px; border: 2px dashed var(--primary);">
+        <div style="font-size: 0.75rem; color: var(--primary); margin-bottom: 8px;" id="pasteHintLabel">📋 Paste answers, auto-split by sentence:</div>
+        <textarea id="segmentInput" 
+          placeholder="Paste answer text..."
+          style="width: 100%; min-height: 60px; padding: 8px; border-radius: 6px; background: #1a1a2e; border: 1px solid #444; color: white; font-size: 0.85rem; resize: vertical; line-height: 1.5; margin-bottom: 10px;"
+          oninput="previewSegments(this.value)"></textarea>
+        <div id="segmentCountPreview" style="font-size: 0.75rem; color: var(--primary); margin-bottom: 10px;"></div>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <button onclick="splitAndSaveSegments()" style="background: var(--card); color: white; border: 1px solid var(--primary); padding: 8px 16px; border-radius: 20px; cursor: pointer; font-size: 0.85rem;">✂️ Split & Save</button>
+          <button onclick="saveFullText()" style="background: var(--card); color: white; border: 1px solid var(--primary); padding: 8px 16px; border-radius: 20px; cursor: pointer; font-size: 0.85rem;">💾 Save Full</button>
+          <button onclick="toggleInterviewRecording()" style="background: var(--primary); color: white; border: none; padding: 8px 20px; border-radius: 20px; cursor: pointer; font-weight: bold;">
+            🎤 <span id="interviewMicStatus">R to record</span>
+          </button>
+        </div>
+        <div id="pendingAudioPreview" style="margin-top: 10px; display: none;"></div>
       </div>
-      <div id="interviewMicStatus" style="text-align: center; font-size: 11px; color: #888;">R键录音</div>
     </div>
   </div>
 </div>
@@ -3072,7 +3081,8 @@
           }
         } else {
           // 小按钮直接录音模式
-          const lang = document.getElementById('interviewSttLang').value;
+          const sttLangEl = document.getElementById('interviewSttLang');
+          const lang = sttLangEl ? sttLangEl.value : '';
           if (interviewReRecordId) {
             await uploadAndUpdateInterviewAudio(interviewReRecordId, blob, duration, lang);
             interviewReRecordId = null;
@@ -3102,25 +3112,24 @@
 
   function showPendingAudioCard(autoText) {
     const isZh = currentLang === 'zh';
-    const container = document.getElementById('interviewAudioArea');
-    container.innerHTML = `
-      <div style="background: rgba(255,159,67,0.1); border: 2px solid var(--primary); border-radius: 10px; padding: 15px; margin-bottom: 10px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-          <span style="color: var(--primary); font-weight: bold;">${isZh ? '📝 新建回答段落' : '📝 New Answer Segment'}</span>
-          <button onclick="discardPendingAudio()" style="background: none; border: none; color: #888; cursor: pointer; font-size: 1.2rem;">✕</button>
+    const preview = document.getElementById('pendingAudioPreview');
+    if (!preview) return;
+    
+    preview.style.display = 'block';
+    preview.innerHTML = `
+      <div style="background: rgba(255,159,67,0.1); border: 1px solid var(--primary); border-radius: 8px; padding: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <span style="color: var(--primary); font-weight: bold;">${isZh ? '📝 语音识别结果' : '📝 Speech Recognition'}</span>
+          <button onclick="discardPendingAudio()" style="background: none; border: none; color: #888; cursor: pointer;">✕</button>
         </div>
-        <textarea id="pendingTextArea" placeholder="${isZh ? '修改识别文字...' : 'Edit recognized text...'}" 
-          style="width: 100%; min-height: 80px; padding: 10px; border-radius: 6px; background: #1a1a2e; border: 1px solid #444; color: white; font-size: 0.9rem; resize: vertical; margin-bottom: 10px;">${autoText}</textarea>
-        <div style="display: flex; gap: 10px; justify-content: center;">
-          <button onclick="playPendingAudio()" style="background: var(--card); color: white; border: 1px solid #444; padding: 8px 20px; border-radius: 20px; cursor: pointer;">▶ ${isZh ? '预览' : 'Preview'}</button>
-          <button onclick="savePendingAudio()" style="background: var(--primary); color: white; border: none; padding: 8px 20px; border-radius: 20px; cursor: pointer; font-weight: bold;">✓ ${isZh ? '保存到段落' : 'Save to Segment'}</button>
+        <textarea id="pendingTextArea" 
+          style="width: 100%; min-height: 60px; padding: 8px; border-radius: 6px; background: #1a1a2e; border: 1px solid #444; color: white; font-size: 0.85rem; resize: vertical; margin-bottom: 10px;">${autoText || ''}</textarea>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button onclick="playPendingAudio()" style="background: var(--card); color: white; border: 1px solid #444; padding: 6px 12px; border-radius: 16px; cursor: pointer; font-size: 0.8rem;">▶ ${isZh ? '试听' : 'Preview'}</button>
+          <button onclick="savePendingAudio()" style="background: var(--primary); color: white; border: none; padding: 6px 16px; border-radius: 16px; cursor: pointer; font-weight: bold;">✓ ${isZh ? '保存' : 'Save'}</button>
         </div>
       </div>
-      <div id="interviewAudiosList"></div>
     `;
-    
-    // 显示已有录音列表
-    renderInterviewAudiosCompact();
   }
 
   function playPendingAudio() {
@@ -3133,7 +3142,8 @@
 
   function discardPendingAudio() {
     interviewPendingAudio = null;
-    renderInterviewAudios();
+    const preview = document.getElementById('pendingAudioPreview');
+    if (preview) preview.style.display = 'none';
   }
 
   async function savePendingAudio() {
