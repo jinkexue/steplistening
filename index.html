@@ -2453,6 +2453,8 @@
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                   <span style="font-size: 0.8rem;">📌 ${q.title || '问题'}</span>
                   <div style="display: flex; gap: 2px;">
+                    <button class="action-btn" onclick="event.stopPropagation(); moveQuestion(${q.id}, 'up')" title="${isZh ? '上移' : 'Move Up'}" style="font-size: 0.7rem;">⬆️</button>
+                    <button class="action-btn" onclick="event.stopPropagation(); moveQuestion(${q.id}, 'down')" title="${isZh ? '下移' : 'Move Down'}" style="font-size: 0.7rem;">⬇️</button>
                     <button class="action-btn" onclick="event.stopPropagation(); startEditQuestionInList(${q.id})" title="${isZh ? '编辑' : 'Edit'}" style="font-size: 0.7rem;">✏️</button>
                     <button class="action-btn" onclick="event.stopPropagation(); deleteQuestion(${q.id})" style="font-size: 0.7rem;">🗑️</button>
                   </div>
@@ -2533,6 +2535,21 @@
     renderPositionList();
   }
 
+  async function moveQuestion(id, direction) {
+    try {
+      const res = await fetch(`${API_BASE}/question`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'move', id, direction })
+      });
+      if (res.ok && currentPositionId) {
+        await selectPosition(currentPositionId);
+      }
+    } catch (e) {
+      console.error('Move question failed', e);
+    }
+  }
+
   async function createNewPosition() {
     const title = prompt('请输入岗位名称:', `岗位 ${new Date().toLocaleDateString()}`);
     if (!title) return;
@@ -2607,9 +2624,7 @@
 
   function renderQuestionList() {
     const container = document.getElementById('interviewTextArea');
-    const addBtn = document.getElementById('addQuestionBtn');
     const isZh = currentLang === 'zh';
-    addBtn.style.display = 'flex';
     
     container.innerHTML = `
       <div style="display: flex; flex-direction: column; gap: 8px;">
@@ -3179,26 +3194,23 @@
       interviewRecorder = new MediaRecorder(stream);
       interviewAudioChunks = [];
       interviewRecordingStart = Date.now();
-      interviewIsNewSegment = isNewSegment;
 
       const progressBar = document.getElementById('interviewMicProgress');
       const micStatus = document.getElementById('interviewMicStatus');
-      const recognizedText = document.getElementById('interviewRecognizedText');
-      const micBtn = document.getElementById('interviewMicBtn');
       const isZh = currentLang === 'zh';
       
       if (interviewRecordingInterval) clearInterval(interviewRecordingInterval);
-      interviewRecordingInterval = setInterval(() => {
+      recordingInterval = setInterval(() => {
         const elapsed = (Date.now() - interviewRecordingStart) / 1000;
-        const progress = Math.min(100, (elapsed / 120) * 100);
+        const progress = Math.min(100, (elapsed / 60) * 100);
         if (progressBar) progressBar.style.width = progress + '%';
       }, 100);
 
       interviewRecorder.ondataavailable = e => interviewAudioChunks.push(e.data);
       interviewRecorder.onstop = async () => {
-        clearInterval(interviewRecordingInterval);
+        clearInterval(recordingInterval);
         if (progressBar) progressBar.style.width = '0%';
-        const blob = new Blob(interviewAudioChunks, { type: 'audio/webm' });
+        const blob = new Blob(interviewAudioChunks, { type: 'audio/mpeg' });
         const duration = Math.round((Date.now() - interviewRecordingStart) / 1000);
 
         if (micStatus) micStatus.innerText = isZh ? '处理中...' : 'Processing...';
@@ -3211,7 +3223,7 @@
         
         try {
           const formData = new FormData();
-          formData.append('file', blob, `interview-rec-${Date.now()}.webm`);
+          formData.append('file', blob, `rec-${Date.now()}.mp3`);
           const sttLangEl = document.getElementById('interviewSttLang');
           const lang = sttLangEl ? sttLangEl.value : '';
           if (lang) formData.append('language', lang);
@@ -3241,7 +3253,7 @@
 
       interviewRecorder.start();
       interviewRecording = true;
-      if (micBtn) micBtn.classList.add('recording');
+      document.getElementById('interviewMicBtn')?.classList.add('recording');
       if (micStatus) micStatus.innerText = isZh ? '录音中...' : 'Recording...';
     } catch (e) {
       alert(currentLang === 'zh' ? '麦克风不可用' : 'Microphone unavailable');
