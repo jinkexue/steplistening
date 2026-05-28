@@ -883,7 +883,6 @@
       }
       const deleteSelectedBtn = interviewPanel.querySelector('#segmentBatchBar button');
       if (deleteSelectedBtn) deleteSelectedBtn.textContent = isZh ? '🗑️ 删除选中' : '🗑️ Delete Selected';
-      interviewPanel.querySelector('#newQuestionInput').placeholder = isZh ? '输入问题...' : 'Enter question...';
       
       // 粘贴回答区域
       const pasteHint = interviewPanel.querySelector('#pasteHintLabel');
@@ -895,8 +894,6 @@
       const fullSaveBtn = interviewPanel.querySelector('button[onclick="saveFullText()"]');
       if (fullSaveBtn) fullSaveBtn.textContent = isZh ? '💾 整段保存' : '💾 Save Full';
       
-      const audioCountSpan = interviewPanel.querySelector('#interviewAudioCount')?.parentElement;
-      if (audioCountSpan) audioCountSpan.innerHTML = isZh ? '🎙️ 录音 (<span id="interviewAudioCount">0</span>)' : '🎙️ Recording (<span id="interviewAudioCount">0</span>)';
       const micStatus = interviewPanel.querySelector('#interviewMicStatus');
       if (micStatus) micStatus.textContent = isZh ? 'R键录音' : 'R to record';
       
@@ -2583,19 +2580,14 @@
   }
 
   function renderPositionView() {
-    const addBtn = document.getElementById('addQuestionBtn');
-    const titleEl = document.getElementById('currentQuestionTitle');
     const isZh = currentLang === 'zh';
-    
-    addBtn.style.display = 'flex';
-    if (titleEl) titleEl.innerText = isZh ? '面试回答' : 'Interview Answer';
     
     if (!questionList.length) {
       renderEmptyState();
       return;
     }
     
-    // 如果没有选中问题，自动显示问题列表供选择
+    // 如果没有选中问题，显示选择提示
     if (!currentQuestionId) {
       renderQuestionList();
     }

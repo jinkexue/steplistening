@@ -15,12 +15,20 @@ export async function onRequestPost(context) {
       }
 
       const timestamp = Date.now();
-      const filename = existingKey || `audio/${timestamp}-${file.name || "recording.mp3"}`;
+      // 根据实际文件类型确定扩展名
+      const mimeType = file.type || "audio/mpeg";
+      let extension = "mp3";
+      if (mimeType.includes("webm") || mimeType.includes("webm")) extension = "webm";
+      else if (mimeType.includes("wav")) extension = "wav";
+      else if (mimeType.includes("ogg")) extension = "ogg";
+      else if (mimeType.includes("m4a") || mimeType.includes("mp4")) extension = "m4a";
+      
+      const filename = existingKey || `audio/${timestamp}.${extension}`;
       const arrayBuffer = await file.arrayBuffer();
 
       // 保存到 R2
       await env.BUCKET.put(filename, arrayBuffer, {
-        httpMetadata: { contentType: file.type || "audio/mpeg" },
+        httpMetadata: { contentType: mimeType },
       });
 
       // --- 自动识别文字 (AI) ---
