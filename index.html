@@ -379,6 +379,25 @@
       <button class="btn-main" onclick="closeAdmin()">❌ 关闭后台</button>
     </div>
     
+    <div class="panel-section" style="background: linear-gradient(135deg, #1a1a2e, #16213e);">
+      <h2>🗄️ 数据库管理</h2>
+      <div style="margin-top: 15px;">
+        <div id="dbStatus" style="margin-bottom: 15px; padding: 15px; background: rgba(0,0,0,0.2); border-radius: 8px;">
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+            <span id="dbStatusIcon">⏳</span>
+            <span id="dbStatusText">正在检查数据库状态...</span>
+          </div>
+          <div id="dbColumns" style="font-size: 0.85rem; color: #888;"></div>
+        </div>
+        <button id="migrateBtn" class="btn-main" onclick="runDatabaseMigration()">
+          🔧 执行数据库迁移
+        </button>
+        <div style="margin-top: 10px; font-size: 0.8rem; color: #666;">
+          自动添加 SM-2 记忆算法所需的字段 (efactor, interval, repetitions) 以及 interview_audios.segment_id
+        </div>
+      </div>
+    </div>
+
     <div class="panel-section">
       <h2>Add New User</h2>
       <div style="display: flex; gap: 15px; margin-top: 15px;">
