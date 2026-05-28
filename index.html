@@ -615,25 +615,36 @@
       <!-- 问题回答区域 -->
       <div id="interviewTextArea" style="flex: 1; display: flex; flex-direction: column; gap: 8px; min-height: 200px; overflow-y: auto;"></div>
       <!-- 录音区（类似听写页面） -->
-      <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid var(--primary);">
-        <select id="interviewSttLang" style="background: #1a1a2e; color: #888; border: 1px solid #444; border-radius: 4px; font-size: 10px; padding: 4px; width: 50px;">
-          <option value="">自动</option>
-          <option value="en">英语</option>
-          <option value="zh">中文</option>
-          <option value="ja">日语</option>
-          <option value="ko">韩语</option>
-        </select>
-        <button id="interviewMicBtn" class="mic-btn" onclick="toggleInterviewRecording()" style="width: 50px; height: 50px; flex-shrink: 0;">
-          <span class="mic-icon" style="font-size: 20px;">🎤</span>
-          <div id="interviewMicProgress" class="mic-progress"></div>
-        </button>
-        <div style="flex: 1;">
-          <div id="interviewMicStatus" style="font-size: 11px; color: #888;">R键录音</div>
-          <div id="interviewRecognizedText" style="font-size: 12px; color: var(--primary); margin-top: 4px; min-height: 20px;"></div>
+      <div style="padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid var(--primary);">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+          <select id="interviewSttLang" style="background: #1a1a2e; color: #888; border: 1px solid #444; border-radius: 4px; font-size: 10px; padding: 4px; width: 50px;">
+            <option value="">自动</option>
+            <option value="en">英语</option>
+            <option value="zh">中文</option>
+            <option value="ja">日语</option>
+            <option value="ko">韩语</option>
+          </select>
+          <button id="interviewMicBtn" class="mic-btn" onclick="toggleInterviewRecording()" style="width: 50px; height: 50px; flex-shrink: 0;">
+            <span class="mic-icon" style="font-size: 20px;">🎤</span>
+            <div id="interviewMicProgress" class="mic-progress"></div>
+          </button>
+          <div style="flex: 1;">
+            <div id="interviewMicStatus" style="font-size: 11px; color: #888;">R键录音</div>
+          </div>
         </div>
-        <button id="interviewSaveBtn" onclick="saveInterviewRecording()" style="display: none; background: var(--primary); color: white; border: none; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-weight: bold;">
-          ✓ 保存
-        </button>
+        <!-- 识别结果区域 -->
+        <div id="recognizedResultArea" style="display: none; margin-bottom: 10px;">
+          <div style="font-size: 11px; color: var(--primary); margin-bottom: 6px;">📝 语音识别：</div>
+          <div style="display: flex; gap: 8px; align-items: flex-start;">
+            <button onclick="playInterviewPendingAudio()" style="background: var(--card); border: 1px solid #444; color: white; padding: 6px 12px; border-radius: 16px; cursor: pointer; font-size: 0.8rem;">▶ 试听</button>
+            <div id="interviewRecognizedText" style="flex: 1; font-size: 12px; color: white; background: #1a1a2e; padding: 8px; border-radius: 6px; min-height: 40px; max-height: 100px; overflow-y: auto;"></div>
+            <button id="interviewSaveBtn" onclick="saveInterviewRecording()" style="background: var(--primary); color: white; border: none; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-weight: bold;">✓ 保存</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
       </div>
     </div>
   </div>
@@ -3118,7 +3129,10 @@
         const duration = Math.round((Date.now() - interviewRecordingStart) / 1000);
 
         if (micStatus) micStatus.innerText = isZh ? '处理中...' : 'Processing...';
+        const resultArea = document.getElementById('recognizedResultArea');
+        const recognizedText = document.getElementById('interviewRecognizedText');
         if (recognizedText) recognizedText.innerText = '';
+        if (resultArea) resultArea.style.display = 'none';
         const saveBtn = document.getElementById('interviewSaveBtn');
         if (saveBtn) saveBtn.style.display = 'none';
         
@@ -3141,6 +3155,7 @@
             };
             
             if (recognizedText) recognizedText.innerText = upData.autoText || (isZh ? '(无识别结果)' : '(No recognition)');
+            if (resultArea) resultArea.style.display = 'block';
             if (micStatus) micStatus.innerText = isZh ? 'R键录音' : 'R to record';
             if (saveBtn) saveBtn.style.display = 'block';
           } else {
@@ -3192,6 +3207,8 @@
       if (res.ok) {
         interviewPendingAudio = null;
         if (recognizedText) recognizedText.innerText = '';
+        const resultArea = document.getElementById('recognizedResultArea');
+        if (resultArea) resultArea.style.display = 'none';
         const saveBtn = document.getElementById('interviewSaveBtn');
         if (saveBtn) saveBtn.style.display = 'none';
         await selectQuestion(currentQuestionId);
@@ -3200,6 +3217,14 @@
       }
     } catch (e) {
       alert(isZh ? '保存失败' : 'Save failed');
+    }
+  }
+
+  function playInterviewPendingAudio() {
+    if (interviewPendingAudio?.blob) {
+      const url = URL.createObjectURL(interviewPendingAudio.blob);
+      const audio = new Audio(url);
+      audio.play();
     }
   }
 
