@@ -2584,7 +2584,13 @@
 
     try {
       const res = await fetch(`${API_BASE}/question?position_id=${id}`);
-      questionList = await res.json();
+      if (!res.ok) {
+        const err = await res.json();
+        console.error('load questions failed:', err);
+        questionList = [];
+      } else {
+        questionList = await res.json();
+      }
     } catch (e) {
       questionList = [];
     }
