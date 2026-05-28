@@ -843,10 +843,25 @@
       const deleteSelectedBtn = interviewPanel.querySelector('#segmentBatchBar button');
       if (deleteSelectedBtn) deleteSelectedBtn.textContent = isZh ? '🗑️ 删除选中' : '🗑️ Delete Selected';
       interviewPanel.querySelector('#newQuestionInput').placeholder = isZh ? '输入问题...' : 'Enter question...';
+      
+      // 粘贴回答区域
+      const pasteHint = interviewPanel.querySelector('#pasteHintLabel');
+      if (pasteHint) pasteHint.innerHTML = isZh ? '📋 粘贴回答，自动按句子分割：' : '📋 Paste answers, auto-split by sentence:';
+      const segmentInput = interviewPanel.querySelector('#segmentInput');
+      if (segmentInput) segmentInput.placeholder = isZh ? '粘贴大段回答文字...' : 'Paste answer text...';
+      const splitBtn = interviewPanel.querySelector('button[onclick="splitAndSaveSegments()"]');
+      if (splitBtn) splitBtn.textContent = isZh ? '✂️ 分割保存' : '✂️ Split & Save';
+      const fullSaveBtn = interviewPanel.querySelector('button[onclick="saveFullText()"]');
+      if (fullSaveBtn) fullSaveBtn.textContent = isZh ? '💾 整段保存' : '💾 Save Full';
+      
       const audioCountSpan = interviewPanel.querySelector('#interviewAudioCount')?.parentElement;
       if (audioCountSpan) audioCountSpan.innerHTML = isZh ? '🎙️ 录音 (<span id="interviewAudioCount">0</span>)' : '🎙️ Recording (<span id="interviewAudioCount">0</span>)';
       const micStatus = interviewPanel.querySelector('#interviewMicStatus');
       if (micStatus) micStatus.textContent = isZh ? 'R键录音' : 'R to record';
+      
+      // 录音状态文字
+      const recordStatus = interviewPanel.querySelector('.record-status');
+      if (recordStatus) recordStatus.innerHTML = isZh ? '暂无录音<br>点击下方按钮录音' : 'No recording<br>Click the button below to record';
     }
   }
 
@@ -2498,15 +2513,16 @@
         })
       });
       const data = await res.json();
-      if (res.ok) {
+      if (res.ok && data.id) {
         document.getElementById('newQuestionInput').value = '';
         document.getElementById('addQuestionBtn').style.display = 'none';
         await selectPosition(currentPositionId);
         selectQuestion(data.id);
-        alert('问题已创建！现在可以在下方输入该问题的回答。');
+      } else {
+        alert(data.error || (currentLang === 'zh' ? '添加失败' : 'Failed to add'));
       }
     } catch (e) {
-      alert('添加失败');
+      alert(currentLang === 'zh' ? '添加失败' : 'Failed to add');
     }
   }
 
@@ -2638,9 +2654,9 @@
         margin-top: 5px;
         flex-shrink: 0;
       ">
-        <div style="font-size: 0.75rem; color: var(--primary); margin-bottom: 8px;">📋 粘贴回答，自动按句子分割：</div>
+        <div style="font-size: 0.75rem; color: var(--primary); margin-bottom: 8px;" id="pasteHintLabel">📋 Paste answers, auto-split by sentence:</div>
         <textarea id="segmentInput" 
-          placeholder="粘贴大段回答文字..."
+          placeholder="Paste answer text..."
           style="width: 100%; min-height: 60px; padding: 8px; border-radius: 6px; background: #1a1a2e; border: 1px solid #444; color: white; font-size: 0.85rem; resize: vertical; line-height: 1.5;"
           oninput="previewSegments(this.value)"
         ></textarea>
@@ -2694,23 +2710,33 @@
 
   async function saveFullText() {
     const input = document.getElementById('segmentInput');
-    if (!input || !input.value.trim() || !currentQuestionId) return;
+    if (!input || !input.value.trim() || !currentQuestionId) {
+      alert(currentLang === 'zh' ? '请输入内容或选择问题' : 'Please enter content or select a question');
+      return;
+    }
 
-    // 整段保存为一个句子
-    await fetch(`${API_BASE}/segment`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'add',
-        question_id: currentQuestionId,
-        text: input.value.trim(),
-        order_index: questionSegments.length + 1
-      })
-    });
-    
-    input.value = '';
-    document.getElementById('segmentCountPreview').innerText = '';
-    await selectQuestion(currentQuestionId);
+    try {
+      const res = await fetch(`${API_BASE}/segment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'add',
+          question_id: currentQuestionId,
+          text: input.value.trim(),
+          order_index: questionSegments.length + 1
+        })
+      });
+      
+      if (res.ok) {
+        input.value = '';
+        document.getElementById('segmentCountPreview').innerText = '';
+        await selectQuestion(currentQuestionId);
+      } else {
+        alert(currentLang === 'zh' ? '保存失败' : 'Save failed');
+      }
+    } catch (e) {
+      alert(currentLang === 'zh' ? '保存失败' : 'Save failed');
+    }
   }
 
   async function recordSegmentAudio(segmentId) {
@@ -2753,15 +2779,21 @@
     if (!input) return;
     
     const text = input.value.trim();
-    if (!text || !currentQuestionId) return;
+    if (!text || !currentQuestionId) {
+      alert(currentLang === 'zh' ? '请输入内容或选择问题' : 'Please enter content or select a question');
+      return;
+    }
 
     const segments = splitTextToSegments(text);
-    if (segments.length === 0) return;
+    if (segments.length === 0) {
+      alert(currentLang === 'zh' ? '未能分割出句子' : 'No sentences to split');
+      return;
+    }
 
     try {
       // 批量保存所有分段
       for (let i = 0; i < segments.length; i++) {
-        await fetch(`${API_BASE}/segment`, {
+        const res = await fetch(`${API_BASE}/segment`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -2771,11 +2803,14 @@
             order_index: questionSegments.length + i + 1
           })
         });
+        if (!res.ok) throw new Error('Save failed');
       }
       
+      input.value = '';
+      document.getElementById('segmentCountPreview').innerText = '';
       await selectQuestion(currentQuestionId);
     } catch (e) {
-      alert('保存失败');
+      alert(currentLang === 'zh' ? '保存失败' : 'Save failed');
     }
   }
 
