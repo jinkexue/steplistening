@@ -62,6 +62,14 @@ export async function onRequestPost(context) {
       return new Response(JSON.stringify({ success: true }));
     }
 
+    if (action === 'update_order') {
+      if (!id || data.order_index === undefined) {
+        return new Response(JSON.stringify({ error: "id and order_index are required" }), { status: 400 });
+      }
+      await env.DB.prepare("UPDATE questions SET order_index = ? WHERE id = ?").bind(data.order_index, id).run();
+      return new Response(JSON.stringify({ success: true }));
+    }
+
     if (action === 'delete') {
       if (!id) {
         return new Response(JSON.stringify({ error: "id is required" }), { status: 400 });

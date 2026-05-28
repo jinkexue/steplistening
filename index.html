@@ -2444,17 +2444,18 @@
           </div>
         </div>
         ${pos.expanded ? `
-          <div class="question-list" style="margin-top: 8px; padding-left: 10px;">
+          <div class="question-list" id="questionList-${pos.id}" style="margin-top: 8px; padding-left: 10px;">
             <div style="margin-bottom: 6px;">
               <button onclick="event.stopPropagation(); showQuestionInputInline(${pos.id})" style="background: none; border: 1px dashed #444; color: var(--primary); padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.75rem; width: 100%; text-align: left;">➕ ${isZh ? '新建提问' : 'New Question'}</button>
             </div>
-            ${pos.questions && pos.questions.length > 0 ? pos.questions.map(q => `
-              <div class="question-item ${q.id === currentQuestionId ? 'active' : ''}" onclick="event.stopPropagation(); selectQuestion(${q.id})">
+            ${pos.questions && pos.questions.length > 0 ? pos.questions.map((q, idx) => `
+              <div class="question-item ${q.id === currentQuestionId ? 'active' : ''}" draggable="true" data-question-id="${q.id}" data-position-id="${pos.id}" data-index="${idx}"
+                ondragstart="onQuestionDragStart(event)" ondragover="onQuestionDragOver(event)" ondrop="onQuestionDrop(event)" ondragend="onQuestionDragEnd(event)"
+                onclick="event.stopPropagation(); selectQuestion(${q.id})">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                   <span style="font-size: 0.8rem;">📌 ${q.title || '问题'}</span>
                   <div style="display: flex; gap: 2px;">
-                    <button class="action-btn" onclick="event.stopPropagation(); moveQuestion(${q.id}, 'up')" title="${isZh ? '上移' : 'Move Up'}" style="font-size: 0.7rem;">⬆️</button>
-                    <button class="action-btn" onclick="event.stopPropagation(); moveQuestion(${q.id}, 'down')" title="${isZh ? '下移' : 'Move Down'}" style="font-size: 0.7rem;">⬇️</button>
+                    <button class="action-btn drag-handle" draggable="true" title="${isZh ? '拖拽排序' : 'Drag to Sort'}" style="font-size: 0.7rem; cursor: grab;">☰</button>
                     <button class="action-btn" onclick="event.stopPropagation(); startEditQuestionInList(${q.id})" title="${isZh ? '编辑' : 'Edit'}" style="font-size: 0.7rem;">✏️</button>
                     <button class="action-btn" onclick="event.stopPropagation(); deleteQuestion(${q.id})" style="font-size: 0.7rem;">🗑️</button>
                   </div>
@@ -2547,6 +2548,86 @@
       }
     } catch (e) {
       console.error('Move question failed', e);
+    }
+  }
+
+  // 拖拽排序变量
+  let draggedQuestion = null;
+  let draggedFromPosition = null;
+  let draggedFromIndex = null;
+
+  function onQuestionDragStart(e) {
+    const item = e.currentTarget;
+    draggedQuestion = item;
+    draggedFromPosition = parseInt(item.dataset.positionId);
+    draggedFromIndex = parseInt(item.dataset.index);
+    item.style.opacity = '0.5';
+    e.dataTransfer.effectAllowed = 'move';
+  }
+
+  function onQuestionDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const item = e.currentTarget;
+    if (item !== draggedQuestion) {
+      item.style.borderTop = '2px solid var(--primary)';
+    }
+  }
+
+  function onQuestionDragLeave(e) {
+    e.currentTarget.style.borderTop = '';
+  }
+
+  function onQuestionDrop(e) {
+    e.preventDefault();
+    const targetItem = e.currentTarget;
+    targetItem.style.borderTop = '';
+    
+    if (!draggedQuestion || targetItem === draggedQuestion) return;
+    
+    const targetPositionId = parseInt(targetItem.dataset.positionId);
+    const targetIndex = parseInt(targetItem.dataset.index);
+    
+    if (draggedFromPosition !== targetPositionId) return;
+    
+    // 交换数组中的位置
+    const pos = positionList.find(p => p.id === targetPositionId);
+    if (!pos || !pos.questions) return;
+    
+    const questions = [...pos.questions];
+    const [removed] = questions.splice(draggedFromIndex, 1);
+    questions.splice(targetIndex, 0, removed);
+    
+    // 更新本地数据
+    positionList = positionList.map(p => 
+      p.id === targetPositionId ? { ...p, questions } : p
+    );
+    
+    // 保存新排序到服务器
+    saveQuestionOrder(targetPositionId, questions.map((q, i) => ({ id: q.id, order: i + 1 })));
+    
+    renderPositionList();
+  }
+
+  function onQuestionDragEnd(e) {
+    e.currentTarget.style.opacity = '';
+    draggedQuestion = null;
+    draggedFromPosition = null;
+    draggedFromIndex = null;
+  }
+
+  async function saveQuestionOrder(positionId, orderList) {
+    try {
+      // 逐个更新每个问题的排序
+      for (const item of orderList) {
+        await fetch(`${API_BASE}/question`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'update_order', id: item.id, order_index: item.order })
+        });
+      }
+    } catch (e) {
+      console.error('Save question order failed', e);
     }
   }
 
