@@ -2493,21 +2493,64 @@
   function renderQuestionList() {
     const container = document.getElementById('interviewTextArea');
     const addBtn = document.getElementById('addQuestionBtn');
+    const isZh = currentLang === 'zh';
     addBtn.style.display = 'flex';
     
     container.innerHTML = `
       <div style="display: flex; flex-direction: column; gap: 8px;">
-        <div style="color: #888; font-size: 0.85rem; margin-bottom: 5px;">选择或添加问题：</div>
+        <div style="color: #888; font-size: 0.85rem; margin-bottom: 5px;">${isZh ? '选择或添加问题：' : 'Select or add a question:'}</div>
         ${questionList.map(q => `
           <div class="question-card ${q.id === currentQuestionId ? 'active' : ''}" onclick="selectQuestion(${q.id})">
-            <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px; flex: 1;">
               <span>📌</span>
-              <span style="font-weight: bold; font-size: 0.9rem;">${q.title}</span>
+              <span id="qtitle-${q.id}" style="font-weight: bold; font-size: 0.9rem;">${q.title}</span>
+              <input id="qedit-${q.id}" type="text" value="${q.title}" 
+                style="flex: 1; background: #1a1a2e; border: 1px solid #444; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.9rem; display: none;"
+                onblur="saveQuestionEdit(${q.id}, this.value)"
+                onkeydown="if(event.key==='Enter') this.blur()">
             </div>
+            <button onclick="event.stopPropagation(); startEditQuestion(${q.id})" 
+              style="background: none; border: none; color: var(--primary); cursor: pointer; padding: 4px; font-size: 0.9rem;"
+              title="${isZh ? '编辑' : 'Edit'}">✏️</button>
           </div>
         `).join('')}
       </div>
     `;
+  }
+
+  function startEditQuestion(id) {
+    document.getElementById('qtitle-' + id).style.display = 'none';
+    const input = document.getElementById('qedit-' + id);
+    input.style.display = 'block';
+    input.focus();
+    input.select();
+  }
+
+  async function saveQuestionEdit(id, newTitle) {
+    const title = newTitle.trim();
+    if (!title) {
+      // 恢复原值
+      const q = questionList.find(x => x.id === id);
+      document.getElementById('qedit-' + id).value = q?.title || '';
+      document.getElementById('qtitle-' + id).textContent = q?.title || '';
+      document.getElementById('qedit-' + id).style.display = 'none';
+      document.getElementById('qtitle-' + id).style.display = 'inline';
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/question`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'update', id, title, user_id: currentUser.id })
+      });
+      if (res.ok) {
+        const q = questionList.find(x => x.id === id);
+        if (q) q.title = title;
+        document.getElementById('qtitle-' + id).textContent = title;
+      }
+    } catch (e) {}
+    document.getElementById('qedit-' + id).style.display = 'none';
+    document.getElementById('qtitle-' + id).style.display = 'inline';
   }
 
   async function deletePosition(id) {
@@ -2699,11 +2742,12 @@
               onblur="this.style.outline='none'"
             >${seg.text}</textarea>
           </div>
-          <div style="width: 50px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 3px; flex-shrink: 0; border-left: 1px solid #333; padding-left: 10px; padding-top: 4px;">
+          <div style="width: 70px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 3px; flex-shrink: 0; border-left: 1px solid #333; padding-left: 10px; padding-top: 4px;">
             <span style="color: #ff9f43; font-size: 0.7rem; font-weight: bold;">${idx + 1}</span>
             <input type="checkbox" class="segment-checkbox" value="${seg.id}" style="cursor: pointer; width: 14px; height: 14px;">
-            <button class="action-btn" onclick="recordSegmentAudio(${seg.id})" title="录音" style="font-size: 0.85rem; color: var(--primary); padding: 2px;">🎤</button>
-            <button class="action-btn" onclick="deleteSegment(${seg.id})" title="删除" style="font-size: 0.85rem; padding: 2px;">🗑️</button>
+            <button class="action-btn" onclick="playSegmentAudio('${seg.audio_key || ''}', ${seg.id})" title="${currentLang === 'zh' ? '播放' : 'Play'}" style="font-size: 0.85rem; padding: 2px; ${seg.audio_key ? 'color: #00ff00;' : 'opacity: 0.3; cursor: default;'}">▶</button>
+            <button class="action-btn" onclick="recordSegmentAudio(${seg.id})" title="${currentLang === 'zh' ? '录音' : 'Record'}" style="font-size: 0.85rem; color: var(--primary); padding: 2px;">🎤</button>
+            <button class="action-btn" onclick="deleteSegment(${seg.id})" title="${currentLang === 'zh' ? '删除' : 'Delete'}" style="font-size: 0.85rem; padding: 2px;">🗑️</button>
           </div>
         </div>
       `;
@@ -2811,6 +2855,16 @@
     }
     interviewReRecordId = 'seg_' + segmentId;
     startInterviewRecording();
+  }
+
+  async function playSegmentAudio(audioKey, segmentId) {
+    if (!audioKey) return;
+    try {
+      const audio = new Audio(`${API_BASE}/audio/${audioKey}`);
+      audio.play();
+    } catch (e) {
+      alert(currentLang === 'zh' ? '播放失败' : 'Play failed');
+    }
   }
 
   function previewSegments(text) {
