@@ -2418,7 +2418,10 @@
               <button class="btn-new-question" onclick="event.stopPropagation(); showQuestionInputInline(${pos.id})" title="新建提问">➕</button>
               <span style="font-weight: bold; font-size: 0.85rem; margin-left: 5px;">${pos.title || '未命名岗位'}</span>
             </div>
-            <button class="action-btn" onclick="event.stopPropagation(); deletePosition(${pos.id})" title="删除">🗑️</button>
+            <div style="display: flex; gap: 4px;">
+              <button class="action-btn" onclick="event.stopPropagation(); exportPositionMd(${pos.id})" title="${currentLang === 'zh' ? '导出MD' : 'Export MD'}">📄</button>
+              <button class="action-btn" onclick="event.stopPropagation(); deletePosition(${pos.id})" title="${currentLang === 'zh' ? '删除' : 'Delete'}">🗑️</button>
+            </div>
           </div>
         </div>
         ${pos.id === currentPositionId && pos.questions && pos.questions.length > 0 ? `
@@ -2575,6 +2578,66 @@
     } catch (e) {}
     document.getElementById('qedit-' + id).style.display = 'none';
     document.getElementById('qtitle-' + id).style.display = 'inline';
+  }
+
+  async function exportPositionMd(positionId) {
+    const isZh = currentLang === 'zh';
+    const position = positionList.find(p => p.id === positionId);
+    if (!position) return;
+
+    // 获取所有问题的详细数据
+    let md = `# ${position.title || (isZh ? '未命名岗位' : 'Untitled Position')}\n\n`;
+    md += `> ${isZh ? '导出时间' : 'Export Time'}: ${new Date().toLocaleString()}\n\n`;
+    md += `---\n\n`;
+
+    if (!position.questions || position.questions.length === 0) {
+      md += isZh ? '*（暂无问题）*' : '*（No questions yet）*';
+    } else {
+      for (const q of position.questions) {
+        md += `## 📌 ${q.title || (isZh ? '问题' : 'Question')}\n\n`;
+        
+        // 获取该问题的段落（回答）
+        try {
+          const segRes = await fetch(`${API_BASE}/segment?question_id=${q.id}`);
+          if (segRes.ok) {
+            const segments = await segRes.json();
+            if (segments.length > 0) {
+              md += `### ${isZh ? '回答' : 'Answer'}\n\n`;
+              segments.forEach((seg, idx) => {
+                md += `${idx + 1}. ${seg.text || ''}\n`;
+              });
+              md += '\n';
+            }
+          }
+        } catch (e) {}
+        
+        // 获取录音列表
+        try {
+          const audioRes = await fetch(`${API_BASE}/interview_audio?question_id=${q.id}`);
+          if (audioRes.ok) {
+            const audios = await audioRes.json();
+            if (audios.length > 0) {
+              md += `### 🎙️ ${isZh ? '录音记录' : 'Recordings'}\n\n`;
+              audios.forEach((audio, idx) => {
+                md += `- **${idx + 1}.** ${audio.text || (isZh ? '无文字' : 'No text')} ${audio.duration ? `[${audio.duration}s]` : ''}\n`;
+              });
+              md += '\n';
+            }
+          }
+        } catch (e) {}
+        
+        md += `---\n\n`;
+      }
+    }
+
+    // 创建并下载文件
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${(position.title || 'position').replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_')}_${new Date().toISOString().slice(0, 10)}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   async function deletePosition(id) {
