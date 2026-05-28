@@ -2986,8 +2986,10 @@
   function renderInterviewAudios() {
     const container = document.getElementById('interviewAudioArea');
     const countEl = document.getElementById('interviewAudioCount');
-    countEl.innerText = interviewAudios.length;
+    if (countEl) countEl.innerText = interviewAudios.length;
 
+    if (!container) return;
+    
     if (!interviewAudios.length) {
       container.innerHTML = '<div style="color: #888; text-align: center; padding: 30px 10px; font-size: 0.8rem;">暂无录音<br>点击下方按钮录音</div>';
       return;
@@ -3029,37 +3031,41 @@
       interviewIsNewSegment = isNewSegment;
 
       const progressBar = document.getElementById('interviewMicProgress');
+      const micStatus = document.getElementById('interviewMicStatus');
+      const isZh = currentLang === 'zh';
+      
       if (interviewRecordingInterval) clearInterval(interviewRecordingInterval);
       interviewRecordingInterval = setInterval(() => {
         const elapsed = (Date.now() - interviewRecordingStart) / 1000;
         const progress = Math.min(100, (elapsed / 120) * 100);
-        progressBar.style.width = progress + '%';
+        if (progressBar) progressBar.style.width = progress + '%';
       }, 100);
 
       interviewRecorder.ondataavailable = e => interviewAudioChunks.push(e.data);
       interviewRecorder.onstop = async () => {
         clearInterval(interviewRecordingInterval);
-        progressBar.style.width = '0%';
+        if (progressBar) progressBar.style.width = '0%';
         const blob = new Blob(interviewAudioChunks, { type: 'audio/webm' });
         const duration = Math.round((Date.now() - interviewRecordingStart) / 1000);
 
         if (interviewIsNewSegment) {
           // 新段落模式：上传音频 + 语音识别，但不保存到数据库
-          const isZh = currentLang === 'zh';
-          document.getElementById('interviewMicStatus').innerText = isZh ? '处理中...' : 'Processing...';
-          document.getElementById('interviewMicStatus').style.color = '#ff9f43';
+          if (micStatus) {
+            micStatus.innerText = isZh ? '处理中...' : 'Processing...';
+            micStatus.style.color = '#ff9f43';
+          }
           
           try {
             const formData = new FormData();
             formData.append('file', blob, `interview-rec-${Date.now()}.webm`);
-            const lang = document.getElementById('interviewSttLang').value;
+            const sttLangEl = document.getElementById('interviewSttLang');
+            const lang = sttLangEl ? sttLangEl.value : '';
             if (lang) formData.append('language', lang);
             
             const upRes = await fetch(`${API_BASE}/save`, { method: 'POST', body: formData });
             const upData = await upRes.json();
             
             if (upRes.ok && upData.key) {
-              // 显示预览卡片
               interviewPendingAudio = {
                 blob,
                 key: upData.key,
@@ -3067,17 +3073,21 @@
                 text: upData.autoText || ''
               };
               showPendingAudioCard(upData.autoText || '');
-              document.getElementById('interviewMicStatus').innerText = isZh ? 'R键录音' : 'R to record';
-              document.getElementById('interviewMicStatus').style.color = '';
+              if (micStatus) {
+                 micStatus.innerText = isZh ? 'R键录音' : 'R to record';
+                 micStatus.style.color = '';
+               }
             } else {
-              alert(upData.error || (isZh ? '处理失败' : 'Processing failed'));
-              document.getElementById('interviewMicStatus').innerText = isZh ? 'R键录音' : 'R to record';
-              document.getElementById('interviewMicStatus').style.color = '';
+              if (micStatus) {
+                micStatus.innerText = isZh ? 'R键录音' : 'R to record';
+                micStatus.style.color = '';
+              }
             }
           } catch (e) {
-            alert(isZh ? '处理失败' : 'Processing failed');
-            document.getElementById('interviewMicStatus').innerText = isZh ? 'R键录音' : 'R to record';
-            document.getElementById('interviewMicStatus').style.color = '';
+            if (micStatus) {
+              micStatus.innerText = isZh ? 'R键录音' : 'R to record';
+              micStatus.style.color = '';
+            }
           }
         } else {
           // 小按钮直接录音模式
@@ -3089,14 +3099,17 @@
           } else {
             await saveInterviewAudio(blob, duration, lang);
           }
+          if (micStatus) {
+            micStatus.innerText = isZh ? 'R键录音' : 'R to record';
+            micStatus.style.color = '';
+          }
         }
       };
 
       interviewRecorder.start();
       interviewRecording = true;
-      document.getElementById('interviewMicBtn').classList.add('recording');
-      const isZh = currentLang === 'zh';
-      document.getElementById('interviewMicStatus').innerText = isZh ? '录音中...' : 'Recording...';
+      document.getElementById('interviewMicBtn')?.classList.add('recording');
+      if (micStatus) micStatus.innerText = isZh ? '录音中...' : 'Recording...';
     } catch (e) {
       alert(currentLang === 'zh' ? '麦克风不可用' : 'Microphone unavailable');
     }
