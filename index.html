@@ -621,7 +621,7 @@
           <button onclick="saveFullText()" style="background: var(--card); color: white; border: 1px solid var(--primary); padding: 6px 12px; border-radius: 16px; cursor: pointer; font-size: 0.8rem;">💾 整段保存</button>
         </div>
         <div style="border-top: 1px solid #333; padding-top: 12px; margin-top: 4px;">
-          <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+          <div style="display: flex; align-items: center; gap: 12px;">
             <select id="interviewSttLang" style="background: #1a1a2e; color: #888; border: 1px solid #444; border-radius: 4px; font-size: 10px; padding: 4px; width: 50px;">
               <option value="">自动</option>
               <option value="en">英语</option>
@@ -635,16 +635,12 @@
             </button>
             <div style="flex: 1;">
               <div id="interviewMicStatus" style="font-size: 11px; color: #888;">R键录音</div>
+              <div id="interviewRecognizedText" style="font-size: 12px; color: white; margin-top: 4px; min-height: 20px;"></div>
             </div>
+            <button id="interviewSaveBtn" onclick="saveInterviewRecording()" style="display: none; background: var(--primary); color: white; border: none; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-weight: bold;">✓ 保存</button>
           </div>
-          <!-- 识别结果区域 -->
-          <div id="recognizedResultArea" style="display: none; margin-bottom: 10px;">
-            <div style="font-size: 11px; color: var(--primary); margin-bottom: 6px;">📝 语音识别：</div>
-            <div style="display: flex; gap: 8px; align-items: flex-start;">
-              <button onclick="playInterviewPendingAudio()" style="background: var(--card); border: 1px solid #444; color: white; padding: 6px 12px; border-radius: 16px; cursor: pointer; font-size: 0.8rem;">▶ 试听</button>
-              <div id="interviewRecognizedText" style="flex: 1; font-size: 12px; color: white; background: #1a1a2e; padding: 8px; border-radius: 6px; min-height: 40px; max-height: 100px; overflow-y: auto;"></div>
-              <button id="interviewSaveBtn" onclick="saveInterviewRecording()" style="background: var(--primary); color: white; border: none; padding: 6px 12px; border-radius: 16px; cursor: pointer; font-weight: bold;">✓ 保存</button>
-            </div>
+          <div id="recognizedResultArea" style="display: none; margin-top: 10px;">
+            <button onclick="playInterviewPendingAudio()" style="background: var(--card); border: 1px solid #444; color: white; padding: 6px 12px; border-radius: 16px; cursor: pointer; font-size: 0.8rem;">▶ 试听</button>
           </div>
         </div>
       </div>
@@ -3246,33 +3242,30 @@
   }
 
   function renderInterviewAudios() {
-    const container = document.getElementById('interviewAudioArea');
-    const countEl = document.getElementById('interviewAudioCount');
-    if (countEl) countEl.innerText = interviewAudios.length;
-
+    const container = document.getElementById('interviewTextArea');
     if (!container) return;
     
+    const isZh = currentLang === 'zh';
+    
     if (!interviewAudios.length) {
-      container.innerHTML = '<div style="color: #888; text-align: center; padding: 30px 10px; font-size: 0.8rem;">暂无录音<br>点击下方按钮录音</div>';
+      container.innerHTML = `
+        <div style="color: #888; text-align: center; padding: 30px 10px; font-size: 0.85rem;">
+          ${isZh ? '暂无录音<br>选择问题后开始录音' : 'No recordings<br>Select a question and start recording'}
+        </div>
+      `;
       return;
     }
 
     container.innerHTML = interviewAudios.map(audio => `
-      <div class="record-item" style="display: flex; align-items: stretch; padding: 10px 12px;">
-        <div style="width: 50px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 3px; flex-shrink: 0; border-right: 1px solid #333; padding-right: 10px; padding-top: 4px;">
-          <span style="color: #888; font-size: 0.7rem; font-weight: bold;">${audio.order_index || 1}</span>
-          <button class="action-btn" onclick="playInterviewAudio('${audio.audio_key || ''}', ${audio.id})" title="播放" style="font-size: 0.85rem; padding: 2px;">${audio.audio_key ? '🔊' : '❌'}</button>
-          <button id="interview-rec-${audio.id}" class="action-btn" onclick="reRecordInterviewAudio(${audio.id}, '${audio.audio_key || ''}')" title="重录" style="font-size: 0.85rem; padding: 2px;">🎤</button>
-          <button class="action-btn" onclick="deleteInterviewAudio(${audio.id})" title="删除" style="font-size: 0.85rem; padding: 2px;">🗑️</button>
+      <div class="record-item" style="display: flex; align-items: stretch; padding: 8px 12px; border-bottom: 1px solid #333;">
+        <div style="width: 40px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 4px; flex-shrink: 0; border-right: 1px solid #333; padding-right: 10px; padding-top: 2px;">
+          <span style="color: var(--primary); font-size: 0.8rem; font-weight: bold;">${audio.order_index || 1}</span>
+          <button class="action-btn" onclick="playInterviewAudio('${audio.audio_key || ''}', ${audio.id})" title="${isZh ? '播放' : 'Play'}" style="font-size: 0.85rem; padding: 2px;">▶</button>
+          <button class="action-btn" onclick="deleteInterviewAudio(${audio.id})" title="${isZh ? '删除' : 'Delete'}" style="font-size: 0.85rem; padding: 2px;">🗑️</button>
         </div>
-        <div style="flex: 1; padding: 0 10px; display: flex; align-items: stretch;">
-          <textarea class="manual-text ${audio.source === 'auto' ? 'source-auto' : 'source-manual'}" 
-            onblur="updateInterviewAudioText(${audio.id}, this.value)" 
-            placeholder="识别/输入文字..."
-            style="width: 100%; background: transparent; border: none; font-size: 0.9rem; resize: none; line-height: 1.6; overflow: visible; height: auto; min-height: 100px; padding: 6px 8px;"
-            onfocus="this.style.outline='1px solid #444'"
-            onblur="this.style.outline='none'"
-          >${audio.text || ''}</textarea>
+        <div style="flex: 1; padding: 0 10px;">
+          <div style="font-size: 0.85rem; color: white; line-height: 1.5; min-height: 40px;">${audio.text || (isZh ? '(无文字)' : '(No text)')}</div>
+          ${audio.duration ? `<div style="font-size: 0.7rem; color: #666; margin-top: 4px;">${audio.duration}s</div>` : ''}
         </div>
       </div>
     `).join('');
@@ -3392,7 +3385,9 @@
         if (resultArea) resultArea.style.display = 'none';
         const saveBtn = document.getElementById('interviewSaveBtn');
         if (saveBtn) saveBtn.style.display = 'none';
-        await selectQuestion(currentQuestionId);
+        // 重新加载录音列表并显示
+        await loadInterviewAudios();
+        renderInterviewAudios();
       } else {
         alert(isZh ? '保存失败' : 'Save failed');
       }
