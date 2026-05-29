@@ -84,6 +84,14 @@ export async function onRequestPost(context) {
       return new Response(JSON.stringify({ success: true }));
     }
 
+    if (action === 'update_text') {
+      if (!id || text === undefined) {
+        return new Response(JSON.stringify({ error: "id and text are required" }), { status: 400 });
+      }
+      await env.DB.prepare("UPDATE interview_audios SET text = ? WHERE id = ?").bind(text, id).run();
+      return new Response(JSON.stringify({ success: true }));
+    }
+
     return new Response(JSON.stringify({ error: "Invalid action" }), { status: 400 });
   } catch (err) {
     console.error('interview_audio POST error:', err.message, err.stack);

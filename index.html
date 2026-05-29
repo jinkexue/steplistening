@@ -3426,58 +3426,41 @@
     const isZh = currentLang === 'zh';
     const textInput = document.getElementById('segmentInput');
     const text = textInput?.value.trim() || '';
-    const recognizedText = document.getElementById('interviewRecognizedText');
-    const recText = recognizedText?.innerText || '';
     
-    // 最终文字：优先用语音识别的文字，其次用手动输入的文字
-    const finalText = recText || text;
-    
-    if (!finalText && !interviewPendingAudio) {
+    if (!text && !interviewPendingAudio) {
       return alert(isZh ? '请输入文字或录音' : 'Please enter text or record audio');
     }
     
     try {
-      // 如果有文字，先保存文字段落到 interview_audios
-      if (finalText) {
-        await fetch(`${API_BASE}/interview_audio`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'add',
-            question_id: currentQuestionId,
-            audio_key: '',
-            duration: 0,
-            text: finalText,
-            source: recText ? 'auto' : 'manual',
-            order_index: interviewAudios.length + 1
-          })
-        });
-      }
+      const orderIndex = interviewAudios.length + 1;
+      const audioKey = interviewPendingAudio?.key || '';
+      const duration = interviewPendingAudio?.duration || 0;
+      const source = text ? 'manual' : 'manual';
       
-      // 如果有录音pending，保存录音
-      if (interviewPendingAudio) {
-        await fetch(`${API_BASE}/interview_audio`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'add',
-            question_id: currentQuestionId,
-            audio_key: interviewPendingAudio.key,
-            duration: interviewPendingAudio.duration,
-            text: finalText || interviewPendingAudio.text || '',
-            source: recText ? 'auto' : 'manual',
-            order_index: interviewAudios.length + 1
-          })
-        });
+      // 保存一条记录（文字和录音都在一条记录里）
+      const res = await fetch(`${API_BASE}/interview_audio`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'add',
+          question_id: currentQuestionId,
+          audio_key: audioKey,
+          duration: duration,
+          text: text,
+          source: source,
+          order_index: orderIndex
+        })
+      });
+      
+      if (res.ok) {
         interviewPendingAudio = null;
+        if (textInput) textInput.value = '';
+        await loadInterviewAudios();
+        renderInterviewAudios();
+      } else {
+        const err = await res.json();
+        alert(isZh ? '保存失败: ' + err.error : 'Save failed: ' + err.error);
       }
-      
-      // 清空输入
-      if (textInput) textInput.value = '';
-      
-      // 重新加载显示
-      await loadInterviewAudios();
-      renderInterviewAudios();
     } catch (e) {
       alert(isZh ? '保存失败' : 'Save failed');
     }
