@@ -3309,7 +3309,6 @@
       <div class="record-item ${item.type === 'text' ? 'text-item' : 'audio-item'}" style="display: flex; align-items: stretch; padding: 8px 12px; border-bottom: 1px solid #333;">
         <div style="width: 40px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 4px; flex-shrink: 0; border-right: 1px solid #333; padding-right: 10px; padding-top: 2px;">
           <span style="color: ${item.type === 'audio' ? 'var(--primary)' : '#888'}; font-size: 0.8rem; font-weight: bold;">${item.order_index}</span>
-          <span style="font-size: 0.6rem;">${item.type === 'audio' ? '🎤' : '📝'}</span>
           ${item.type === 'audio' ? `
             <button class="action-btn" onclick="playInterviewAudio('${item.audio_key || ''}', ${item.id.replace('audio_', '')})" title="${isZh ? '播放' : 'Play'}" style="font-size: 0.85rem; padding: 2px;">▶</button>
             <button class="action-btn" onclick="startReRecordInterview(${item.id.replace('audio_', '')})" title="${isZh ? '重录' : 'Re-record'}" style="font-size: 0.85rem; padding: 2px;">🎤</button>
@@ -3323,7 +3322,7 @@
               onblur="saveInterviewItemEdit('${item.type}', ${item.id.replace(item.type + '_', '')}, this.value)"
             >${item.text}</textarea>
           ` : `
-            <div onclick="startEditInterviewItem('${item.id}')" style="font-size: 0.85rem; color: white; line-height: 1.5; min-height: 40px; cursor: text;">${item.text || (isZh ? '(无文字)' : '(No text)')}</div>
+            <div style="font-size: 0.85rem; color: white; line-height: 1.5; min-height: 40px; cursor: text;" onclick="startEditInterviewItem('${item.type}', ${item.id.replace(item.type + '_', '')})">${item.text || (isZh ? '(无文字)' : '(No text)')}</div>
           `}
           ${item.duration ? `<div style="font-size: 0.7rem; color: #666; margin-top: 4px;">🎧 ${item.duration}s</div>` : ''}
         </div>
@@ -3332,12 +3331,11 @@
   }
 
   // 开始编辑某项
-  function startEditInterviewItem(itemId) {
-    const item = [...(questionSegments || []), ...(interviewAudios || [])].find(i => 'text_' + (i.id || '') === itemId || 'audio_' + (i.id || '') === itemId);
-    if (!item) return;
-    const type = itemId.startsWith('audio_') ? 'audio' : 'text';
+  function startEditInterviewItem(type, id) {
     if (type === 'text') {
-      questionSegments = questionSegments.map(s => s.id == item.id ? { ...s, editing: true } : s);
+      questionSegments = questionSegments.map(s => s.id == id ? { ...s, editing: true } : s);
+    } else {
+      interviewAudios = interviewAudios.map(a => a.id == id ? { ...a, editing: true } : a);
     }
     renderInterviewAudios();
   }
