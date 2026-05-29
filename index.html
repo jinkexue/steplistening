@@ -606,14 +606,10 @@
     <div class="resize-handle" data-resize="col1"></div>
     <!-- 右侧：问题详情 + 录音区 -->
     <div class="interview-col" id="rightCol" style="display: flex; flex-direction: column; gap: 15px; background: var(--card); border-radius: 12px; border: 1px solid #333; padding: 10px;">
-      <!-- 问题回答区域（已保存的录音/文字列表） -->
+      <!-- 问题回答区域（已保存的内容列表） -->
       <div id="interviewTextArea" style="flex: 1; display: flex; flex-direction: column; gap: 8px; min-height: 200px; overflow-y: auto;"></div>
-      <!-- 粘贴/录音区域 -->
+      <!-- 输入/录音区域 -->
       <div style="padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid var(--primary);">
-        <div style="font-size: 0.75rem; color: var(--primary); margin-bottom: 8px;">📋 输入或粘贴回答文字：</div>
-        <textarea id="segmentInput" 
-          placeholder="输入或粘贴回答文字..."
-          style="width: 100%; min-height: 50px; padding: 8px; border-radius: 6px; background: #1a1a2e; border: 1px solid #444; color: white; font-size: 0.85rem; resize: vertical; line-height: 1.5; margin-bottom: 8px;"></textarea>
         <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
           <select id="interviewSttLang" style="background: #1a1a2e; color: #888; border: 1px solid #444; border-radius: 4px; font-size: 10px; padding: 4px; width: 50px;">
             <option value="">自动</option>
@@ -631,15 +627,9 @@
           </div>
           <button id="interviewSaveBtn" onclick="saveInterviewRecording()" style="background: var(--primary); color: white; border: none; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-weight: bold;">✓ 保存</button>
         </div>
-        <div id="recognizedResultArea" style="display: none; background: #1a1a2e; padding: 8px; border-radius: 6px;">
-          <div style="font-size: 10px; color: var(--primary); margin-bottom: 4px;">📝 语音识别：</div>
-          <div id="interviewRecognizedText" style="font-size: 12px; color: white; min-height: 20px;"></div>
-          <button onclick="playInterviewPendingAudio()" style="background: var(--card); border: 1px solid #444; color: white; padding: 4px 10px; border-radius: 12px; cursor: pointer; font-size: 0.75rem; margin-top: 6px;">▶ 试听</button>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
+        <textarea id="segmentInput" 
+          placeholder="输入或粘贴回答文字，录音结束后识别文字会显示在这里..."
+          style="width: 100%; min-height: 60px; padding: 8px; border-radius: 6px; background: #1a1a2e; border: 1px solid #444; color: white; font-size: 0.85rem; resize: vertical; line-height: 1.5;"></textarea>
       </div>
     </div>
   </div>
@@ -3356,10 +3346,7 @@
         const duration = Math.round((Date.now() - interviewRecordingStart) / 1000);
 
         if (micStatus) micStatus.innerText = isZh ? '处理中...' : 'Processing...';
-        const resultArea = document.getElementById('recognizedResultArea');
-        const recognizedText = document.getElementById('interviewRecognizedText');
-        if (recognizedText) recognizedText.innerText = '';
-        if (resultArea) resultArea.style.display = 'none';
+        const textInput = document.getElementById('segmentInput');
         
         try {
           const formData = new FormData();
@@ -3391,20 +3378,23 @@
               });
               interviewAudios = interviewAudios.map(a => a.id == interviewReRecordId ? { ...a, audio_key: upData.key, duration, text, source: text ? 'auto' : 'manual' } : a);
               interviewReRecordId = null;
+              // 清空输入框
+              if (textInput) textInput.value = '';
               renderInterviewAudios();
               if (micStatus) micStatus.innerText = isZh ? 'R键录音' : 'R to record';
             } else {
-              // 新录音模式
+              // 新录音模式：将识别文字填入文本框
               interviewPendingAudio = {
                 blob,
                 key: upData.key,
                 duration,
                 text: text
               };
-              if (recognizedText) recognizedText.innerText = text || (isZh ? '(无识别结果)' : '(No recognition)');
-              if (resultArea) resultArea.style.display = 'block';
+              // 识别文字追加到文本框
+              const currentText = textInput?.value.trim() || '';
+              const newText = currentText ? currentText + '\n' + text : text;
+              if (textInput) textInput.value = newText;
               if (micStatus) micStatus.innerText = isZh ? 'R键录音' : 'R to record';
-              // 保存按钮已经一直显示，不需要额外操作
             }
           } else {
             if (micStatus) micStatus.innerText = isZh ? '处理失败' : 'Processing failed';
@@ -3484,9 +3474,6 @@
       
       // 清空输入
       if (textInput) textInput.value = '';
-      if (recognizedText) recognizedText.innerText = '';
-      const resultArea = document.getElementById('recognizedResultArea');
-      if (resultArea) resultArea.style.display = 'none';
       
       // 重新加载显示
       await loadInterviewAudios();
