@@ -2618,12 +2618,14 @@
 
   async function saveQuestionOrder(positionId, orderList) {
     try {
-      // 逐个更新每个问题的排序
-      for (const item of orderList) {
+      // 简化：只保存被移动项目的顺序
+      const draggedId = draggedFromIndex !== null ? orderList[draggedFromIndex]?.id : null;
+      if (draggedId) {
+        const newOrder = orderList.findIndex(item => item.id === draggedId) + 1;
         await fetch(`${API_BASE}/question`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'update_order', id: item.id, order_index: item.order })
+          body: JSON.stringify({ action: 'update_order', id: draggedId, order_index: newOrder })
         });
       }
     } catch (e) {
@@ -2685,16 +2687,21 @@
 
   function renderPositionView() {
     const isZh = currentLang === 'zh';
+    const container = document.getElementById('interviewTextArea');
     
+    // 如果有选中问题，显示该问题的录音列表
+    if (currentQuestionId) {
+      renderInterviewAudios();
+      return;
+    }
+    
+    // 否则显示空状态或问题列表
     if (!questionList.length) {
       renderEmptyState();
       return;
     }
     
-    // 如果没有选中问题，显示选择提示
-    if (!currentQuestionId) {
-      renderQuestionList();
-    }
+    renderQuestionList();
   }
 
   function renderEmptyState() {

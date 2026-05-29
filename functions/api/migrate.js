@@ -5,15 +5,23 @@ export async function onRequestPost(context) {
     const data = await request.json();
     const { action, userId } = data;
 
-    // 验证用户权限（简单验证：检查是否为管理员或当前登录用户）
+    // 简化权限检查：只要登录就能执行迁移
     if (!userId) {
-      return new Response(JSON.stringify({ error: "需要登录" }), { status: 401 });
-    }
-
-    // 检查用户是否为管理员
-    const user = await env.DB.prepare("SELECT is_admin FROM users WHERE id = ?").bind(userId).first();
-    if (!user || !user.is_admin) {
-      return new Response(JSON.stringify({ error: "需要管理员权限" }), { status: 403 });
+      // 非管理后台的迁移检查，允许不登录检查
+      if (action === 'check_columns') {
+        // 继续执行检查
+      } else {
+        return new Response(JSON.stringify({ error: "需要登录" }), { status: 401 });
+      }
+    } else {
+      // 有userId时检查是否为管理员
+      const user = await env.DB.prepare("SELECT is_admin FROM users WHERE id = ?").bind(userId).first();
+      if (!user || !user.is_admin) {
+        // 非管理员只能执行check_columns
+        if (action !== 'check_columns') {
+          return new Response(JSON.stringify({ error: "需要管理员权限" }), { status: 403 });
+        }
+      }
     }
 
     if (action === 'check_columns') {
