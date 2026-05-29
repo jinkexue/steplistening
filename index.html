@@ -1638,9 +1638,11 @@
       const data = await res.json();
 
       if (data.success) {
-        alert('✅ 数据库迁移完成！\n\n' + data.results.map(r =>
-          `${r.column}: ${r.status === 'added' ? '✅ 已添加' : r.status === 'already_exists' ? '✓ 已存在' : '❌ ' + r.error}`
-        ).join('\n'));
+        alert('✅ 数据库迁移完成！\n\n' + data.results.map(r => {
+          const name = r.table ? `${r.table}.${r.column}` : r.column;
+          const status = r.status === 'added' ? '✅ 已添加' : r.status === 'already_exists' ? '✓ 已存在' : r.status === 'initialized' ? '✅ 已初始化' : '❌ ' + (r.error || '未知错误');
+          return `${name || 'unknown'}: ${status}`;
+        }).join('\n'));
         checkDatabaseStatus();
       } else {
         alert('❌ 迁移失败:\n' + (data.message || data.error || '未知错误'));
