@@ -3121,12 +3121,25 @@
       if (res.ok) {
         input.value = '';
         document.getElementById('segmentCountPreview').innerText = '';
-        await selectQuestion(currentQuestionId);
+        await loadQuestionSegments();
+        renderInterviewAudios();
       } else {
         alert(currentLang === 'zh' ? '保存失败' : 'Save failed');
       }
     } catch (e) {
       alert(currentLang === 'zh' ? '保存失败' : 'Save failed');
+    }
+  }
+
+  async function loadQuestionSegments() {
+    if (!currentQuestionId) return;
+    try {
+      const res = await fetch(`${API_BASE}/segment?question_id=${currentQuestionId}`);
+      if (res.ok) {
+        questionSegments = await res.json();
+      }
+    } catch (e) {
+      questionSegments = [];
     }
   }
 
@@ -3209,7 +3222,8 @@
       
       input.value = '';
       document.getElementById('segmentCountPreview').innerText = '';
-      await selectQuestion(currentQuestionId);
+      await loadQuestionSegments();
+      renderInterviewAudios();
     } catch (e) {
       alert(currentLang === 'zh' ? '保存失败' : 'Save failed');
     }
@@ -3241,34 +3255,149 @@
     }
   }
 
+  // 合并文字segments和录音audios，统一显示
   function renderInterviewAudios() {
     const container = document.getElementById('interviewTextArea');
     if (!container) return;
     
     const isZh = currentLang === 'zh';
     
-    if (!interviewAudios.length) {
+    // 合并两种数据源
+    const allItems = [];
+    
+    // 添加文字段落
+    if (questionSegments && questionSegments.length > 0) {
+      questionSegments.forEach((seg, idx) => {
+        allItems.push({
+          id: 'text_' + seg.id,
+          type: 'text',
+          order_index: seg.order_index || (idx + 1),
+          text: seg.text,
+          source: seg.source
+        });
+      });
+    }
+    
+    // 添加录音
+    if (interviewAudios && interviewAudios.length > 0) {
+      interviewAudios.forEach((audio, idx) => {
+        allItems.push({
+          id: 'audio_' + audio.id,
+          type: 'audio',
+          order_index: audio.order_index || (questionSegments?.length || 0) + idx + 1,
+          text: audio.text,
+          audio_key: audio.audio_key,
+          duration: audio.duration,
+          source: audio.source
+        });
+      });
+    }
+    
+    // 按order_index排序
+    allItems.sort((a, b) => a.order_index - b.order_index);
+    
+    if (allItems.length === 0) {
       container.innerHTML = `
         <div style="color: #888; text-align: center; padding: 30px 10px; font-size: 0.85rem;">
-          ${isZh ? '暂无录音<br>选择问题后开始录音' : 'No recordings<br>Select a question and start recording'}
+          ${isZh ? '暂无内容<br>输入文字或开始录音' : 'No content<br>Enter text or start recording'}
         </div>
       `;
       return;
     }
 
-    container.innerHTML = interviewAudios.map(audio => `
-      <div class="record-item" style="display: flex; align-items: stretch; padding: 8px 12px; border-bottom: 1px solid #333;">
+    container.innerHTML = allItems.map(item => `
+      <div class="record-item ${item.type === 'text' ? 'text-item' : 'audio-item'}" style="display: flex; align-items: stretch; padding: 8px 12px; border-bottom: 1px solid #333;">
         <div style="width: 40px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 4px; flex-shrink: 0; border-right: 1px solid #333; padding-right: 10px; padding-top: 2px;">
-          <span style="color: var(--primary); font-size: 0.8rem; font-weight: bold;">${audio.order_index || 1}</span>
-          <button class="action-btn" onclick="playInterviewAudio('${audio.audio_key || ''}', ${audio.id})" title="${isZh ? '播放' : 'Play'}" style="font-size: 0.85rem; padding: 2px;">▶</button>
-          <button class="action-btn" onclick="deleteInterviewAudio(${audio.id})" title="${isZh ? '删除' : 'Delete'}" style="font-size: 0.85rem; padding: 2px;">🗑️</button>
+          <span style="color: ${item.type === 'audio' ? 'var(--primary)' : '#888'}; font-size: 0.8rem; font-weight: bold;">${item.order_index}</span>
+          <span style="font-size: 0.6rem;">${item.type === 'audio' ? '🎤' : '📝'}</span>
+          ${item.type === 'audio' ? `
+            <button class="action-btn" onclick="playInterviewAudio('${item.audio_key || ''}', ${item.id.replace('audio_', '')})" title="${isZh ? '播放' : 'Play'}" style="font-size: 0.85rem; padding: 2px;">▶</button>
+            <button class="action-btn" onclick="startReRecordInterview(${item.id.replace('audio_', '')})" title="${isZh ? '重录' : 'Re-record'}" style="font-size: 0.85rem; padding: 2px;">🎤</button>
+          ` : ''}
+          <button class="action-btn" onclick="deleteInterviewItem('${item.type}', ${item.id.replace(item.type + '_', '')})" title="${isZh ? '删除' : 'Delete'}" style="font-size: 0.85rem; padding: 2px;">🗑️</button>
         </div>
         <div style="flex: 1; padding: 0 10px;">
-          <div style="font-size: 0.85rem; color: white; line-height: 1.5; min-height: 40px;">${audio.text || (isZh ? '(无文字)' : '(No text)')}</div>
-          ${audio.duration ? `<div style="font-size: 0.7rem; color: #666; margin-top: 4px;">${audio.duration}s</div>` : ''}
+          ${item.editing ? `
+            <textarea id="edit-${item.id}" 
+              style="width: 100%; min-height: 40px; background: #1a1a2e; border: 1px solid var(--primary); color: white; padding: 6px; border-radius: 4px; font-size: 0.85rem; resize: vertical;"
+              onblur="saveInterviewItemEdit('${item.type}', ${item.id.replace(item.type + '_', '')}, this.value)"
+            >${item.text}</textarea>
+          ` : `
+            <div onclick="startEditInterviewItem('${item.id}')" style="font-size: 0.85rem; color: white; line-height: 1.5; min-height: 40px; cursor: text;">${item.text || (isZh ? '(无文字)' : '(No text)')}</div>
+          `}
+          ${item.duration ? `<div style="font-size: 0.7rem; color: #666; margin-top: 4px;">🎧 ${item.duration}s</div>` : ''}
         </div>
       </div>
     `).join('');
+  }
+
+  // 开始编辑某项
+  function startEditInterviewItem(itemId) {
+    const item = [...(questionSegments || []), ...(interviewAudios || [])].find(i => 'text_' + (i.id || '') === itemId || 'audio_' + (i.id || '') === itemId);
+    if (!item) return;
+    const type = itemId.startsWith('audio_') ? 'audio' : 'text';
+    if (type === 'text') {
+      questionSegments = questionSegments.map(s => s.id == item.id ? { ...s, editing: true } : s);
+    }
+    renderInterviewAudios();
+  }
+
+  // 保存编辑
+  async function saveInterviewItemEdit(type, id, newText) {
+    if (!newText?.trim()) return;
+    if (type === 'text') {
+      try {
+        await fetch(`${API_BASE}/segment`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'update', id, text: newText.trim() })
+        });
+        questionSegments = questionSegments.map(s => s.id == id ? { ...s, text: newText.trim(), editing: false } : s);
+      } catch (e) {}
+    } else {
+      try {
+        await fetch(`${API_BASE}/interview_audio`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'update_text', id, text: newText.trim() })
+        });
+        interviewAudios = interviewAudios.map(a => a.id == id ? { ...a, text: newText.trim() } : a);
+      } catch (e) {}
+    }
+    renderInterviewAudios();
+  }
+
+  // 删除项目
+  async function deleteInterviewItem(type, id) {
+    if (!confirm(currentLang === 'zh' ? '确定删除？' : 'Confirm delete?')) return;
+    try {
+      if (type === 'text') {
+        await fetch(`${API_BASE}/segment`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'delete', id })
+        });
+        questionSegments = questionSegments.filter(s => s.id != id);
+      } else {
+        await fetch(`${API_BASE}/interview_audio`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'delete', id })
+        });
+        interviewAudios = interviewAudios.filter(a => a.id != id);
+      }
+      renderInterviewAudios();
+    } catch (e) {}
+  }
+
+  // 开始重录某条录音
+  async function startReRecordInterview(id) {
+    if (interviewRecording) {
+      stopInterviewRecording();
+      await new Promise(r => setTimeout(r, 200));
+    }
+    interviewReRecordId = id;
+    startInterviewRecording();
   }
 
   async function toggleInterviewRecording() {
@@ -3321,17 +3450,40 @@
           const upData = await upRes.json();
           
           if (upRes.ok && upData.key) {
-            interviewPendingAudio = {
-              blob,
-              key: upData.key,
-              duration,
-              text: upData.autoText || ''
-            };
+            const text = upData.autoText || '';
             
-            if (recognizedText) recognizedText.innerText = upData.autoText || (isZh ? '(无识别结果)' : '(No recognition)');
-            if (resultArea) resultArea.style.display = 'block';
-            if (micStatus) micStatus.innerText = isZh ? 'R键录音' : 'R to record';
-            if (saveBtn) saveBtn.style.display = 'block';
+            if (interviewReRecordId) {
+              // 重录模式：更新已有录音
+              const oldAudio = interviewAudios.find(a => a.id == interviewReRecordId);
+              await fetch(`${API_BASE}/interview_audio`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  action: 'update',
+                  id: interviewReRecordId,
+                  audio_key: upData.key,
+                  duration: duration,
+                  text: text,
+                  source: text ? 'auto' : 'manual'
+                })
+              });
+              interviewAudios = interviewAudios.map(a => a.id == interviewReRecordId ? { ...a, audio_key: upData.key, duration, text, source: text ? 'auto' : 'manual' } : a);
+              interviewReRecordId = null;
+              renderInterviewAudios();
+              if (micStatus) micStatus.innerText = isZh ? 'R键录音' : 'R to record';
+            } else {
+              // 新录音模式
+              interviewPendingAudio = {
+                blob,
+                key: upData.key,
+                duration,
+                text: text
+              };
+              if (recognizedText) recognizedText.innerText = text || (isZh ? '(无识别结果)' : '(No recognition)');
+              if (resultArea) resultArea.style.display = 'block';
+              if (micStatus) micStatus.innerText = isZh ? 'R键录音' : 'R to record';
+              if (saveBtn) saveBtn.style.display = 'block';
+            }
           } else {
             if (micStatus) micStatus.innerText = isZh ? '处理失败' : 'Processing failed';
           }
