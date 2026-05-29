@@ -45,6 +45,14 @@ export async function onRequestPost(context) {
       const hasSegmentId = audioColumns.results.length > 0;
       if (!hasSegmentId) missingColumns.push('interview_audios.segment_id');
 
+      // 检查questions表的order_index列
+      const questionColumns = await env.DB.prepare(
+        "SELECT name FROM pragma_table_info('questions') WHERE name = 'order_index'"
+      ).all();
+      
+      const hasOrderIndex = questionColumns.results.length > 0;
+      if (!hasOrderIndex) missingColumns.push('questions.order_index');
+
       return new Response(JSON.stringify({
         success: true,
         existingColumns,
