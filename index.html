@@ -293,6 +293,7 @@
     .transcript-content { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; font-size: 0.88rem; line-height: 1.55; }
     .transcript-placeholder, .transcript-error, .transcript-loading { color: #888; text-align: center; padding: 30px 12px; font-size: 0.85rem; line-height: 1.6; }
     .transcript-error { color: #ff8a8a; }
+    .transcript-segment.active { background: rgba(78, 204, 163, 0.12); box-shadow: inset 3px 0 0 var(--success); }
     .transcript-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 12px; }
     .transcript-paste-box { width: 100%; min-height: 220px; background: #1a1a2e; color: #eee; border: 1px solid #444; border-radius: 8px; padding: 10px; resize: vertical; line-height: 1.5; font-size: 0.85rem; }
     .transcript-hint { color: #888; font-size: 0.78rem; line-height: 1.5; margin-bottom: 8px; }
@@ -737,6 +738,8 @@
   let reviewQueue = [];
   let currentReviewIdx = 0;
   let currentTranscriptRequestId = 0;
+  let currentTranscriptSegments = [];
+  let activeTranscriptIndex = -1;
   let timeOffsetValue = 0; // 整体时间偏移量（秒）
 
   function escapeHtml(text = '') {
@@ -997,6 +1000,8 @@
     const content = document.getElementById('transcriptContent');
     const meta = document.getElementById('transcriptMeta');
     if (meta) meta.textContent = '';
+    currentTranscriptSegments = [];
+    activeTranscriptIndex = -1;
     if (content) {
       content.innerHTML = `<div class="transcript-placeholder">${currentLang === 'zh' ? '加载视频后，这里会显示对应 YouTube 文本转写全文。' : 'Load a video to show the full YouTube transcript here.'}</div>`;
     }
@@ -1006,13 +1011,46 @@
     if (player && player.seekTo) {
       player.seekTo(seconds, true);
       player.playVideo?.();
+      syncTranscriptHighlight(seconds, true);
     }
+  }
+
+  function syncTranscriptHighlight(currentTime, forceScroll = false) {
+    if (!currentTranscriptSegments.length) return;
+
+    let activeIndex = -1;
+    for (let i = 0; i < currentTranscriptSegments.length; i++) {
+      if ((Number(currentTranscriptSegments[i].start) || 0) <= currentTime) {
+        activeIndex = i;
+      } else {
+        break;
+      }
+    }
+
+    if (activeIndex === -1 || (!forceScroll && activeIndex === activeTranscriptIndex)) return;
+    activeTranscriptIndex = activeIndex;
+
+    document.querySelectorAll('.transcript-segment').forEach(el => el.classList.remove('active'));
+    const activeEl = document.getElementById(`transcript-seg-${activeIndex}`);
+    if (activeEl) {
+      activeEl.classList.add('active');
+      activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+
+  function openYoutubeTranscript() {
+    if (!videoId) return alert(currentLang === 'zh' ? '请先加载视频' : 'Please load a video first');
+    window.open(`https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`, '_blank', 'noopener,noreferrer');
   }
 
   function renderTranscriptSegments(data) {
     const content = document.getElementById('transcriptContent');
     const meta = document.getElementById('transcriptMeta');
     if (!content) return;
+    currentTranscriptSegments = Array.isArray(data.segments)
+      ? data.segments.map(seg => ({ ...seg, start: Number(seg.start) || 0 })).sort((a, b) => a.start - b.start)
+      : [];
+    activeTranscriptIndex = -1;
 
     if (meta) {
       if (data.source === 'manual') {
@@ -1024,23 +1062,30 @@
       }
     }
 
-    content.innerHTML = data.segments.map(seg => `
-      <div class="transcript-segment" onclick="seekTranscriptTime(${Number(seg.start) || 0})" title="${currentLang === 'zh' ? '点击跳转到该时间' : 'Click to jump to this time'}">
+    content.innerHTML = currentTranscriptSegments.map((seg, index) => `
+      <div id="transcript-seg-${index}" class="transcript-segment" data-start="${Number(seg.start) || 0}" onclick="seekTranscriptTime(${Number(seg.start) || 0})" title="${currentLang === 'zh' ? '点击跳转到该时间' : 'Click to jump to this time'}">
         <div class="transcript-time">${escapeHtml(seg.time || '')}</div>
         <div class="transcript-text">${escapeHtml(seg.text || '')}</div>
       </div>
     `).join('');
+
+    if (player && player.getCurrentTime) {
+      syncTranscriptHighlight(player.getCurrentTime(), true);
+    }
   }
 
   function showManualTranscriptPaste(reason = '') {
     const content = document.getElementById('transcriptContent');
     const meta = document.getElementById('transcriptMeta');
     if (meta) meta.textContent = currentLang === 'zh' ? '等待手动粘贴' : 'waiting for manual paste';
+    currentTranscriptSegments = [];
+    activeTranscriptIndex = -1;
     if (!content) return;
 
     const hint = currentLang === 'zh'
-      ? '自动获取失败。请在 YouTube 页面点击“内容转文字”，复制全文后粘贴到这里；支持类似 0:00Hello 或 0:04 4秒钟 Text 的格式。'
-      : 'Automatic fetch failed. Open YouTube, click Show transcript, copy the full transcript, then paste it here.';
+      ? '自动获取失败。点击“打开 YouTube 获取文稿”，在 YouTube 页面点击“内容转文字”，复制全文后粘贴到这里；支持类似 0:00Hello 或 0:04 4秒钟 Text 的格式。保存后文稿会跟随视频播放自动高亮，点击文稿也会跳转视频。'
+      : 'Automatic fetch failed. Click “Open YouTube”, use Show transcript on YouTube, copy the full transcript, then paste it here. After saving, the transcript will highlight with playback and clicking a line will seek the video.';
+    const openText = currentLang === 'zh' ? '打开 YouTube 获取文稿' : 'Open YouTube';
     const buttonText = currentLang === 'zh' ? '保存手动文稿' : 'Save Manual Transcript';
     const retryText = currentLang === 'zh' ? '重试自动获取' : 'Retry Auto Fetch';
 
@@ -1049,6 +1094,7 @@
       ${reason ? `<div class="transcript-error" style="padding:8px 0;text-align:left;">${escapeHtml(reason)}</div>` : ''}
       <textarea id="manualTranscriptInput" class="transcript-paste-box" placeholder="0:00Hello, I'm Matt Galloway...\n0:04 4秒钟 We need welders..."></textarea>
       <div class="transcript-actions">
+        <button class="btn-secondary" onclick="openYoutubeTranscript()" style="font-size:0.75rem;padding:8px 14px;">${openText}</button>
         <button class="btn-main" onclick="saveManualTranscript()" style="font-size:0.75rem;padding:8px 14px;">${buttonText}</button>
         <button class="btn-secondary" onclick="loadTranscript(videoId)" style="font-size:0.75rem;padding:8px 14px;">${retryText}</button>
       </div>
@@ -1141,6 +1187,7 @@
       if (player && player.getPlayerState && player.getPlayerState() === 1) { // 正在播放
         const currentTime = Math.floor(player.getCurrentTime());
         syncFragmentHighlight(currentTime);
+        syncTranscriptHighlight(currentTime);
       }
     }, 1000);
   }
