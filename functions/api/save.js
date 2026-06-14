@@ -98,14 +98,19 @@ export async function onRequestPost(context) {
     if (contentType.includes("application/json")) {
       const data = await request.json();
       const { action, id, user_id, video_id, video_title, timestamp, duration, order_index, text, audio_key, total_duration, source } = data;
-      const supportsSource = await hasColumn(env, 'records', 'source');
 
-      // 保存视频元数据 (总时长)
-      if (video_id && total_duration) {
+      // 保存视频元数据 (总时长)：这是独立操作，不继续创建听写记录
+      if (video_id && total_duration && !user_id && !id && !action) {
+        await env.DB.prepare("CREATE TABLE IF NOT EXISTS videos_meta (video_id TEXT PRIMARY KEY, total_duration INTEGER DEFAULT 0)").run();
         await env.DB.prepare("INSERT OR REPLACE INTO videos_meta (video_id, total_duration) VALUES (?, ?)")
           .bind(video_id, total_duration)
           .run();
+        return new Response(JSON.stringify({ success: true, video_id, total_duration }), {
+          headers: { "Content-Type": "application/json" }
+        });
       }
+
+      const supportsSource = await hasColumn(env, 'records', 'source');
 
       if (action === 'delete') {
         await env.DB.prepare("DELETE FROM records WHERE id = ?").bind(id).run();
