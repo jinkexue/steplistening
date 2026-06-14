@@ -1,13 +1,39 @@
 const YOUTUBE_WATCH_URL = 'https://www.youtube.com/watch?v=';
 
-function jsonResponse(data, status = 200) {
+function jsonResponse(data, status = 200, cacheSeconds = 300) {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
       'Content-Type': 'application/json; charset=utf-8',
-      'Cache-Control': 'public, max-age=300',
+      'Cache-Control': `public, max-age=${cacheSeconds}`,
     },
   });
+}
+
+async function ensureManualTranscriptTable(env) {
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS manual_transcripts (
+      video_id TEXT PRIMARY KEY,
+      text TEXT NOT NULL,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `).run();
+}
+
+async function getManualTranscript(env, videoId) {
+  await ensureManualTranscriptTable(env);
+  return env.DB.prepare('SELECT video_id, text, updated_at FROM manual_transcripts WHERE video_id = ?')
+    .bind(videoId)
+    .first();
+}
+
+async function saveManualTranscript(env, videoId, text) {
+  await ensureManualTranscriptTable(env);
+  await env.DB.prepare(`
+    INSERT INTO manual_transcripts (video_id, text, updated_at)
+    VALUES (?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(video_id) DO UPDATE SET text = excluded.text, updated_at = CURRENT_TIMESTAMP
+  `).bind(videoId, text).run();
 }
 
 function decodeHtmlEntities(text = '') {
@@ -170,17 +196,87 @@ function normalizeXmlTranscript(xml = '') {
   return segments;
 }
 
+function parseManualTranscript(text = '') {
+  const normalized = String(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+  if (!normalized) return [];
+
+  const regex = /(\d{1,2}:\d{2}(?::\d{2})?)(?:\s*\d+秒钟)?\s*([\s\S]*?)(?=\n?\d{1,2}:\d{2}(?::\d{2})?(?:\s*\d+秒钟)?|$)/g;
+  const segments = [];
+  let match;
+
+  while ((match = regex.exec(normalized)) !== null) {
+    const time = match[1];
+    const body = (match[2] || '').replace(/\s+/g, ' ').trim();
+    if (!body) continue;
+
+    const parts = time.split(':').map(Number);
+    const start = parts.length === 3 ? parts[0] * 3600 + parts[1] * 60 + parts[2] : parts[0] * 60 + parts[1];
+    segments.push({ start, time: formatTime(start), text: body });
+  }
+
+  if (segments.length) return segments;
+
+  return normalized.split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+    .map((line, index) => ({ start: index, time: formatTime(index), text: line }));
+}
+
+function manualTranscriptPayload(row) {
+  const segments = parseManualTranscript(row.text || '');
+  return {
+    video_id: row.video_id,
+    language: '',
+    language_name: 'Manual paste',
+    is_generated: false,
+    source: 'manual',
+    updated_at: row.updated_at,
+    segments,
+    text: row.text || '',
+  };
+}
+
+export async function onRequestPost(context) {
+  const { request, env } = context;
+  const data = await request.json().catch(() => ({}));
+  const videoId = data.video_id;
+  const text = String(data.text || '').trim();
+
+  if (!videoId || !/^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
+    return jsonResponse({ error: 'A valid video_id is required' }, 400, 0);
+  }
+
+  if (!text) {
+    return jsonResponse({ error: 'Transcript text is required' }, 400, 0);
+  }
+
+  try {
+    await saveManualTranscript(env, videoId, text);
+    const row = await getManualTranscript(env, videoId);
+    return jsonResponse({ success: true, ...manualTranscriptPayload(row) }, 201, 0);
+  } catch (err) {
+    return jsonResponse({ error: err.message || 'Failed to save manual transcript' }, 500, 0);
+  }
+}
+
 export async function onRequestGet(context) {
-  const { request } = context;
+  const { request, env } = context;
   const { searchParams } = new URL(request.url);
   const videoId = searchParams.get('video_id');
   const preferredLang = searchParams.get('lang') || '';
+  const source = searchParams.get('source') || 'auto';
 
   if (!videoId || !/^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
     return jsonResponse({ error: 'A valid video_id is required' }, 400);
   }
 
   try {
+    if (source === 'manual') {
+      const manual = await getManualTranscript(env, videoId);
+      if (!manual) return jsonResponse({ error: 'No manual transcript saved for this video', segments: [], text: '' }, 404, 0);
+      return jsonResponse(manualTranscriptPayload(manual), 200, 0);
+    }
+
     const watchRes = await fetch(`${YOUTUBE_WATCH_URL}${videoId}`, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36',
