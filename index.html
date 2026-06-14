@@ -1027,8 +1027,10 @@
       if (requestId !== currentTranscriptRequestId) return;
 
       if (!res.ok || !Array.isArray(data.segments) || data.segments.length === 0) {
-        const msg = data.error || (currentLang === 'zh' ? '该视频没有可用的 YouTube 文本转写。' : 'No YouTube transcript is available for this video.');
-        content.innerHTML = `<div class="transcript-error">${escapeHtml(msg)}</div>`;
+        const fallbackMsg = currentLang === 'zh' ? '该视频没有可用的 YouTube 文本转写，或 YouTube 阻止了服务端字幕抓取。' : 'No YouTube transcript is available, or YouTube blocked server-side caption fetching.';
+        const msg = data.error || fallbackMsg;
+        const details = data.details ? `<div style="margin-top:8px;color:#888;font-size:0.78rem;">${escapeHtml(data.details)}</div>` : '';
+        content.innerHTML = `<div class="transcript-error">${escapeHtml(msg)}${details}</div>`;
         return;
       }
 

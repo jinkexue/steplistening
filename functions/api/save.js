@@ -1,3 +1,40 @@
+async function hasColumn(env, tableName, columnName) {
+  const info = await env.DB.prepare(`PRAGMA table_info(${tableName})`).all();
+  return (info.results || []).some(col => col.name === columnName);
+}
+
+async function insertRecord(env, data, supportsSource) {
+  const { user_id, video_id, video_title, timestamp, duration, order_index, text, audio_key, source } = data;
+
+  if (supportsSource) {
+    return env.DB.prepare(
+      "INSERT INTO records (user_id, video_id, video_title, timestamp, duration, order_index, text, audio_key, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    )
+      .bind(user_id, video_id, video_title, timestamp || 0, duration || 0, order_index || 1, text || "", audio_key || null, source || 'manual')
+      .run();
+  }
+
+  return env.DB.prepare(
+    "INSERT INTO records (user_id, video_id, video_title, timestamp, duration, order_index, text, audio_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+  )
+    .bind(user_id, video_id, video_title, timestamp || 0, duration || 0, order_index || 1, text || "", audio_key || null)
+    .run();
+}
+
+async function updateRecord(env, data, supportsSource) {
+  const { id, text, audio_key, source } = data;
+
+  if (supportsSource) {
+    return env.DB.prepare("UPDATE records SET text = ?, audio_key = ?, source = ? WHERE id = ?")
+      .bind(text || "", audio_key || null, source || 'manual', id)
+      .run();
+  }
+
+  return env.DB.prepare("UPDATE records SET text = ?, audio_key = ? WHERE id = ?")
+    .bind(text || "", audio_key || null, id)
+    .run();
+}
+
 export async function onRequestPost(context) {
   const { request, env } = context;
   const contentType = request.headers.get("content-type") || "";
@@ -61,6 +98,7 @@ export async function onRequestPost(context) {
     if (contentType.includes("application/json")) {
       const data = await request.json();
       const { action, id, user_id, video_id, video_title, timestamp, duration, order_index, text, audio_key, total_duration, source } = data;
+      const supportsSource = await hasColumn(env, 'records', 'source');
 
       // 保存视频元数据 (总时长)
       if (video_id && total_duration) {
@@ -83,28 +121,18 @@ export async function onRequestPost(context) {
           .bind(video_id, user_id, order_index)
           .run();
         
-        const result = await env.DB.prepare(
-          "INSERT INTO records (user_id, video_id, video_title, timestamp, duration, order_index, text, audio_key, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-        )
-          .bind(user_id, video_id, video_title, timestamp, duration || 0, order_index, text || "", audio_key || null, source || 'manual')
-          .run();
+        const result = await insertRecord(env, data, supportsSource);
           
         return new Response(JSON.stringify({ id: result.meta.last_row_id, success: true, created_at: new Date().toISOString() }), { status: 201 });
       }
 
       if (id) {
         // 更新现有记录
-        await env.DB.prepare("UPDATE records SET text = ?, audio_key = ?, source = ? WHERE id = ?")
-          .bind(text, audio_key || null, source || 'manual', id)
-          .run();
+        await updateRecord(env, data, supportsSource);
         return new Response(JSON.stringify({ success: true, id, created_at: new Date().toISOString() }));
       } else {
         // 创建新记录
-        const result = await env.DB.prepare(
-          "INSERT INTO records (user_id, video_id, video_title, timestamp, duration, order_index, text, audio_key, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-        )
-          .bind(user_id, video_id, video_title, timestamp, duration, order_index, text, audio_key, source || 'manual')
-          .run();
+        const result = await insertRecord(env, data, supportsSource);
 
         return new Response(JSON.stringify({ id: result.meta.last_row_id, success: true, created_at: new Date().toISOString() }), { status: 201 });
       }
