@@ -98,7 +98,14 @@ function extractInitialPlayerResponse(html) {
   return null;
 }
 
-async function fetchPlayerResponseFromInnertube(videoId, preferredLang) {
+function extractInnertubeApiKey(html) {
+  const match = html.match(/"INNERTUBE_API_KEY"\s*:\s*"([^"]+)"/);
+  return match?.[1] || '';
+}
+
+async function fetchPlayerResponseFromInnertube(videoId, preferredLang, apiKey) {
+  if (!apiKey) return null;
+
   const clientPayloads = [
     { clientName: 'WEB', clientVersion: '2.20260612.01.00' },
     { clientName: 'TVHTML5', clientVersion: '7.20260612.16.00' },
@@ -107,7 +114,7 @@ async function fetchPlayerResponseFromInnertube(videoId, preferredLang) {
 
   for (const client of clientPayloads) {
     try {
-      const res = await fetch('https://www.youtube.com/youtubei/v1/player?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8', {
+      const res = await fetch(`https://www.youtube.com/youtubei/v1/player?key=${encodeURIComponent(apiKey)}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -293,7 +300,8 @@ export async function onRequestGet(context) {
     let captionTracks = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
 
     if (captionTracks.length === 0) {
-      playerResponse = await fetchPlayerResponseFromInnertube(videoId, preferredLang);
+      const innertubeApiKey = extractInnertubeApiKey(html);
+      playerResponse = await fetchPlayerResponseFromInnertube(videoId, preferredLang, innertubeApiKey);
       captionTracks = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
     }
 
