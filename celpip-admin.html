@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>管理员后台 - CELPIP</title>
+  <link rel="stylesheet" href="celpip.css">
+  <style>
+    .admin-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--celpip-border); margin-bottom: 24px; }
+    .admin-tab {
+      padding: 10px 16px; cursor: pointer; font-weight: 600; color: var(--celpip-muted);
+      border-bottom: 2px solid transparent;
+    }
+    .admin-tab.active { color: var(--celpip-primary); border-bottom-color: var(--celpip-primary); }
+    .admin-pane { display: none; }
+    .admin-pane.active { display: block; }
+    .form-row { margin-bottom: 16px; }
+    .paper-row {
+      display:flex; align-items:center; gap:12px; padding:14px;
+      border:1px solid var(--celpip-border); border-radius:10px; margin-bottom:10px; background:#FFF;
+    }
+    .paper-row-info { flex:1 }
+    .paper-row-actions { display:flex; gap:6px; flex-shrink:0 }
+    .prompt-card { padding:16px; border:1px solid var(--celpip-border); border-radius:10px; margin-bottom:12px; background:#FFF; }
+    .textarea { width:100%; min-height:120px; padding:10px; border:1px solid var(--celpip-border); border-radius:6px; font-size:13px; font-family:inherit; }
+  </style>
+</head>
+<body>
+  <div class="celpip-container">
+    <div class="celpip-hero">
+      <div style="flex:1"><h1>⚙️ 管理员后台</h1><p>AI 配置 / 提示词模板 / 试卷管理</p></div>
+    </div>
+
+    <div id="notAdmin" style="display:none">
+      <div class="celpip-alert error">仅管理员可访问。</div>
+    </div>
+
+    <div id="adminBody" style="display:none">
+      <div class="admin-tabs">
+        <div class="admin-tab active" data-tab="papers" onclick="showTab('papers')">📄 试卷管理</div>
+        <div class="admin-tab" data-tab="settings" onclick="showTab('settings')">🔧 AI 配置</div>
+        <div class="admin-tab" data-tab="prompts" onclick="showTab('prompts')">✏️ 提示词模板</div>
+      </div>
+
+      <!-- ================= 试卷管理 ================= -->
+      <div id="tab-papers" class="admin-pane active">
+        <div class="celpip-card" style="margin-bottom:16px">
+          <h3 style="margin-bottom:8px">① 初始化 / 更新数据库</h3>
+          <p style="color:var(--celpip-muted);font-size:13px;margin-bottom:12px">第一次部署或 schema 更新后必须点击。会创建 CELPIP 相关表并 seed 默认配置。</p>
+          <button class="celpip-btn secondary" id="migrateBtn" onclick="runMigrate()">运行迁移</button>
+          <div id="migrateResult" style="margin-top:12px;font-size:12px"></div>
+        </div>
+
+        <div class="celpip-card" style="margin-bottom:16px">
+          <h3 style="margin-bottom:12px">② 新建试卷</h3>
+          <div class="form-row">
+            <label class="celpip-label">试卷标题</label>
+            <input id="newTitle" class="celpip-input" placeholder="例如：CELPIP 模拟 001">
+          </div>
+          <div class="form-row">
+            <label class="celpip-label">目标 CLB 等级</label>
+            <input id="newDifficulty" class="celpip-input" value="CLB9">
+          </div>
+          <button class="celpip-btn" onclick="createPaper()">新建试卷</button>
+        </div>
+
+        <div style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between">
+          <h3>③ 试卷列表</h3>
+          <button class="celpip-btn secondary small" onclick="loadPapers()">🔄 刷新</button>
+        </div>
+        <div id="papersList"><div class="celpip-loading"></div></div>
+      </div>
+
+      <!-- ================= AI 配置 ================= -->
+      <div id="tab-settings" class="admin-pane">
+        <div class="celpip-alert">
+          <b>提示：</b>VOLC_API_KEY 等密钥请在 Cloudflare Dashboard → Pages → Settings → Environment variables 添加为 encrypted 变量。
+          此处仅存 model 引用名。
+        </div>
+        <div class="celpip-card">
+          <div id="secretStatus" style="margin-bottom:16px"></div>
+          <div id="settingsForm"></div>
+          <button class="celpip-btn" style="margin-top:16px" onclick="saveSettings()">保存配置</button>
+        </div>
+      </div>
+
+      <!-- ================= 提示词 ================= -->
+      <div id="tab-prompts" class="admin-pane">
+        <p style="color:var(--celpip-muted);font-size:13px;margin-bottom:16px">按板块分组，保存自动 v+1，最新版本自动生效。</p>
+        <div id="promptsList"><div class="celpip-loading"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="celpip.js"></script>
+  <script>
+    const user = celpipGetUser();
+    if (!user.userId) {
+      alert('请先在主页登录');
+      location.href = 'index.html';
+    } else if (!user.isAdmin) {
+      celpipRenderNav('admin');
+      document.getElementById('notAdmin').style.display = 'block';
+    } else {
+      celpipRenderNav('admin');
+      document.getElementById('adminBody').style.display = 'block';
+      // 默认加载 papers tab
+      loadPapers();
+    }
+
+    function showTab(name) {
+      document.querySelectorAll('.admin-tab').forEach(t =>
+        t.classList.toggle('active', t.dataset.tab === name));
+      document.querySelectorAll('.admin-pane').forEach(p =>
+        p.classList.toggle('active', p.id === 'tab-' + name));
+      if (name === 'settings') loadSettings();
+      if (name === 'prompts') loadPrompts();
+      if (name === 'papers') loadPapers();
+    }
+
+    // ================= 迁移 =================
+    async function runMigrate() {
+      const btn = document.getElementById('migrateBtn');
+      btn.disabled = true; btn.textContent = '迁移中…';
+      try {
+        const data = await celpipApi('/admin/migrate', {
+          method: 'POST', body: { user_id: user.userId },
+        });
+        const errs = (data.results || []).filter(r => r.status === 'error');
+        document.getElementById('migrateResult').innerHTML = errs.length
+          ? `<div class="celpip-alert error">部分失败：${errs.length} 条<br>${errs.slice(0, 3).map(e => escapeHtml(e.error || '')).join('<br>')}</div>`
+          : `<div class="celpip-alert success">✓ 迁移完成，共 ${data.results?.length || 0} 条语句</div>`;
+        loadPapers();
+      } catch (e) {
+        document.getElementById('migrateResult').innerHTML = `<div class="celpip-alert error">${escapeHtml(e.message)}</div>`;
+      } finally {
+        btn.disabled = false; btn.textContent = '运行迁移';
+      }
+    }
+
+    // ================= 试卷 =================
+    async function loadPapers() {
+      const box = document.getElementById('papersList');
+      box.innerHTML = '<div class="celpip-loading"></div>';
+      try {
+        const data = await celpipApi('/admin/papers', { query: { user_id: user.userId } });
+        const papers = data.papers || [];
+        if (papers.length === 0) {
+          box.innerHTML = '<div class="celpip-empty"><h3>还没有试卷</h3><p>在上方新建一份吧。</p></div>';
+          return;
+        }
+        box.innerHTML = papers.map(p => `
+          <div class="paper-row">
+            <div class="paper-row-info">
+              <div style="font-weight:700">${escapeHtml(p.title)}</div>
+              <div style="font-size:12px;color:#8A94A6;margin-top:2px">
+                #${p.id} · ${escapeHtml(p.difficulty || 'CLB9')} · ${p.status === 'published' ? '已发布' : '草稿'} · ${new Date(p.created_at).toLocaleDateString()}
+              </div>
+            </div>
+            <div class="paper-row-actions">
+              <button class="celpip-btn small" onclick="generateAll(${p.id}, this)">一键生成</button>
+              ${p.status !== 'published'
+                ? `<button class="celpip-btn success small" onclick="setStatus(${p.id}, 'published')">发布</button>`
+                : `<button class="celpip-btn secondary small" onclick="setStatus(${p.id}, 'draft')">撤回</button>`}
+              <button class="celpip-btn danger small" onclick="deletePaper(${p.id})">删除</button>
+            </div>
+          </div>`).join('');
+      } catch (e) {
+        box.innerHTML = `<div class="celpip-alert error">${escapeHtml(e.message)}</div>`;
+      }
+    }
+
+    async function createPaper() {
+      const title = document.getElementById('newTitle').value.trim();
+      const difficulty = document.getElementById('newDifficulty').value.trim() || 'CLB9';
+      if (!title) { alert('请填写标题'); return; }
+      try {
+        await celpipApi('/celpip/papers', {
+          method: 'POST',
+          body: { user_id: user.userId, action: 'create', title, difficulty, status: 'draft' },
+        });
+        document.getElementById('newTitle').value = '';
+        loadPapers();
+      } catch (e) { alert('新建失败：' + e.message); }
+    }
+
+    async function generateAll(paperId, btn) {
+      btn.disabled = true; btn.textContent = '生成中…';
+      try {
+        const data = await celpipApi('/admin/generate', {
+          method: 'POST',
+          body: {
+            user_id: user.userId, paper_id: paperId,
+            sections: ['listening', 'reading', 'writing', 'speaking'],
+          },
+        });
+        const brief = Object.entries(data.summary || {})
+          .map(([k, v]) => `${k}: ${v.generated || 0}${v.error ? ' (err)' : ''}`).join(' · ');
+        alert('一键生成完成\n' + brief);
+        loadPapers();
+      } catch (e) { alert('生成失败：' + e.message); }
+      finally { btn.disabled = false; btn.textContent = '一键生成'; }
+    }
+
+    async function setStatus(paperId, status) {
+      try {
+        await celpipApi('/celpip/papers', {
+          method: 'POST',
+          body: {
+            user_id: user.userId,
+            action: status === 'published' ? 'publish' : 'update',
+            id: paperId, status,
+          },
+        });
+        loadPapers();
+      } catch (e) { alert('状态更新失败：' + e.message); }
+    }
+
+    async function deletePaper(paperId) {
+      if (!confirm('确认删除该试卷？')) return;
+      try {
+        await celpipApi('/celpip/papers', {
+          method: 'POST',
+          body: { user_id: user.userId, action: 'delete', id: paperId },
+        });
+        loadPapers();
+      } catch (e) { alert('删除失败：' + e.message); }
+    }
+
+    // ================= AI 配置 =================
+    const SETTING_KEYS = [
+      { key: 'volc_api_endpoint', label: '火山方舟 endpoint', hint: '例：https://ark.cn-beijing.volces.com/api/v3' },
+      { key: 'volc_llm_model',    label: '火山 LLM model 引用名', hint: '方舟推理接入点 ID (ep-xxxx)' },
+      { key: 'volc_vision_model', label: '火山 Vision model 引用名', hint: '图文多模态（可留空）' },
+      { key: 'volc_image_model',  label: '火山 Image model 引用名', hint: '文生图（Speaking Task3/4 用）' },
+      { key: 'volc_tts_model',    label: '火山 TTS 备选 model', hint: '备选' },
+      { key: 'volc_stt_model',    label: '火山 STT 备选 model', hint: '备选' },
+      { key: 'cf_tts_model',      label: 'Cloudflare TTS 模型', hint: '例：@cf/deepgram/aura-2-en' },
+      { key: 'cf_stt_model',      label: 'Cloudflare STT 模型', hint: '例：@cf/openai/whisper' },
+    ];
+
+    async function loadSettings() {
+      try {
+        const data = await celpipApi('/admin/settings', { query: { user_id: user.userId } });
+        const secretsHtml = data.secrets?.VOLC_API_KEY
+          ? '<div class="celpip-alert success">VOLC_API_KEY：已配置 ✓</div>'
+          : '<div class="celpip-alert error">VOLC_API_KEY：未配置 ✗ — 请到 Cloudflare Pages 环境变量添加</div>';
+        document.getElementById('secretStatus').innerHTML = secretsHtml;
+        const s = data.settings || {};
+        document.getElementById('settingsForm').innerHTML = SETTING_KEYS.map(k => `
+          <div class="form-row">
+            <label class="celpip-label">${k.label}</label>
+            <div class="celpip-hint">${k.hint}</div>
+            <input class="celpip-input" data-key="${k.key}" value="${escapeAttr(s[k.key] || '')}" placeholder="${escapeAttr(k.hint)}">
+          </div>`).join('');
+      } catch (e) {
+        document.getElementById('secretStatus').innerHTML = `<div class="celpip-alert error">加载失败：${escapeHtml(e.message)}</div>`;
+      }
+    }
+    async function saveSettings() {
+      const updates = {};
+      document.querySelectorAll('#settingsForm input[data-key]').forEach(inp => {
+        updates[inp.dataset.key] = inp.value;
+      });
+      try {
+        await celpipApi('/admin/settings', {
+          method: 'POST',
+          body: { user_id: user.userId, updates },
+        });
+        alert('已保存');
+      } catch (e) { alert('保存失败：' + e.message); }
+    }
+
+    // ================= 提示词 =================
+    const SECTION_LABEL = {
+      listening: '听力生成', reading: '阅读生成', writing: '写作生成',
+      speaking: '口语生成', scoring: '评分', image: '生图 Prompt',
+    };
+    async function loadPrompts() {
+      const box = document.getElementById('promptsList');
+      box.innerHTML = '<div class="celpip-loading"></div>';
+      try {
+        const data = await celpipApi('/admin/prompts', { query: { user_id: user.userId } });
+        const prompts = data.prompts || [];
+        const groups = {};
+        prompts.forEach(p => (groups[p.section] = groups[p.section] || []).push(p));
+        box.innerHTML = Object.keys(groups).map(section => `
+          <div style="margin-bottom:24px">
+            <h3 style="margin-bottom:12px">${SECTION_LABEL[section] || section} <span style="color:#8A94A6;font-size:12px;font-weight:400">[${section}]</span></h3>
+            ${groups[section].map(p => `
+              <div class="prompt-card">
+                <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+                  <b>${escapeHtml(p.name)}</b>
+                  <span style="color:#8A94A6;font-size:12px">v${p.version} · ${p.active ? '启用' : '停用'}</span>
+                </div>
+                <textarea class="textarea" data-id="${p.id}" data-version="${p.version}">${escapeHtml(p.system_prompt)}</textarea>
+                <div style="text-align:right;margin-top:8px">
+                  <button class="celpip-btn small" onclick="savePrompt(${p.id}, ${p.version}, this)">保存并递增版本</button>
+                </div>
+              </div>`).join('')}
+          </div>`).join('');
+      } catch (e) {
+        box.innerHTML = `<div class="celpip-alert error">${escapeHtml(e.message)}</div>`;
+      }
+    }
+    async function savePrompt(id, version, btn) {
+      const ta = document.querySelector(`textarea[data-id="${id}"]`);
+      if (!ta) return;
+      btn.disabled = true;
+      try {
+        await celpipApi('/admin/prompts', {
+          method: 'POST',
+          body: {
+            user_id: user.userId, action: 'update', id,
+            system_prompt: ta.value, version: Number(version) + 1,
+          },
+        });
+        alert(`已保存，版本升级到 v${version + 1}`);
+        loadPrompts();
+      } catch (e) { alert('保存失败：' + e.message); }
+      finally { btn.disabled = false; }
+    }
+
+    // helpers
+    function escapeHtml(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+      }[c]));
+    }
+    function escapeAttr(s) { return escapeHtml(s); }
+    // 暴露
+    window.showTab = showTab;
+    window.runMigrate = runMigrate;
+    window.createPaper = createPaper;
+    window.generateAll = generateAll;
+    window.setStatus = setStatus;
+    window.deletePaper = deletePaper;
+    window.saveSettings = saveSettings;
+    window.savePrompt = savePrompt;
+  </script>
+</body>
+</html>

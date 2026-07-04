@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>试卷详情 - CELPIP</title>
+  <link rel="stylesheet" href="celpip.css">
+</head>
+<body>
+  <div class="celpip-container">
+    <div id="header"></div>
+    <div id="msg"></div>
+    <div id="content"><div class="celpip-loading"></div></div>
+  </div>
+
+  <script src="celpip.js"></script>
+  <script>
+    const SECTIONS = [
+      { key: 'listening', label: '听力 Listening', desc: '6 个 Part · 加拿大口音 · 每题独立倒计时', icon: '🎧' },
+      { key: 'speaking',  label: '口语 Speaking',  desc: '8 个 Task · 含图文 · Prep + Recording',   icon: '🗣️' },
+      { key: 'reading',   label: '阅读 Reading',   desc: '4 个 Part · 左右分栏 · Drop-down 题',    icon: '📖' },
+      { key: 'writing',   label: '写作 Writing',   desc: '2 个 Task · CLB 四维评分 · AI 范文对比', icon: '✍️' },
+    ];
+    const SECTION_COLOR = {
+      listening: '#3F84C7', reading: '#2E9F5B', writing: '#F5A623', speaking: '#A55BD6',
+    };
+
+    (async function main() {
+      const user = celpipRequireLogin();
+      if (!user) return;
+      celpipRenderNav('home');
+
+      const params = new URLSearchParams(location.search);
+      const paperId = params.get('id');
+      if (!paperId) {
+        document.getElementById('msg').innerHTML = '<div class="celpip-alert error">缺少 paper id 参数</div>';
+        document.getElementById('content').innerHTML = '';
+        return;
+      }
+
+      try {
+        // 试卷 + counts
+        const paperResp = await celpipApi('/celpip/papers', { query: { id: paperId } });
+        const paper = paperResp.paper;
+        const counts = paperResp.counts || {};
+
+        // 并发获取 4 个 section 的 items[0] 和 attempts
+        const sectionData = await Promise.all(SECTIONS.map(async s => {
+          try {
+            const r = await celpipApi('/celpip/section', {
+              query: { paper_id: paperId, section: s.key, user_id: user.userId },
+            });
+            return {
+              key: s.key,
+              firstId: r.items && r.items[0] ? r.items[0].id : null,
+              done: (r.attempts || []).length,
+              total: (r.items || []).length,
+            };
+          } catch { return { key: s.key, firstId: null, done: 0, total: counts[s.key] || 0 }; }
+        }));
+        const bySec = Object.fromEntries(sectionData.map(d => [d.key, d]));
+
+        document.getElementById('header').innerHTML = `
+          <div class="celpip-hero">
+            <div style="flex:1">
+              <h1>${escapeHtml(paper.title)}</h1>
+              <div style="display:flex;gap:12px;align-items:center;margin-top:6px">
+                <span class="celpip-badge">${escapeHtml(paper.difficulty)}</span>
+                <span style="color:#5C6773;font-size:13px">状态：${paper.status === 'published' ? '已发布' : '草稿'}</span>
+              </div>
+            </div>
+          </div>`;
+
+        document.getElementById('content').innerHTML = `
+          <div class="celpip-grid">${SECTIONS.map(s => {
+            const d = bySec[s.key] || { firstId: null, done: 0, total: counts[s.key] || 0 };
+            const pct = d.total > 0 ? Math.min(100, Math.round((d.done / d.total) * 100)) : 0;
+            const disabled = !d.firstId;
+            return `
+              <div class="celpip-section-card"
+                   style="border-top-color:${SECTION_COLOR[s.key]};${disabled ? 'opacity:0.6;cursor:not-allowed' : ''}"
+                   onclick="${disabled ? 'alert(\"该板块尚无题目，请让管理员在后台点\\'一键生成\\'补充\")' : `location.href='celpip-${s.key}.html?paper_id=${paperId}&item_id=${d.firstId}'`}">
+                <div class="celpip-section-icon">${s.icon}</div>
+                <div class="celpip-section-title">${s.label}</div>
+                <div class="celpip-section-desc">${s.desc}</div>
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+                  <div class="celpip-progress-bar" style="flex:1">
+                    <div class="celpip-progress-fill" style="width:${pct}%;background:${SECTION_COLOR[s.key]}"></div>
+                  </div>
+                  <span style="font-size:11px;font-weight:700;color:#8A94A6">${d.done}/${d.total}</span>
+                </div>
+                <div style="color:#0055A4;font-weight:600">${d.done > 0 ? '继续 →' : '开始 →'}</div>
+              </div>`;
+          }).join('')}</div>`;
+      } catch (e) {
+        document.getElementById('msg').innerHTML = `<div class="celpip-alert error">加载失败：${escapeHtml(e.message)}</div>`;
+        document.getElementById('content').innerHTML = '';
+      }
+    })();
+
+    function escapeHtml(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+      }[c]));
+    }
+  </script>
+</body>
+</html>

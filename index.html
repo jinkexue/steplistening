@@ -682,6 +682,7 @@
     <button class="btn-secondary" onclick="showView('main')" style="background: var(--accent);">🏠 听写主页</button>
     <button class="btn-secondary" onclick="openTasks()" style="background: var(--accent);">📂 任务列表</button>
     <button class="btn-secondary" onclick="openVocab()" style="background: var(--accent);">📖 生词本</button>
+    <button class="btn-secondary" onclick="openCelpip()" style="background: linear-gradient(135deg,#0055A4,#3F84C7); color:#fff;">🎓 CELPIP</button>
     <div id="adminLink" style="display: none;">
       <button class="btn-secondary" onclick="openAdmin()" style="background: #444;">⚙️ 管理后台</button>
     </div>
@@ -1917,6 +1918,20 @@
     showView('admin');
     loadUsers();
     checkDatabaseStatus();
+  }
+
+  // CELPIP 入口：把当前登录用户传给独立静态页
+  function openCelpip() {
+    if (!currentUser) {
+      alert('请先登录再进入 CELPIP');
+      return;
+    }
+    try {
+      localStorage.setItem('user_id', String(currentUser.id));
+      localStorage.setItem('username', String(currentUser.username || ''));
+      localStorage.setItem('is_admin', String(currentUser.is_admin ? 1 : 0));
+    } catch (_) {}
+    window.location.href = 'celpip.html';
   }
 
   function closeAdmin() {

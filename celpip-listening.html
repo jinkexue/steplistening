@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>听力练习 - CELPIP</title>
+  <link rel="stylesheet" href="celpip.css">
+</head>
+<body>
+  <div class="celpip-container" style="max-width:900px">
+    <div id="msg"></div>
+    <div id="app"><div class="celpip-loading"></div></div>
+  </div>
+
+  <script src="celpip.js"></script>
+  <script>
+    const RECORDING_TIME_BY_PART = { 1: 45, 2: 60, 3: 60, 4: 45, 5: 60, 6: 60 };
+
+    let state = {
+      items: [], attempts: [], activeId: null, paperId: null,
+      audioPlayed: false, showQuestion: false, selected: null,
+      submitted: false, timeLeft: 60, timerId: null,
+      paraphrase: null, paraphrasing: false,
+    };
+
+    (async function main() {
+      const user = celpipRequireLogin();
+      if (!user) return;
+      celpipRenderNav('home');
+
+      const params = new URLSearchParams(location.search);
+      state.paperId = params.get('paper_id');
+      state.activeId = Number(params.get('item_id'));
+      if (!state.paperId || !state.activeId) {
+        document.getElementById('msg').innerHTML = '<div class="celpip-alert error">缺少 paper_id / item_id 参数</div>';
+        document.getElementById('app').innerHTML = '';
+        return;
+      }
+
+      try {
+        const data = await celpipApi('/celpip/section', {
+          query: { paper_id: state.paperId, section: 'listening', user_id: user.userId },
+        });
+        state.items = data.items || [];
+        state.attempts = data.attempts || [];
+        renderQuestion();
+      } catch (e) {
+        document.getElementById('msg').innerHTML = `<div class="celpip-alert error">加载失败：${escapeHtml(e.message)}</div>`;
+        document.getElementById('app').innerHTML = '';
+      }
+    })();
+
+    function activeItem() { return state.items.find(i => i.id === state.activeId); }
+    function activeIndex() { return state.items.findIndex(i => i.id === state.activeId); }
+    function attemptOf(id) { return state.attempts.find(a => a.item_id === id); }
+
+    function switchItem(id) {
+      // 更新 URL 且不 reload
+      const url = new URL(location.href);
+      url.searchParams.set('item_id', String(id));
+      history.replaceState(null, '', url.toString());
+      // 重置状态
+      if (state.timerId) { clearInterval(state.timerId); state.timerId = null; }
+      state.activeId = id;
+      state.audioPlayed = false;
+      state.showQuestion = false;
+      state.selected = null;
+      state.submitted = false;
+      state.paraphrase = null;
+      state.paraphrasing = false;
+      const at = attemptOf(id);
+      const parsed = at && at.answer_json ? celpipSafeParse(at.answer_json, {}) : null;
+      if (parsed && parsed.choice != null) {
+        state.selected = parsed.choice;
+        state.submitted = true;
+        state.showQuestion = true;
+        state.audioPlayed = true;
+      }
+      const it = activeItem();
+      state.timeLeft = RECORDING_TIME_BY_PART[it ? it.part : 1] || 60;
+      renderQuestion();
+    }
+
+    function startCountdown() {
+      if (state.timerId) return;
+      state.timerId = setInterval(() => {
+        state.timeLeft -= 1;
+        if (state.timeLeft <= 0) {
+          clearInterval(state.timerId); state.timerId = null;
+          submitAnswer(null, true);
+        } else {
+          const t = document.getElementById('timer');
+          if (t) {
+            t.textContent = `⏱ 剩余 ${state.timeLeft}s`;
+            if (state.timeLeft <= 10) t.classList.add('warning');
+          }
+        }
+      }, 1000);
+    }
+
+    async function submitAnswer(choice, auto) {
+      if (state.submitted) return;
+      state.submitted = true;
+      if (state.timerId) { clearInterval(state.timerId); state.timerId = null; }
+      state.selected = choice;
+      const user = celpipGetUser();
+      try {
+        await celpipApi('/celpip/attempts', {
+          method: 'POST',
+          body: {
+            user_id: user.userId,
+            paper_id: Number(state.paperId),
+            section: 'listening',
+            item_id: state.activeId,
+            answer_json: JSON.stringify({ choice, auto: !!auto }),
+            status: 'submitted',
+          },
+        });
+        // 本地 attempts 记一下
+        const existed = attemptOf(state.activeId);
+        if (existed) existed.answer_json = JSON.stringify({ choice });
+        else state.attempts.push({ item_id: state.activeId, answer_json: JSON.stringify({ choice }), status: 'submitted' });
+      } catch (e) {
+        console.warn('save attempt failed:', e.message);
+      }
+      renderQuestion();
+    }
+
+    async function requestParaphrase() {
+      const user = celpipGetUser();
+      state.paraphrasing = true;
+      renderQuestion();
+      try {
+        const data = await celpipApi('/celpip/listening/paraphrase', {
+          method: 'POST',
+          body: { user_id: user.userId, item_id: state.activeId, wrong_option: state.selected },
+        });
+        state.paraphrase = data.result;
+      } catch (e) {
+        alert('AI 解析失败：' + e.message);
+      } finally {
+        state.paraphrasing = false;
+        renderQuestion();
+      }
+    }
+
+    function renderQuestion() {
+      const it = activeItem();
+      const app = document.getElementById('app');
+      if (!it) { app.innerHTML = '<div class="celpip-alert error">找不到该题</div>'; return; }
+      const options = celpipSafeParse(it.options, []);
+      const idx = activeIndex();
+
+      const navChips = state.items.map((x, i) => `
+        <div class="celpip-nav-chip ${x.id === state.activeId ? 'active' : ''} ${attemptOf(x.id) ? 'done' : ''}"
+             onclick="switchItem(${x.id})">${i + 1}</div>
+      `).join('');
+
+      const audioBlock = it.audio_key
+        ? `<audio id="audioEl" src="${celpipAssetUrl(it.audio_key)}"
+                 ${state.audioPlayed ? '' : 'controls'}
+                 onended="onAudioEnded()"
+                 style="width:100%"></audio>
+           <div style="font-size:12px;color:#5C6773;margin-top:8px">
+             ${state.audioPlayed ? '音频已播完，无法回听。' : '注意：音频仅播放一次，播完后才会显示题目。'}
+           </div>`
+        : `<div style="font-size:12px;color:#D64545">本题尚无音频（TTS 生成失败？请管理员重新一键生成）。</div>`;
+
+      const imageBlock = it.image_key
+        ? `<img src="${celpipAssetUrl(it.image_key)}" style="max-width:480px;border-radius:12px;margin:12px 0" />`
+        : '';
+
+      const isCorrectAnswer = (label, i, optText) => {
+        const a = String(it.answer);
+        return a === label || a === String(i) || a === optText;
+      };
+      const isSelected = (label, i, optText) => {
+        const s = state.selected;
+        return s === label || s === String(i) || s === optText;
+      };
+      const optionsHtml = options.map((opt, i) => {
+        const label = String.fromCharCode(65 + i);
+        let cls = 'celpip-option';
+        if (isSelected(label, i, opt)) cls += ' selected';
+        if (state.submitted && isCorrectAnswer(label, i, opt)) cls += ' correct';
+        if (state.submitted && isSelected(label, i, opt) && !isCorrectAnswer(label, i, opt)) cls += ' wrong';
+        return `
+          <div class="${cls}" onclick="${state.submitted ? '' : `selectOption('${label}')`}">
+            <div class="celpip-option-label">${label}</div>
+            <div class="celpip-option-text">${escapeHtml(opt)}</div>
+          </div>`;
+      }).join('');
+
+      const timerBlock = state.showQuestion && !state.submitted
+        ? `<div style="margin-bottom:12px">
+             <span class="celpip-timer" id="timer">⏱ 剩余 ${state.timeLeft}s</span>
+           </div>` : '';
+
+      const questionBlock = state.showQuestion ? `
+        <div class="celpip-card" style="margin-bottom:16px">
+          <div style="font-size:16px;font-weight:600">${escapeHtml(it.question)}</div>
+          <div style="margin-top:12px">${optionsHtml}</div>
+          ${!state.submitted ? `
+            <div style="text-align:right;margin-top:12px">
+              <button class="celpip-btn" ${!state.selected ? 'disabled' : ''} onclick="submitAnswer(state.selected)">提交答案</button>
+            </div>` : ''}
+        </div>` : '';
+
+      const isCorrect = state.submitted && state.selected != null && String(state.selected) === String(it.answer);
+      const resultBlock = state.submitted ? `
+        <div class="celpip-card" style="background:#F5F7FA">
+          <div style="font-size:18px;font-weight:700;color:${isCorrect ? '#2E9F5B' : '#D64545'}">
+            ${isCorrect ? '✓ 答对了' : '✗ 答错了'}
+          </div>
+          <div style="color:#5C6773;margin-top:4px">正确答案：${escapeHtml(String(it.answer))}</div>
+          ${it.transcript ? `
+            <div class="celpip-paraphrase-header">原文 Transcript</div>
+            <div class="celpip-transcript">${escapeHtml(it.transcript)}</div>
+          ` : ''}
+          <button class="celpip-btn secondary" style="margin-top:12px" ${state.paraphrasing ? 'disabled' : ''}
+                  onclick="requestParaphrase()">
+            ${state.paraphrasing ? 'AI 解析中…' : '🤖 AI 同义替换 & 错项拆解'}
+          </button>
+          ${state.paraphrase ? renderParaphrase(state.paraphrase) : ''}
+        </div>` : '';
+
+      const prev = idx > 0 ? state.items[idx - 1].id : null;
+      const next = idx < state.items.length - 1 ? state.items[idx + 1].id : null;
+      const footer = `
+        <div style="display:flex;justify-content:space-between;gap:12px;margin-top:24px">
+          ${prev ? `<button class="celpip-btn secondary" onclick="switchItem(${prev})">← 上一题</button>` : '<span></span>'}
+          ${next ? `<button class="celpip-btn" onclick="switchItem(${next})">下一题 →</button>` :
+                   (state.submitted ? `<a class="celpip-btn" href="celpip-paper.html?id=${state.paperId}">返回试卷</a>` : '<span></span>')}
+        </div>`;
+
+      app.innerHTML = `
+        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:16px">
+          <h2 style="color:#0055A4;font-size:20px">Listening · Part ${it.part}</h2>
+          <div class="celpip-nav-chips">${navChips}</div>
+        </div>
+        <div class="celpip-card" style="background:#F5F7FA;margin-bottom:12px">${audioBlock}</div>
+        ${imageBlock}
+        ${timerBlock}
+        ${questionBlock}
+        ${resultBlock}
+        ${footer}
+      `;
+    }
+
+    function renderParaphrase(p) {
+      const parts = [];
+      if (p.paraphrase) parts.push(`<div class="celpip-paraphrase-header">Paraphrase</div><div class="celpip-paraphrase-text">${escapeHtml(p.paraphrase)}</div>`);
+      if (p.why_wrong) {
+        const t = Array.isArray(p.why_wrong) ? p.why_wrong.map(x => '• ' + x).join('<br>') : p.why_wrong;
+        parts.push(`<div class="celpip-paraphrase-header">为什么你的选项不对</div><div class="celpip-paraphrase-text">${escapeHtml(t).replace(/&lt;br&gt;/g, '<br>')}</div>`);
+      }
+      if (p.why_right) parts.push(`<div class="celpip-paraphrase-header">为什么正确答案对</div><div class="celpip-paraphrase-text">${escapeHtml(p.why_right)}</div>`);
+      if (Array.isArray(p.key_vocab) && p.key_vocab.length) {
+        parts.push(`<div class="celpip-paraphrase-header">关键词</div>` +
+          p.key_vocab.map(v => `<div class="celpip-paraphrase-text">• <b>${escapeHtml(v.word || '')}</b> — ${escapeHtml(v.meaning_zh || '')}${v.example ? '<br>&nbsp;&nbsp;&nbsp;e.g. ' + escapeHtml(v.example) : ''}</div>`).join(''));
+      }
+      return '<div style="margin-top:12px;padding:12px;background:#FFF;border:1px solid #E1E6ED;border-radius:8px">' + parts.join('') + '</div>';
+    }
+
+    function selectOption(label) {
+      if (state.submitted) return;
+      state.selected = label;
+      renderQuestion();
+    }
+    function onAudioEnded() {
+      state.audioPlayed = true;
+      state.showQuestion = true;
+      startCountdown();
+      renderQuestion();
+    }
+    function escapeHtml(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+      }[c]));
+    }
+
+    // 暴露到全局给 inline onclick 调
+    window.switchItem = switchItem;
+    window.submitAnswer = submitAnswer;
+    window.requestParaphrase = requestParaphrase;
+    window.selectOption = selectOption;
+    window.onAudioEnded = onAudioEnded;
+    window.state = state;
+  </script>
+</body>
+</html>
