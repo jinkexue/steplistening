@@ -195,6 +195,7 @@ export async function volcVision({
 /**
  * 火山方舟文生图（OpenAI 兼容 images/generations）
  * 返回 { url?: string, b64_json?: string }
+ * 支持 extraBody 透传（部分火山模型需要 watermark:false 等私有参数）
  */
 export async function volcImage({
   apiKey,
@@ -202,24 +203,32 @@ export async function volcImage({
   model,
   prompt,
   size = "1024x1024",
-  n = 1,
+  n,
+  extraBody,
 }) {
   if (!apiKey) throw new Error("VOLC_API_KEY missing");
+  if (!model) throw new Error("image model missing");
+  if (!prompt) throw new Error("image prompt missing");
   // 若 endpoint 已经包含 /images/generations，则直接使用；否则拼接
   const url = /\/images\/generations\/?$/.test((endpoint || "").trim())
     ? (endpoint || "").replace(/\/+$/, "")
     : joinUrl(endpoint, "/images/generations");
+
+  // 组装 body：只在明确需要时才带 n（部分豆包模型不接受 n）
+  const body = { model, prompt, size, ...(extraBody || {}) };
+  if (n && n !== 1) body.n = n;
+
   const resp = await fetch(url, {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ model, prompt, size, n }),
+    body: JSON.stringify(body),
   });
   if (!resp.ok) {
     const text = await resp.text();
-    throw new Error(`volc image failed: ${resp.status} ${text}`);
+    throw new Error(`volc image failed: ${resp.status} ${text} | url=${url} body=${JSON.stringify(body).slice(0, 200)}`);
   }
   const data = await resp.json();
   const item = data?.data?.[0];

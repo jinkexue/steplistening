@@ -77,10 +77,13 @@
             const d = bySec[s.key] || { firstId: null, done: 0, total: counts[s.key] || 0 };
             const pct = d.total > 0 ? Math.min(100, Math.round((d.done / d.total) * 100)) : 0;
             const disabled = !d.firstId;
+            const target = disabled ? '' : `celpip-${s.key}.html?paper_id=${paperId}&item_id=${d.firstId}`;
             return `
               <div class="celpip-section-card"
-                   style="border-top-color:${SECTION_COLOR[s.key]};${disabled ? 'opacity:0.6;cursor:not-allowed' : ''}"
-                   onclick="${disabled ? 'alert(\"该板块尚无题目，请让管理员在后台点\\'一键生成\\'补充\")' : `location.href='celpip-${s.key}.html?paper_id=${paperId}&item_id=${d.firstId}'`}">
+                   data-section="${s.key}"
+                   data-disabled="${disabled ? '1' : '0'}"
+                   data-target="${escapeAttr(target)}"
+                   style="border-top-color:${SECTION_COLOR[s.key]};${disabled ? 'opacity:0.6;cursor:not-allowed' : ''}">
                 <div class="celpip-section-icon">${s.icon}</div>
                 <div class="celpip-section-title">${s.label}</div>
                 <div class="celpip-section-desc">${s.desc}</div>
@@ -93,6 +96,17 @@
                 <div style="color:#0055A4;font-weight:600">${d.done > 0 ? '继续 →' : '开始 →'}</div>
               </div>`;
           }).join('')}</div>`;
+
+        // 绑定点击事件（避免内联 onclick 的引号地狱导致 SyntaxError）
+        document.querySelectorAll('.celpip-section-card[data-section]').forEach(card => {
+          card.addEventListener('click', () => {
+            if (card.dataset.disabled === '1') {
+              alert("该板块尚无题目，请让管理员在后台点【一键生成】补充");
+            } else if (card.dataset.target) {
+              location.href = card.dataset.target;
+            }
+          });
+        });
       } catch (e) {
         document.getElementById('msg').innerHTML = `<div class="celpip-alert error">加载失败：${escapeHtml(e.message)}</div>`;
         document.getElementById('content').innerHTML = '';
@@ -104,6 +118,7 @@
         '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
       }[c]));
     }
+    function escapeAttr(s) { return escapeHtml(s); }
   </script>
 </body>
 </html>
