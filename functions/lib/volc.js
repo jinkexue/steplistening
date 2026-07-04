@@ -264,8 +264,12 @@ export async function volcChatWithPrompt(DB, env, {
  * kind: 'llm' | 'vision' | 'image' | 'volc_tts' | 'volc_stt'
  * 优先读取新字段（llm_endpoint / vision_endpoint / image_endpoint …），
  * 未设置时回退到 volc_api_endpoint（旧兼容）
+ * 特例：vision 若 settings.vision_same_as_llm 为 '1'/'true' 或 vision_model 为空，则复用 llm_ 字段
  */
 export function pickEndpoint(settings, kind) {
+  if (kind === "vision" && isVisionFallback(settings)) {
+    return (settings?.llm_endpoint || settings?.volc_api_endpoint || "").trim();
+  }
   const key = {
     llm: "llm_endpoint",
     vision: "vision_endpoint",
@@ -276,6 +280,9 @@ export function pickEndpoint(settings, kind) {
   return (settings?.[key] || settings?.volc_api_endpoint || "").trim();
 }
 export function pickModel(settings, kind) {
+  if (kind === "vision" && isVisionFallback(settings)) {
+    return (settings?.llm_model || "").trim();
+  }
   const key = {
     llm: "llm_model",
     vision: "vision_model",
@@ -286,4 +293,15 @@ export function pickModel(settings, kind) {
     cf_stt: "cf_stt_model",
   }[kind];
   return (settings?.[key] || "").trim();
+}
+
+/**
+ * 判断 vision 是否需要 fallback 到 llm：
+ *   1) 管理员显式勾选 vision_same_as_llm
+ *   2) 或者 vision_model 未配置（防止空 model 报错）
+ */
+function isVisionFallback(settings) {
+  const flag = String(settings?.vision_same_as_llm || "").toLowerCase();
+  if (flag === "1" || flag === "true" || flag === "yes") return true;
+  return !((settings?.vision_model || "").trim());
 }

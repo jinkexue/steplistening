@@ -144,7 +144,8 @@ const SEED_SETTINGS = [
   // LLM：文本大模型（如 ark-code-latest）
   ["llm_endpoint", "https://ark.cn-beijing.volces.com/api/plan/v3"],
   ["llm_model",    "ark-code-latest"],
-  // Vision：图文多模态（口语 Task 3/4 图片解析用）
+  // Vision：图文多模态（口语 Task 3/4 图片解析用；默认与 LLM 同源，vision_same_as_llm=1 时忽略下方字段）
+  ["vision_same_as_llm", "1"],
   ["vision_endpoint", "https://ark.cn-beijing.volces.com/api/plan/v3"],
   ["vision_model",    ""],
   // Image：文生图（口语 Task 3/4 出图用，如 doubao-seedream-5.0-lite）

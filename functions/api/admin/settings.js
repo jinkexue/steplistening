@@ -16,6 +16,7 @@ const ALLOWED_KEYS = new Set([
   // Vision
   "vision_endpoint",
   "vision_model",
+  "vision_same_as_llm",
   // Image (文生图)
   "image_endpoint",
   "image_model",

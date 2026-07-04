@@ -359,7 +359,9 @@
       },
       {
         title: '② 视觉模型 Vision（口语 Task 3/4 图片解析·可选）',
-        note: '与 LLM 同 endpoint 即可（<code>/api/plan/v3</code>）',
+        note: '视觉模型用于"看图理解"（区别于文生图）。若与 LLM 同源可直接勾选，无需重复配置。',
+        toggle: { key: 'vision_same_as_llm', label: '与 LLM 保持一致（推荐）' },
+        toggleHidesFields: true,
         fields: [
           { key: 'vision_endpoint', label: 'Vision Base URL' },
           { key: 'vision_model',    label: 'Vision 模型名（可留空）' },
@@ -424,12 +426,30 @@
         const providerBlock = g.provider ? `
           <div class="form-row">
             <label class="celpip-label">Provider</label>
-            <select class="celpip-input" data-key="${g.provider.key}" onchange="renderSettingsForm()">
+            <select class="celpip-input" data-key="${g.provider.key}">
               ${g.provider.options.map(o =>
                 `<option value="${o.value}" ${providerVal === o.value ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
             </select>
           </div>` : '';
-        const fieldsHtml = g.fields.map(f => {
+
+        // toggle：一个复选框控制该分区其他字段是否显示
+        let toggleActive = false;
+        let toggleBlock = '';
+        if (g.toggle) {
+          const cur = String(s[g.toggle.key] || '').toLowerCase();
+          toggleActive = cur === '1' || cur === 'true';
+          toggleBlock = `
+            <div class="form-row">
+              <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+                <input type="checkbox" data-key="${g.toggle.key}" data-toggle="1" ${toggleActive ? 'checked' : ''}>
+                <span>${escapeHtml(g.toggle.label)}</span>
+              </label>
+            </div>`;
+        }
+
+        const shouldHideByToggle = g.toggle && g.toggleHidesFields && toggleActive;
+
+        const fieldsHtml = shouldHideByToggle ? '' : g.fields.map(f => {
           if (f.showIf && providerVal !== f.showIf) return '';
           return `
             <div class="form-row">
@@ -441,27 +461,35 @@
           <div class="celpip-card" style="margin-bottom:16px">
             <h3 style="margin-bottom:6px">${escapeHtml(g.title)}</h3>
             ${g.note ? `<div style="font-size:12px;color:#5C6773;margin-bottom:12px">${g.note}</div>` : ''}
+            ${toggleBlock}
             ${providerBlock}
             ${fieldsHtml}
           </div>`;
       }).join('');
       document.getElementById('settingsForm').innerHTML = html;
-      // 让 provider select 的变化立即在 UI 生效（同步到 cache 再重渲染）
-      document.querySelectorAll('#settingsForm select[data-key]').forEach(sel => {
-        sel.addEventListener('change', () => {
-          _settingsCache[sel.dataset.key] = sel.value;
-          // 同步其他输入框当前值到 cache
-          document.querySelectorAll('#settingsForm input[data-key]').forEach(inp => {
-            _settingsCache[inp.dataset.key] = inp.value;
-          });
-          renderSettingsForm();
+      // provider select / toggle checkbox 都触发同步+重渲染
+      const syncAndRerender = () => {
+        document.querySelectorAll('#settingsForm input[data-key]').forEach(inp => {
+          if (inp.type === 'checkbox') _settingsCache[inp.dataset.key] = inp.checked ? '1' : '0';
+          else _settingsCache[inp.dataset.key] = inp.value;
         });
+        document.querySelectorAll('#settingsForm select[data-key]').forEach(sel => {
+          _settingsCache[sel.dataset.key] = sel.value;
+        });
+        renderSettingsForm();
+      };
+      document.querySelectorAll('#settingsForm select[data-key]').forEach(sel => {
+        sel.addEventListener('change', syncAndRerender);
+      });
+      document.querySelectorAll('#settingsForm input[data-toggle]').forEach(cb => {
+        cb.addEventListener('change', syncAndRerender);
       });
     }
     async function saveSettings() {
       const updates = {};
       document.querySelectorAll('#settingsForm input[data-key]').forEach(inp => {
-        updates[inp.dataset.key] = inp.value;
+        if (inp.type === 'checkbox') updates[inp.dataset.key] = inp.checked ? '1' : '0';
+        else updates[inp.dataset.key] = inp.value;
       });
       document.querySelectorAll('#settingsForm select[data-key]').forEach(sel => {
         updates[sel.dataset.key] = sel.value;

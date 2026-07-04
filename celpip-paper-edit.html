@@ -159,7 +159,8 @@
         <div class="item-card" data-item-id="${it.id}">
           <div class="item-header">
             <div class="item-title">${SECTION_LABEL[section]} · ${section === 'writing' || section === 'speaking' ? 'Task' : 'Part'} ${it[section === 'writing' || section === 'speaking' ? 'task' : 'part']} · #${it.id}</div>
-            <div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <button class="celpip-btn small" style="background:#F5A623" onclick="regenItem('${section}', ${it.id}, this)" title="用 AI 重新生成本题（会覆盖当前内容）">🔄 重新生成</button>
               <button class="celpip-btn success small" onclick="saveItem('${section}', ${it.id}, this)">💾 保存</button>
               <button class="celpip-btn danger small" onclick="deleteItem('${section}', ${it.id})">删除</button>
             </div>
@@ -276,6 +277,34 @@
     window.saveItem = saveItem;
     window.deleteItem = deleteItem;
     window.addItem = addItem;
+    window.regenItem = regenItem;
+
+    async function regenItem(section, itemId, btn) {
+      if (!confirm(`确认用 AI 重新生成本题？\n\n将覆盖 ${SECTION_LABEL[section]} #${itemId} 的当前内容（题干/选项/答案/原文等），无法撤销。`)) return;
+      const original = btn.textContent;
+      btn.disabled = true; btn.textContent = '⏳ 生成中…';
+      try {
+        const data = await celpipApi('/admin/regenerate_item', {
+          method: 'POST',
+          body: { user_id: user.userId, section, item_id: itemId },
+        });
+        if (data.ok) {
+          let extra = '';
+          if (data.asset?.audio_key) extra += ' · TTS ✓';
+          if (data.asset?.image_key) extra += ' · Image ✓';
+          if (data.asset?.tts_error) extra += ` · TTS ✗ ${data.asset.tts_error.slice(0, 60)}`;
+          if (data.asset?.image_error) extra += ` · Image ✗ ${data.asset.image_error.slice(0, 60)}`;
+          alert('✓ 已重新生成 #' + itemId + extra);
+          loadAll();
+        } else {
+          alert(`✗ 失败 @${data.stage}：${data.error}`);
+        }
+      } catch (e) {
+        alert('✗ 请求失败：' + e.message);
+      } finally {
+        btn.disabled = false; btn.textContent = original;
+      }
+    }
   </script>
 </body>
 </html>
