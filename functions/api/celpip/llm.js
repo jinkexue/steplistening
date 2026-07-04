@@ -8,7 +8,7 @@
 // ============================================================
 
 import { requireUser, json } from "../../lib/auth.js";
-import { loadSettings, volcChat, volcChatJSON } from "../../lib/volc.js";
+import { loadSettings, volcChat, volcChatJSON, pickEndpoint, pickModel } from "../../lib/volc.js";
 
 const INTENT_PROMPT_MAP = {
   generate_listening: { section: "listening", name: "generate_dialogue", jsonOnly: true },
@@ -50,8 +50,8 @@ export async function onRequestPost(context) {
 
     const opts = {
       apiKey: env.VOLC_API_KEY,
-      endpoint: settings.volc_api_endpoint,
-      model: settings.volc_llm_model,
+      endpoint: pickEndpoint(settings, "llm"),
+      model: pickModel(settings, "llm"),
       messages,
     };
 

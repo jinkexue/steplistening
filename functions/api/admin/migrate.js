@@ -139,15 +139,29 @@ const STATEMENTS = [
 ];
 
 // 默认设置（IGNORE 避免覆盖已有值）
+// 基于火山方舟官方最新 base URL（/api/plan/v3 是 OpenAI 兼容协议入口）
 const SEED_SETTINGS = [
-  ["volc_api_endpoint", "https://ark.cn-beijing.volces.com/api/v3"],
-  ["volc_llm_model",    ""],
-  ["volc_vision_model", ""],
-  ["volc_image_model",  ""],
-  ["volc_tts_model",    ""],
-  ["volc_stt_model",    ""],
-  ["cf_tts_model",      "@cf/deepgram/aura-2-en"],
-  ["cf_stt_model",      "@cf/openai/whisper"],
+  // LLM：文本大模型（如 ark-code-latest）
+  ["llm_endpoint", "https://ark.cn-beijing.volces.com/api/plan/v3"],
+  ["llm_model",    "ark-code-latest"],
+  // Vision：图文多模态（口语 Task 3/4 图片解析用）
+  ["vision_endpoint", "https://ark.cn-beijing.volces.com/api/plan/v3"],
+  ["vision_model",    ""],
+  // Image：文生图（口语 Task 3/4 出图用，如 doubao-seedream-5.0-lite）
+  ["image_endpoint", "https://ark.cn-beijing.volces.com/api/plan/v3/images/generations"],
+  ["image_model",    "doubao-seedream-5.0-lite"],
+  // TTS：默认走 Cloudflare Workers AI；火山 TTS 用 openspeech 域名 + WebSocket，需单独适配
+  ["tts_provider",       "cloudflare"],
+  ["cf_tts_model",       "@cf/deepgram/aura-2-en"],
+  ["volc_tts_endpoint",  "https://openspeech.bytedance.com/api/v3/plan/tts/unidirectional"],
+  ["volc_tts_model",     "seed-tts-2.0"],
+  // STT：默认走 Cloudflare Whisper；火山 STT 是流式 WebSocket，尚未接入
+  ["stt_provider",       "cloudflare"],
+  ["cf_stt_model",       "@cf/openai/whisper"],
+  ["volc_stt_endpoint",  ""],
+  ["volc_stt_model",     "volc.seedasr.sauc.duration"],
+  // 兼容旧字段
+  ["volc_api_endpoint",  "https://ark.cn-beijing.volces.com/api/plan/v3"],
 ];
 
 // 默认提示词（IGNORE：只有第一次插入）

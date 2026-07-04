@@ -13,7 +13,7 @@
 // ============================================================
 
 import { requireAdmin, json } from "../../lib/auth.js";
-import { loadSettings, volcChatJSON } from "../../lib/volc.js";
+import { loadSettings, volcChatJSON, pickEndpoint, pickModel } from "../../lib/volc.js";
 
 const SECTION_LIST = ["listening", "reading", "writing", "speaking"];
 
@@ -42,13 +42,36 @@ async function sha256Hex(text) {
 }
 
 // 直接调 Workers AI 生成 TTS 并写入 R2；返回 R2 key
+// 生成 TTS 到 R2；provider 由 settings.tts_provider 决定
 async function generateTTSToR2(env, settings, text) {
-  const model = settings.cf_tts_model || "@cf/deepgram/aura-2-en";
-  const hash = await sha256Hex(`${model}|${text}`);
-  const r2Key = `celpip/tts/${hash}.mp3`;
-  const exists = await env.BUCKET.head(r2Key);
-  if (exists) return r2Key;
+  const provider = (settings.tts_provider || "cloudflare").toLowerCase();
+  if (provider === "volc") {
+    const model = pickModel(settings, "volc_tts");
+    const endpoint = pickEndpoint(settings, "volc_tts");
+    if (!model) throw new Error("volc_tts_model not configured");
+    const hash = await sha256Hex(`volc|${model}|${text}`);
+    const r2Key = `celpip/tts/${hash}.mp3`;
+    if (await env.BUCKET.head(r2Key)) return r2Key;
+    const base = endpoint.replace(/\/+$/, "");
+    const resp = await fetch(`${base}/audio/speech`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${env.VOLC_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ model, input: text, voice: "alloy", response_format: "mp3" }),
+    });
+    if (!resp.ok) throw new Error(`volc TTS failed: ${resp.status} ${await resp.text()}`);
+    const bytes = new Uint8Array(await resp.arrayBuffer());
+    await env.BUCKET.put(r2Key, bytes, { httpMetadata: { contentType: "audio/mpeg" } });
+    return r2Key;
+  }
 
+  // cloudflare
+  const model = pickModel(settings, "cf_tts") || "@cf/deepgram/aura-2-en";
+  const hash = await sha256Hex(`cf|${model}|${text}`);
+  const r2Key = `celpip/tts/${hash}.mp3`;
+  if (await env.BUCKET.head(r2Key)) return r2Key;
   const res = await env.AI.run(model, { text });
   let bytes;
   if (res instanceof ReadableStream) {
@@ -70,9 +93,7 @@ async function generateTTSToR2(env, settings, text) {
   } else {
     throw new Error("Unknown TTS response format");
   }
-  await env.BUCKET.put(r2Key, bytes, {
-    httpMetadata: { contentType: "audio/mpeg" },
-  });
+  await env.BUCKET.put(r2Key, bytes, { httpMetadata: { contentType: "audio/mpeg" } });
   return r2Key;
 }
 
@@ -85,8 +106,8 @@ async function genListeningItem({ env, sectionId, part, order, settings, systemP
   });
   const obj = await volcChatJSON({
     apiKey: env.VOLC_API_KEY,
-    endpoint: settings.volc_api_endpoint,
-    model: settings.volc_llm_model,
+    endpoint: pickEndpoint(settings, "llm"),
+    model: pickModel(settings, "llm"),
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userAsk },
@@ -162,9 +183,47 @@ export async function onRequestPost(context) {
         continue;
       }
 
-      // 其他 section 保持 M1 骨架：每 section 1 条示例
+      // Reading：按 CELPIP 官方 4 个 Part 生成
+      if (section === "reading") {
+        const systemPrompt = await getSystemPrompt(env, "reading", "generate_passage");
+        const count = Math.max(1, Math.min(6, options.reading_count || 4));
+        for (let i = 0; i < count; i++) {
+          const part = ((i) % 4) + 1;
+          const userAsk = JSON.stringify({
+            difficulty,
+            part,
+            note: "Generate ONE CELPIP Reading Part. Return strict JSON: {title, passage, questions:[{q, options, answer}]}. Keep 200-500 words for passage; 4-6 drop-down questions.",
+          });
+          try {
+            const obj = await volcChatJSON({
+              apiKey: env.VOLC_API_KEY,
+              endpoint: pickEndpoint(settings, "llm"),
+              model: pickModel(settings, "llm"),
+              messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userAsk },
+              ],
+            });
+            await env.DB.prepare(
+              `INSERT INTO celpip_reading_items (section_id, part, title, passage, questions, order_index)
+               VALUES (?, ?, ?, ?, ?, ?)`
+            ).bind(
+              sectionId, part,
+              obj.title || "",
+              obj.passage || "",
+              JSON.stringify(obj.questions || []),
+              i + 1
+            ).run();
+            summary.reading.items.push({ part, id: "generated" });
+          } catch (e) {
+            summary.reading.items.push({ error: e.message, part });
+          }
+        }
+        continue;
+      }
+
+      // 其他 section 保持 M1 骨架：每 section 1 条示例（M5/M6 会各自扩展）
       const nameMap = {
-        reading: "generate_passage",
         writing: "generate_prompt",
         speaking: "generate_task",
       };
@@ -177,20 +236,15 @@ export async function onRequestPost(context) {
       try {
         const obj = await volcChatJSON({
           apiKey: env.VOLC_API_KEY,
-          endpoint: settings.volc_api_endpoint,
-          model: settings.volc_llm_model,
+          endpoint: pickEndpoint(settings, "llm"),
+          model: pickModel(settings, "llm"),
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userAsk },
           ],
         });
 
-        if (section === "reading") {
-          await env.DB.prepare(
-            `INSERT INTO celpip_reading_items (section_id, part, title, passage, questions)
-             VALUES (?, ?, ?, ?, ?)`
-          ).bind(sectionId, 1, obj.title || "", obj.passage || "", JSON.stringify(obj.questions || [])).run();
-        } else if (section === "writing") {
+        if (section === "writing") {
           await env.DB.prepare(
             `INSERT INTO celpip_writing_items
               (section_id, task, prompt, background, chart_data, min_words, max_words)

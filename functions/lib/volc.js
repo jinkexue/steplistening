@@ -159,7 +159,10 @@ export async function volcImage({
   n = 1,
 }) {
   if (!apiKey) throw new Error("VOLC_API_KEY missing");
-  const url = joinUrl(endpoint, "/images/generations");
+  // 若 endpoint 已经包含 /images/generations，则直接使用；否则拼接
+  const url = /\/images\/generations\/?$/.test((endpoint || "").trim())
+    ? (endpoint || "").replace(/\/+$/, "")
+    : joinUrl(endpoint, "/images/generations");
   const resp = await fetch(url, {
     method: "POST",
     headers: {
@@ -194,9 +197,38 @@ export async function volcChatWithPrompt(DB, env, {
   messages.push({ role: "user", content: userContent });
   return await volcChat({
     apiKey: env.VOLC_API_KEY,
-    endpoint: settings.volc_api_endpoint,
-    model: settings.volc_llm_model,
+    endpoint: pickEndpoint(settings, "llm"),
+    model: pickModel(settings, "llm"),
     messages,
     response_format,
   });
+}
+
+/**
+ * 按用途读取 endpoint / model
+ * kind: 'llm' | 'vision' | 'image' | 'volc_tts' | 'volc_stt'
+ * 优先读取新字段（llm_endpoint / vision_endpoint / image_endpoint …），
+ * 未设置时回退到 volc_api_endpoint（旧兼容）
+ */
+export function pickEndpoint(settings, kind) {
+  const key = {
+    llm: "llm_endpoint",
+    vision: "vision_endpoint",
+    image: "image_endpoint",
+    volc_tts: "volc_tts_endpoint",
+    volc_stt: "volc_stt_endpoint",
+  }[kind];
+  return (settings?.[key] || settings?.volc_api_endpoint || "").trim();
+}
+export function pickModel(settings, kind) {
+  const key = {
+    llm: "llm_model",
+    vision: "vision_model",
+    image: "image_model",
+    volc_tts: "volc_tts_model",
+    volc_stt: "volc_stt_model",
+    cf_tts: "cf_tts_model",
+    cf_stt: "cf_stt_model",
+  }[kind];
+  return (settings?.[key] || "").trim();
 }

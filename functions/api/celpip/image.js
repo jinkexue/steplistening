@@ -6,7 +6,7 @@
 // ============================================================
 
 import { requireUser, json } from "../../lib/auth.js";
-import { loadSettings, volcImage } from "../../lib/volc.js";
+import { loadSettings, volcImage, pickEndpoint, pickModel } from "../../lib/volc.js";
 
 async function sha256Hex(text) {
   const enc = new TextEncoder();
@@ -25,12 +25,12 @@ export async function onRequestPost(context) {
     if (!env.VOLC_API_KEY) return json({ error: "VOLC_API_KEY missing" }, 500);
 
     const settings = await loadSettings(env.DB);
-    const model = settings.volc_image_model;
-    if (!model) return json({ error: "volc_image_model not configured" }, 500);
+    const model = pickModel(settings, "image");
+    if (!model) return json({ error: "image model not configured" }, 500);
 
     const item = await volcImage({
       apiKey: env.VOLC_API_KEY,
-      endpoint: settings.volc_api_endpoint,
+      endpoint: pickEndpoint(settings, "image"),
       model,
       prompt,
       size,

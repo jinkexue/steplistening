@@ -1,7 +1,7 @@
 // ============================================================
-// POST /api/celpip/listening/paraphrase
-// 错题解析：把听力 transcript + 用户答错的选项交给 LLM，做同义词替换 / 逻辑拆解
-// body: { user_id, item_id, wrong_option?: string }
+// POST /api/celpip/reading/explain
+// 阅读求助：给出段落大意 / 定位句（原文摘录）/ 错误选项拆解
+// body: { user_id, item_id, question_index?, wrong_option? }
 // ============================================================
 
 import { requireUser, json } from "../../../lib/auth.js";
@@ -13,32 +13,37 @@ export async function onRequestPost(context) {
   if (!guard.ok) return guard.response;
 
   try {
-    const { item_id, wrong_option } = await request.json();
+    const { item_id, question_index, wrong_option } = await request.json();
     if (!item_id) return json({ error: "item_id required" }, 400);
     if (!env.VOLC_API_KEY) return json({ error: "VOLC_API_KEY missing" }, 500);
 
     const item = await env.DB.prepare(
-      "SELECT * FROM celpip_listening_items WHERE id = ?"
+      "SELECT * FROM celpip_reading_items WHERE id = ?"
     ).bind(item_id).first();
     if (!item) return json({ error: "item not found" }, 404);
 
+    const questions = safeParse(item.questions, []);
+    const q = Number.isInteger(question_index) ? questions[question_index] : null;
+
     const settings = await loadSettings(env.DB);
-    // 复用 listening / generate_dialogue 之外的角色：临时用 inline system prompt
     const systemPrompt = [
-      "You are an expert CELPIP Listening coach.",
-      "Given the transcript, question, options and user's wrong choice, produce a paraphrase-based explanation.",
+      "You are an expert CELPIP Reading coach.",
+      "Given a passage and a question, produce a structured helpful explanation in Chinese.",
       "Return strict JSON with fields:",
-      "  paraphrase   : 3-5 sentences rewording the key info that answers the question",
-      "  why_wrong    : why the user's chosen option is incorrect (bullet points)",
-      "  why_right    : why the correct option is correct",
-      "  key_vocab    : array of { word, meaning_zh, example }",
+      "  summary            : 3-5 sentences summarizing the passage",
+      "  para_gist          : array of { paragraph_index, gist }",
+      "  locator_sentence   : the exact sentence from the passage that answers the question",
+      "  why_wrong          : (if user chose a wrong option) explain why it's incorrect",
+      "  why_right          : why the correct answer is correct",
+      "  key_vocab          : array of { word, meaning_zh, example }",
     ].join("\n");
 
     const userMsg = JSON.stringify({
-      transcript: item.transcript,
-      question: item.question,
-      options: safeParse(item.options),
-      correct_answer: item.answer,
+      passage: item.passage,
+      title: item.title,
+      question: q ? q.q || q.question : null,
+      options: q ? q.options : null,
+      correct_answer: q ? q.answer : null,
       user_wrong_option: wrong_option || null,
     });
 
@@ -58,6 +63,4 @@ export async function onRequestPost(context) {
   }
 }
 
-function safeParse(s) {
-  try { return JSON.parse(s); } catch { return s; }
-}
+function safeParse(s, fb) { try { return JSON.parse(s); } catch { return fb; } }

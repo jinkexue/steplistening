@@ -9,9 +9,9 @@ type SectionKey = 'listening' | 'reading' | 'writing' | 'speaking';
 
 const SECTIONS: Array<{ key: SectionKey; label: string; desc: string; icon: string }> = [
   { key: 'listening', label: '听力 Listening', desc: '6 个 Part · 加拿大口音 · 每题独立倒计时', icon: '🎧' },
-  { key: 'speaking',  label: '口语 Speaking',  desc: '8 个 Task · 含图文 · Prep + Recording',   icon: '🗣️' },
   { key: 'reading',   label: '阅读 Reading',   desc: '4 个 Part · 左右分栏 · Drop-down 题',    icon: '📖' },
   { key: 'writing',   label: '写作 Writing',   desc: '2 个 Task · CLB 四维评分 · AI 范文对比', icon: '✍️' },
+  { key: 'speaking',  label: '口语 Speaking',  desc: '8 个 Task · 含图文 · Prep + Recording',   icon: '🗣️' },
 ];
 
 function getUserId(): number | null {

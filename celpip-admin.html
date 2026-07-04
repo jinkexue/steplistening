@@ -228,39 +228,124 @@
     }
 
     // ================= AI 配置 =================
-    const SETTING_KEYS = [
-      { key: 'volc_api_endpoint', label: '火山方舟 endpoint', hint: '例：https://ark.cn-beijing.volces.com/api/v3' },
-      { key: 'volc_llm_model',    label: '火山 LLM model 引用名', hint: '方舟推理接入点 ID (ep-xxxx)' },
-      { key: 'volc_vision_model', label: '火山 Vision model 引用名', hint: '图文多模态（可留空）' },
-      { key: 'volc_image_model',  label: '火山 Image model 引用名', hint: '文生图（Speaking Task3/4 用）' },
-      { key: 'volc_tts_model',    label: '火山 TTS 备选 model', hint: '备选' },
-      { key: 'volc_stt_model',    label: '火山 STT 备选 model', hint: '备选' },
-      { key: 'cf_tts_model',      label: 'Cloudflare TTS 模型', hint: '例：@cf/deepgram/aura-2-en' },
-      { key: 'cf_stt_model',      label: 'Cloudflare STT 模型', hint: '例：@cf/openai/whisper' },
+    // 按模型类别分区展示（每类独立 endpoint + model）
+    const SETTING_GROUPS = [
+      {
+        title: '① 语言模型 LLM（阅读/写作/口语生成 & 评分）',
+        note: '火山方舟：<code>https://ark.cn-beijing.volces.com/api/plan/v3</code>；模型如 <code>ark-code-latest</code>',
+        fields: [
+          { key: 'llm_endpoint', label: 'LLM Base URL' },
+          { key: 'llm_model',    label: 'LLM 模型名 / 接入点 ID' },
+        ],
+      },
+      {
+        title: '② 视觉模型 Vision（口语 Task 3/4 图片解析·可选）',
+        note: '与 LLM 同 endpoint 即可（<code>/api/plan/v3</code>）',
+        fields: [
+          { key: 'vision_endpoint', label: 'Vision Base URL' },
+          { key: 'vision_model',    label: 'Vision 模型名（可留空）' },
+        ],
+      },
+      {
+        title: '③ 文生图 Image（口语 Task 3/4 出图）',
+        note: '火山方舟图片生成 Base URL：<code>https://ark.cn-beijing.volces.com/api/plan/v3/images/generations</code>；模型如 <code>doubao-seedream-5.0-lite</code>',
+        fields: [
+          { key: 'image_endpoint', label: 'Image Base URL' },
+          { key: 'image_model',    label: 'Image 模型名' },
+        ],
+      },
+      {
+        title: '④ 语音合成 TTS（听力音频生成）',
+        note: '二选一 provider。Cloudflare 走 Workers AI；火山走 openspeech 域名（暂未接入 WebSocket 流式）。',
+        provider: { key: 'tts_provider', options: [
+          { value: 'cloudflare', label: 'Cloudflare Workers AI（推荐）' },
+          { value: 'volc',       label: '火山方舟 TTS（seed-tts-2.0）' },
+        ]},
+        fields: [
+          { key: 'cf_tts_model',       label: 'Cloudflare TTS 模型',   showIf: 'cloudflare' },
+          { key: 'volc_tts_endpoint',  label: '火山 TTS Base URL',      showIf: 'volc' },
+          { key: 'volc_tts_model',     label: '火山 TTS Resource-Id',   showIf: 'volc' },
+        ],
+      },
+      {
+        title: '⑤ 语音识别 STT（口语录音转写）',
+        note: '二选一 provider。默认 Cloudflare Whisper；火山 STT 为流式 WebSocket，暂未接入。',
+        provider: { key: 'stt_provider', options: [
+          { value: 'cloudflare', label: 'Cloudflare Whisper（推荐）' },
+          { value: 'volc',       label: '火山方舟 STT（volc.seedasr.sauc.duration）' },
+        ]},
+        fields: [
+          { key: 'cf_stt_model',       label: 'Cloudflare STT 模型',   showIf: 'cloudflare' },
+          { key: 'volc_stt_endpoint',  label: '火山 STT Base URL',      showIf: 'volc' },
+          { key: 'volc_stt_model',     label: '火山 STT Resource-Id',   showIf: 'volc' },
+        ],
+      },
     ];
+
+    let _settingsCache = {};
 
     async function loadSettings() {
       try {
         const data = await celpipApi('/admin/settings', { query: { user_id: user.userId } });
+        _settingsCache = data.settings || {};
         const secretsHtml = data.secrets?.VOLC_API_KEY
           ? '<div class="celpip-alert success">VOLC_API_KEY：已配置 ✓</div>'
-          : '<div class="celpip-alert error">VOLC_API_KEY：未配置 ✗ — 请到 Cloudflare Pages 环境变量添加</div>';
+          : '<div class="celpip-alert error">VOLC_API_KEY：未配置 ✗ — 请到 Cloudflare Pages Settings → Environment variables 添加 encrypted 变量</div>';
         document.getElementById('secretStatus').innerHTML = secretsHtml;
-        const s = data.settings || {};
-        document.getElementById('settingsForm').innerHTML = SETTING_KEYS.map(k => `
-          <div class="form-row">
-            <label class="celpip-label">${k.label}</label>
-            <div class="celpip-hint">${k.hint}</div>
-            <input class="celpip-input" data-key="${k.key}" value="${escapeAttr(s[k.key] || '')}" placeholder="${escapeAttr(k.hint)}">
-          </div>`).join('');
+        renderSettingsForm();
       } catch (e) {
         document.getElementById('secretStatus').innerHTML = `<div class="celpip-alert error">加载失败：${escapeHtml(e.message)}</div>`;
       }
+    }
+
+    function renderSettingsForm() {
+      const s = _settingsCache;
+      const html = SETTING_GROUPS.map(g => {
+        const providerVal = g.provider ? (s[g.provider.key] || g.provider.options[0].value) : null;
+        const providerBlock = g.provider ? `
+          <div class="form-row">
+            <label class="celpip-label">Provider</label>
+            <select class="celpip-input" data-key="${g.provider.key}" onchange="renderSettingsForm()">
+              ${g.provider.options.map(o =>
+                `<option value="${o.value}" ${providerVal === o.value ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
+            </select>
+          </div>` : '';
+        const fieldsHtml = g.fields.map(f => {
+          if (f.showIf && providerVal !== f.showIf) return '';
+          return `
+            <div class="form-row">
+              <label class="celpip-label">${escapeHtml(f.label)}</label>
+              <input class="celpip-input" data-key="${f.key}" value="${escapeAttr(s[f.key] || '')}" placeholder="${escapeAttr(f.label)}">
+            </div>`;
+        }).join('');
+        return `
+          <div class="celpip-card" style="margin-bottom:16px">
+            <h3 style="margin-bottom:6px">${escapeHtml(g.title)}</h3>
+            ${g.note ? `<div style="font-size:12px;color:#5C6773;margin-bottom:12px">${g.note}</div>` : ''}
+            ${providerBlock}
+            ${fieldsHtml}
+          </div>`;
+      }).join('');
+      document.getElementById('settingsForm').innerHTML = html;
+      // 让 provider select 的变化立即在 UI 生效（同步到 cache 再重渲染）
+      document.querySelectorAll('#settingsForm select[data-key]').forEach(sel => {
+        sel.addEventListener('change', () => {
+          _settingsCache[sel.dataset.key] = sel.value;
+          // 同步其他输入框当前值到 cache
+          document.querySelectorAll('#settingsForm input[data-key]').forEach(inp => {
+            _settingsCache[inp.dataset.key] = inp.value;
+          });
+          renderSettingsForm();
+        });
+      });
     }
     async function saveSettings() {
       const updates = {};
       document.querySelectorAll('#settingsForm input[data-key]').forEach(inp => {
         updates[inp.dataset.key] = inp.value;
+      });
+      document.querySelectorAll('#settingsForm select[data-key]').forEach(sel => {
+        updates[sel.dataset.key] = sel.value;
       });
       try {
         await celpipApi('/admin/settings', {
@@ -268,6 +353,7 @@
           body: { user_id: user.userId, updates },
         });
         alert('已保存');
+        loadSettings();
       } catch (e) { alert('保存失败：' + e.message); }
     }
 
@@ -337,6 +423,7 @@
     window.deletePaper = deletePaper;
     window.saveSettings = saveSettings;
     window.savePrompt = savePrompt;
+    window.renderSettingsForm = renderSettingsForm;
   </script>
 </body>
 </html>
