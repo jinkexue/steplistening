@@ -238,7 +238,7 @@ export async function volcImage({
   });
   if (!resp.ok) {
     const text = await resp.text();
-    throw new Error(`volc image failed: ${resp.status} ${text} | url=${url} body=${JSON.stringify(body).slice(0, 200)}`);
+    throw new Error(`volc image failed: ${resp.status} ${text} | url=${url} body=${JSON.stringify(body)}`);
   }
   const data = await resp.json();
   const item = data?.data?.[0];
