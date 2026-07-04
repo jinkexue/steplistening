@@ -99,23 +99,69 @@ export async function volcChatText(opts) {
 
 /**
  * 便捷方法：让模型返回严格 JSON 对象
+ * - 优先尝试 OpenAI 兼容的 response_format: json_object
+ * - 若模型不支持（如 ark-code-latest 会 400 "not supported by this model"），
+ *   自动去掉 response_format 重试；并靠强化 system prompt + 正则兜底提取
  */
 export async function volcChatJSON(opts) {
-  const merged = {
-    ...opts,
-    response_format: { type: "json_object" },
-  };
-  const text = await volcChatText(merged);
-  try {
-    return JSON.parse(text);
-  } catch (e) {
-    // 兜底：截取 { ... }
-    const start = text.indexOf("{");
-    const end = text.lastIndexOf("}");
-    if (start >= 0 && end > start) {
-      return JSON.parse(text.slice(start, end + 1));
+  // 拷贝 messages 并追加 JSON 硬约束（不改动调用方原 messages）
+  const enforcedMessages = (opts.messages || []).map((m, i) => {
+    if (i === 0 && m.role === "system") {
+      return {
+        ...m,
+        content: (m.content || "") +
+          "\n\nIMPORTANT: You MUST respond with ONLY a valid JSON object. " +
+          "Do NOT include markdown code fences (```json etc), explanations, or any text outside the JSON. " +
+          "Start with { and end with }.",
+      };
     }
-    throw new Error(`volc JSON parse failed: ${text.slice(0, 200)}`);
+    return m;
+  });
+  // 若第一条不是 system，则在最前面补一条
+  if (!enforcedMessages[0] || enforcedMessages[0].role !== "system") {
+    enforcedMessages.unshift({
+      role: "system",
+      content: "You MUST respond with ONLY a valid JSON object. No markdown, no code fences, no extra text.",
+    });
+  }
+
+  const baseOpts = { ...opts, messages: enforcedMessages };
+
+  let text = "";
+  try {
+    text = await volcChatText({
+      ...baseOpts,
+      response_format: { type: "json_object" },
+    });
+  } catch (e) {
+    // 模型不支持 response_format 时，自动去掉参数重试
+    if (/response_format/i.test(e.message) || /not supported/i.test(e.message)) {
+      text = await volcChatText(baseOpts);
+    } else {
+      throw e;
+    }
+  }
+
+  // 清洗常见污染
+  const cleaned = text
+    .replace(/^\uFEFF/, "")
+    .replace(/```json\s*/gi, "")
+    .replace(/```\s*/g, "")
+    .trim();
+
+  try {
+    return JSON.parse(cleaned);
+  } catch (_) {
+    const start = cleaned.indexOf("{");
+    const end = cleaned.lastIndexOf("}");
+    if (start >= 0 && end > start) {
+      try {
+        return JSON.parse(cleaned.slice(start, end + 1));
+      } catch (e2) {
+        throw new Error(`volc JSON parse failed after cleanup: ${e2.message} :: ${cleaned.slice(0, 300)}`);
+      }
+    }
+    throw new Error(`volc JSON parse failed (no braces): ${cleaned.slice(0, 300)}`);
   }
 }
 
