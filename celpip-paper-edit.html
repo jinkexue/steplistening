@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>编辑试卷 - CELPIP</title>
+  <link rel="stylesheet" href="celpip.css">
+  <style>
+    .editor-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--celpip-border); margin-bottom: 20px; }
+    .editor-tab {
+      padding: 10px 16px; cursor: pointer; font-weight: 600; color: var(--celpip-muted);
+      border-bottom: 2px solid transparent;
+    }
+    .editor-tab.active { color: var(--celpip-primary); border-bottom-color: var(--celpip-primary); }
+    .editor-pane { display: none; }
+    .editor-pane.active { display: block; }
+    .item-card {
+      background: #FFF; border: 1px solid var(--celpip-border); border-radius: 10px;
+      padding: 16px; margin-bottom: 14px;
+    }
+    .item-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px dashed var(--celpip-border);
+    }
+    .item-title { font-weight: 700; color: var(--celpip-primary); }
+    .field-row { margin-bottom: 10px; }
+    .field-row label { display: block; font-size: 12px; font-weight: 600; color: var(--celpip-text); margin-bottom: 4px; }
+    .field-row input, .field-row textarea {
+      width: 100%; padding: 8px 10px; border: 1px solid var(--celpip-border);
+      border-radius: 6px; font-size: 13px; font-family: inherit;
+    }
+    .field-row textarea { min-height: 80px; resize: vertical; }
+  </style>
+</head>
+<body>
+  <div class="celpip-container">
+    <div id="notAdmin" style="display:none">
+      <div class="celpip-alert error">仅管理员可访问。</div>
+    </div>
+    <div id="editorBody" style="display:none">
+      <div class="celpip-hero">
+        <div style="flex:1">
+          <h1 id="paperTitle">编辑试卷</h1>
+          <p id="paperMeta" style="color:var(--celpip-muted);font-size:13px"></p>
+        </div>
+        <a class="celpip-btn secondary" href="celpip-admin.html">← 返回后台</a>
+      </div>
+      <div class="editor-tabs">
+        <div class="editor-tab active" data-tab="listening" onclick="showTab('listening')">🎧 听力</div>
+        <div class="editor-tab" data-tab="reading" onclick="showTab('reading')">📖 阅读</div>
+        <div class="editor-tab" data-tab="writing" onclick="showTab('writing')">✍️ 写作</div>
+        <div class="editor-tab" data-tab="speaking" onclick="showTab('speaking')">🗣️ 口语</div>
+      </div>
+      <div id="tab-listening" class="editor-pane active"></div>
+      <div id="tab-reading" class="editor-pane"></div>
+      <div id="tab-writing" class="editor-pane"></div>
+      <div id="tab-speaking" class="editor-pane"></div>
+    </div>
+  </div>
+
+  <script src="celpip.js"></script>
+  <script>
+    const user = celpipGetUser();
+    if (!user.userId) { alert('请先登录'); location.href = 'index.html'; }
+    if (!user.isAdmin) {
+      celpipRenderNav('admin');
+      document.getElementById('notAdmin').style.display = 'block';
+    } else {
+      celpipRenderNav('admin');
+      document.getElementById('editorBody').style.display = 'block';
+    }
+
+    const params = new URLSearchParams(location.search);
+    const paperId = Number(params.get('id'));
+
+    // 每个 section 的字段结构定义
+    const FIELD_DEFS = {
+      listening: [
+        { key: 'part',        label: 'Part (1-6)', type: 'number' },
+        { key: 'order_index', label: '排序 order_index', type: 'number' },
+        { key: 'question',    label: '题目 question', type: 'text' },
+        { key: 'options',     label: '选项 options (JSON 数组，如 ["A","B","C","D"])', type: 'textarea' },
+        { key: 'answer',      label: '正确答案 answer（如 A 或 0）', type: 'text' },
+        { key: 'transcript',  label: '听力原文 transcript', type: 'textarea' },
+        { key: 'audio_key',   label: '音频 R2 key（不填不动）', type: 'text' },
+        { key: 'image_key',   label: '图片 R2 key（可选）', type: 'text' },
+      ],
+      reading: [
+        { key: 'part',        label: 'Part (1-4)', type: 'number' },
+        { key: 'order_index', label: '排序 order_index', type: 'number' },
+        { key: 'title',       label: '标题', type: 'text' },
+        { key: 'passage',     label: '文章 passage', type: 'textarea', big: true },
+        { key: 'questions',   label: '题目 questions（JSON: [{q, options, answer}]）', type: 'textarea', big: true },
+      ],
+      writing: [
+        { key: 'task',        label: 'Task (1 or 2)', type: 'number' },
+        { key: 'order_index', label: '排序 order_index', type: 'number' },
+        { key: 'prompt',      label: '题目要求 prompt', type: 'textarea' },
+        { key: 'background',  label: '背景说明 background', type: 'textarea' },
+        { key: 'chart_data',  label: '饼图数据 chart_data（JSON）', type: 'textarea' },
+        { key: 'min_words',   label: '最少字数', type: 'number' },
+        { key: 'max_words',   label: '最多字数', type: 'number' },
+      ],
+      speaking: [
+        { key: 'task',           label: 'Task (1-8)', type: 'number' },
+        { key: 'order_index',    label: '排序 order_index', type: 'number' },
+        { key: 'prompt',         label: '题目要求 prompt', type: 'textarea' },
+        { key: 'image_key',      label: '图片 R2 key（Task3/4）', type: 'text' },
+        { key: 'image_prompt',   label: '生图 prompt', type: 'textarea' },
+        { key: 'vision_hints',   label: '结构化要点 vision_hints (JSON)', type: 'textarea' },
+        { key: 'prep_seconds',   label: 'Prep 秒数', type: 'number' },
+        { key: 'record_seconds', label: 'Record 秒数', type: 'number' },
+      ],
+    };
+    const SECTION_LABEL = { listening: '听力', reading: '阅读', writing: '写作', speaking: '口语' };
+
+    let paperData = null;
+    let sectionIdMap = {};   // { listening: sectionId, ... }
+    let itemsMap = { listening: [], reading: [], writing: [], speaking: [] };
+
+    (async function main() {
+      if (!user.isAdmin) return;
+      if (!paperId) {
+        document.getElementById('editorBody').innerHTML = '<div class="celpip-alert error">缺少 id 参数</div>';
+        return;
+      }
+      await loadAll();
+    })();
+
+    async function loadAll() {
+      try {
+        const data = await celpipApi('/admin/papers', { query: { user_id: user.userId, paper_id: paperId } });
+        paperData = data.paper;
+        document.getElementById('paperTitle').textContent = `编辑：${paperData.title}`;
+        document.getElementById('paperMeta').textContent =
+          `#${paperData.id} · ${paperData.difficulty} · ${paperData.status === 'published' ? '已发布' : '草稿'}`;
+        const items = data.items || {};
+        for (const s of ['listening', 'reading', 'writing', 'speaking']) {
+          sectionIdMap[s] = items[s]?.section_id || null;
+          itemsMap[s] = items[s]?.list || [];
+        }
+        renderAll();
+      } catch (e) {
+        document.getElementById('editorBody').innerHTML = `<div class="celpip-alert error">加载失败：${escapeHtml(e.message)}</div>`;
+      }
+    }
+
+    function renderAll() {
+      for (const s of ['listening', 'reading', 'writing', 'speaking']) renderSection(s);
+    }
+
+    function renderSection(section) {
+      const box = document.getElementById('tab-' + section);
+      const items = itemsMap[section] || [];
+      const sectionId = sectionIdMap[section];
+      const defs = FIELD_DEFS[section];
+
+      const cards = items.map(it => `
+        <div class="item-card" data-item-id="${it.id}">
+          <div class="item-header">
+            <div class="item-title">${SECTION_LABEL[section]} · ${section === 'writing' || section === 'speaking' ? 'Task' : 'Part'} ${it[section === 'writing' || section === 'speaking' ? 'task' : 'part']} · #${it.id}</div>
+            <div>
+              <button class="celpip-btn success small" onclick="saveItem('${section}', ${it.id}, this)">💾 保存</button>
+              <button class="celpip-btn danger small" onclick="deleteItem('${section}', ${it.id})">删除</button>
+            </div>
+          </div>
+          ${defs.map(f => renderField(f, it[f.key])).join('')}
+        </div>`).join('');
+
+      const addForm = `
+        <div class="item-card" style="border-style:dashed">
+          <div class="item-header">
+            <div class="item-title">➕ 新增 ${SECTION_LABEL[section]} 题目</div>
+            <button class="celpip-btn small" onclick="addItem('${section}', this)">添加</button>
+          </div>
+          ${defs.map(f => renderField(f, '', 'new-')).join('')}
+        </div>`;
+
+      box.innerHTML = (items.length === 0
+        ? '<div class="celpip-empty"><h3>暂无题目</h3><p>可以在下方添加，或返回后台点「一键生成」。</p></div>'
+        : cards) + addForm;
+    }
+
+    function renderField(f, value, prefix = '') {
+      const val = value == null ? '' : (typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value));
+      const attr = `data-key="${f.key}" data-type="${f.type}"`;
+      if (f.type === 'textarea') {
+        return `<div class="field-row">
+          <label>${escapeHtml(f.label)}</label>
+          <textarea ${attr} style="${f.big ? 'min-height:180px;' : ''}">${escapeHtml(val)}</textarea>
+        </div>`;
+      }
+      return `<div class="field-row">
+        <label>${escapeHtml(f.label)}</label>
+        <input type="${f.type}" ${attr} value="${escapeAttr(val)}">
+      </div>`;
+    }
+
+    function collectItemValues(cardEl) {
+      const obj = {};
+      cardEl.querySelectorAll('[data-key]').forEach(el => {
+        const k = el.dataset.key;
+        const t = el.dataset.type;
+        let v = el.value;
+        if (t === 'number') v = v === '' ? null : Number(v);
+        else if (v === '') v = null;
+        obj[k] = v;
+      });
+      return obj;
+    }
+
+    async function saveItem(section, itemId, btn) {
+      const card = btn.closest('.item-card');
+      const values = collectItemValues(card);
+      btn.disabled = true;
+      try {
+        await celpipApi('/admin/papers', {
+          method: 'POST',
+          body: {
+            user_id: user.userId, action: 'update_item', section,
+            item: { id: itemId, ...values },
+          },
+        });
+        alert('已保存 #' + itemId);
+        loadAll();
+      } catch (e) { alert('保存失败：' + e.message); }
+      finally { btn.disabled = false; }
+    }
+
+    async function deleteItem(section, itemId) {
+      if (!confirm(`确认删除 ${SECTION_LABEL[section]} #${itemId}?`)) return;
+      try {
+        await celpipApi('/admin/papers', {
+          method: 'POST',
+          body: {
+            user_id: user.userId, action: 'delete_item', section,
+            item: { id: itemId },
+          },
+        });
+        loadAll();
+      } catch (e) { alert('删除失败：' + e.message); }
+    }
+
+    async function addItem(section, btn) {
+      const card = btn.closest('.item-card');
+      const values = collectItemValues(card);
+      const sectionId = sectionIdMap[section];
+      if (!sectionId) { alert('该 section 尚未创建，请先在后台一键生成一次'); return; }
+      btn.disabled = true;
+      try {
+        await celpipApi('/admin/papers', {
+          method: 'POST',
+          body: {
+            user_id: user.userId, action: 'add_item', section,
+            item: { section_id: sectionId, ...values },
+          },
+        });
+        loadAll();
+      } catch (e) { alert('添加失败：' + e.message); }
+      finally { btn.disabled = false; }
+    }
+
+    function showTab(name) {
+      document.querySelectorAll('.editor-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+      document.querySelectorAll('.editor-pane').forEach(p => p.classList.toggle('active', p.id === 'tab-' + name));
+    }
+
+    function escapeHtml(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+      }[c]));
+    }
+    function escapeAttr(s) { return escapeHtml(s); }
+
+    window.showTab = showTab;
+    window.saveItem = saveItem;
+    window.deleteItem = deleteItem;
+    window.addItem = addItem;
+  </script>
+</body>
+</html>

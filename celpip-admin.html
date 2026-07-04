@@ -156,8 +156,16 @@
               <div style="font-size:12px;color:#8A94A6;margin-top:2px">
                 #${p.id} · ${escapeHtml(p.difficulty || 'CLB9')} · ${p.status === 'published' ? '已发布' : '草稿'} · ${new Date(p.created_at).toLocaleDateString()}
               </div>
+              <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:12px">
+                <span style="color:#5C6773">生成板块：</span>
+                <label><input type="checkbox" class="gen-sec" data-paper="${p.id}" value="listening" checked> 听力</label>
+                <label><input type="checkbox" class="gen-sec" data-paper="${p.id}" value="reading" checked> 阅读</label>
+                <label><input type="checkbox" class="gen-sec" data-paper="${p.id}" value="writing" checked> 写作</label>
+                <label><input type="checkbox" class="gen-sec" data-paper="${p.id}" value="speaking" checked> 口语</label>
+              </div>
             </div>
             <div class="paper-row-actions">
+              <a class="celpip-btn secondary small" href="celpip-paper-edit.html?id=${p.id}">📝 编辑</a>
               <button class="celpip-btn small" onclick="generateAll(${p.id}, this)">一键生成</button>
               ${p.status !== 'published'
                 ? `<button class="celpip-btn success small" onclick="setStatus(${p.id}, 'published')">发布</button>`
@@ -185,18 +193,20 @@
     }
 
     async function generateAll(paperId, btn) {
+      // 读取该行勾选的 section
+      const sections = Array.from(
+        document.querySelectorAll(`input.gen-sec[data-paper="${paperId}"]:checked`)
+      ).map(inp => inp.value);
+      if (sections.length === 0) { alert('请至少勾选一个板块'); return; }
       btn.disabled = true; btn.textContent = '生成中…';
       try {
         const data = await celpipApi('/admin/generate', {
           method: 'POST',
-          body: {
-            user_id: user.userId, paper_id: paperId,
-            sections: ['listening', 'reading', 'writing', 'speaking'],
-          },
+          body: { user_id: user.userId, paper_id: paperId, sections },
         });
         const brief = Object.entries(data.summary || {})
           .map(([k, v]) => `${k}: ${v.generated || 0}${v.error ? ' (err)' : ''}`).join(' · ');
-        alert('一键生成完成\n' + brief);
+        alert('生成完成\n' + brief);
         loadPapers();
       } catch (e) { alert('生成失败：' + e.message); }
       finally { btn.disabled = false; btn.textContent = '一键生成'; }

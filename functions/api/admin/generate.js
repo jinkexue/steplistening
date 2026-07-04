@@ -222,9 +222,51 @@ export async function onRequestPost(context) {
         continue;
       }
 
-      // 其他 section 保持 M1 骨架：每 section 1 条示例（M5/M6 会各自扩展）
+      // Writing：按 CELPIP 官方生成 Task 1 (email) + Task 2 (survey)
+      if (section === "writing") {
+        const systemPrompt = await getSystemPrompt(env, "writing", "generate_prompt");
+        const tasksToGen = options.writing_tasks || [1, 2];
+        let order = 0;
+        for (const task of tasksToGen) {
+          const userAsk = JSON.stringify({
+            difficulty,
+            task,
+            note: task === 1
+              ? "Generate CELPIP Writing Task 1 (email). Provide realistic scenario. Return strict JSON: {prompt, background, min_words:150, max_words:200}."
+              : "Generate CELPIP Writing Task 2 (survey response). MUST include chart_data as JSON: {question, options:[{label, percent}]}. Return: {prompt, background, chart_data, min_words:150, max_words:200}.",
+          });
+          try {
+            const obj = await volcChatJSON({
+              apiKey: env.VOLC_API_KEY,
+              endpoint: pickEndpoint(settings, "llm"),
+              model: pickModel(settings, "llm"),
+              messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userAsk },
+              ],
+            });
+            order += 1;
+            await env.DB.prepare(
+              `INSERT INTO celpip_writing_items
+                (section_id, task, prompt, background, chart_data, min_words, max_words, order_index)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+            ).bind(
+              sectionId, task,
+              obj.prompt || "", obj.background || "",
+              JSON.stringify(obj.chart_data || null),
+              obj.min_words || 150, obj.max_words || 200,
+              order
+            ).run();
+            summary.writing.items.push({ task, id: "generated" });
+          } catch (e) {
+            summary.writing.items.push({ error: e.message, task });
+          }
+        }
+        continue;
+      }
+
+      // 其他 section 保持骨架（M6 会扩展 speaking）
       const nameMap = {
-        writing: "generate_prompt",
         speaking: "generate_task",
       };
       const systemPrompt = await getSystemPrompt(env, section, nameMap[section]);
@@ -244,18 +286,7 @@ export async function onRequestPost(context) {
           ],
         });
 
-        if (section === "writing") {
-          await env.DB.prepare(
-            `INSERT INTO celpip_writing_items
-              (section_id, task, prompt, background, chart_data, min_words, max_words)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`
-          ).bind(
-            sectionId, 1,
-            obj.prompt || "", obj.background || "",
-            JSON.stringify(obj.chart_data || null),
-            obj.min_words || 150, obj.max_words || 200
-          ).run();
-        } else if (section === "speaking") {
+        if (section === "speaking") {
           await env.DB.prepare(
             `INSERT INTO celpip_speaking_items
               (section_id, task, prompt, image_prompt, vision_hints, prep_seconds, record_seconds)

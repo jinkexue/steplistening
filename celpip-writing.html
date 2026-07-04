@@ -1,16 +1,309 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>写作练习 - CELPIP</title>
   <link rel="stylesheet" href="celpip.css">
+  <style>
+    .writing-layout {
+      display: grid;
+      grid-template-columns: 420px 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+    @media (max-width: 960px) {
+      .writing-layout { grid-template-columns: 1fr; }
+    }
+    .prompt-box {
+      background: #FFF; border: 1px solid var(--celpip-border);
+      border-radius: 12px; padding: 20px; position: sticky; top: 12px;
+    }
+    .prompt-box h3 { color: var(--celpip-primary); font-size: 18px; margin-bottom: 12px; }
+    .prompt-text { color: var(--celpip-text); line-height: 1.7; font-size: 14px; margin-bottom: 12px; }
+    .bg-text { color: var(--celpip-muted); line-height: 1.6; font-size: 13px; padding: 10px; background: var(--celpip-surface); border-radius: 6px; margin-bottom: 12px; white-space: pre-wrap; }
+    .editor-box { background: #FFF; border: 1px solid var(--celpip-border); border-radius: 12px; padding: 20px; }
+    .essay-textarea {
+      width: 100%; min-height: 380px; padding: 14px;
+      border: 1px solid var(--celpip-border); border-radius: 8px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", sans-serif;
+      font-size: 15px; line-height: 1.7; color: var(--celpip-text);
+      resize: vertical;
+      spellcheck: false;
+    }
+    .word-count { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; font-size: 13px; color: var(--celpip-muted); }
+    .word-count.warn { color: var(--celpip-danger); font-weight: 700; }
+    .word-count.ok { color: var(--celpip-success); font-weight: 700; }
+    .score-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 16px 0; }
+    .score-card {
+      padding: 12px; border: 1px solid var(--celpip-border); border-radius: 8px;
+      background: var(--celpip-surface); text-align: center;
+    }
+    .score-value { font-size: 24px; font-weight: 700; color: var(--celpip-primary); }
+    .score-label { font-size: 12px; color: var(--celpip-muted); margin-top: 4px; }
+    .rewritten-box {
+      padding: 14px; background: #EEF4FB; border-left: 4px solid var(--celpip-primary);
+      border-radius: 6px; line-height: 1.7; font-size: 14px;
+      margin-top: 12px; white-space: pre-wrap;
+    }
+    .chart-svg { display: block; margin: 0 auto 12px; }
+  </style>
 </head>
 <body>
-  <div class="celpip-container">
-    <div class="celpip-hero"><div style="flex:1"><h1>Writing 板块</h1><p>M5 阶段完整实现题干+饼图+CLB 四维评分+范文对比。当前为占位页。</p></div></div>
-    <a class="celpip-btn secondary" href="javascript:history.back()">← 返回</a>
+  <div class="celpip-container" style="max-width:1200px">
+    <div id="msg"></div>
+    <div id="app"><div class="celpip-loading"></div></div>
   </div>
+
   <script src="celpip.js"></script>
-  <script>celpipRequireLogin() && celpipRenderNav('home');</script>
+  <script>
+    let state = {
+      items: [], attempts: [], activeId: null, paperId: null,
+      essay: '',
+      submitted: false, scoring: false, score: null,
+    };
+
+    (async function main() {
+      const user = celpipRequireLogin();
+      if (!user) return;
+      celpipRenderNav('home');
+      const params = new URLSearchParams(location.search);
+      state.paperId = params.get('paper_id');
+      state.activeId = Number(params.get('item_id'));
+      if (!state.paperId || !state.activeId) {
+        document.getElementById('msg').innerHTML = '<div class="celpip-alert error">缺少参数</div>';
+        document.getElementById('app').innerHTML = '';
+        return;
+      }
+      try {
+        const data = await celpipApi('/celpip/section', {
+          query: { paper_id: state.paperId, section: 'writing', user_id: user.userId },
+        });
+        state.items = data.items || [];
+        state.attempts = data.attempts || [];
+        loadItem();
+      } catch (e) {
+        document.getElementById('msg').innerHTML = `<div class="celpip-alert error">加载失败：${escapeHtml(e.message)}</div>`;
+        document.getElementById('app').innerHTML = '';
+      }
+    })();
+
+    function activeItem() { return state.items.find(i => i.id === state.activeId); }
+    function activeIndex() { return state.items.findIndex(i => i.id === state.activeId); }
+    function attemptOf(id) { return state.attempts.find(a => a.item_id === id); }
+
+    function loadItem() {
+      const at = attemptOf(state.activeId);
+      state.essay = at?.essay || '';
+      state.score = at?.score_json ? celpipSafeParse(at.score_json, null) : null;
+      state.submitted = !!state.score;
+      state.scoring = false;
+      render();
+    }
+
+    function switchItem(id) {
+      const url = new URL(location.href);
+      url.searchParams.set('item_id', String(id));
+      history.replaceState(null, '', url.toString());
+      state.activeId = id;
+      loadItem();
+    }
+
+    function updateEssay(v) {
+      state.essay = v;
+      // 只更新字数显示，不重新渲染整个页面
+      const it = activeItem();
+      if (!it) return;
+      updateWordCount(it);
+    }
+
+    function updateWordCount(it) {
+      const wc = state.essay.trim() ? state.essay.trim().split(/\s+/).length : 0;
+      const wcEl = document.getElementById('wordCount');
+      if (!wcEl) return;
+      const min = it.min_words || 150, max = it.max_words || 200;
+      let cls = 'word-count';
+      if (wc < min) cls += ' warn';
+      else if (wc <= max) cls += ' ok';
+      else cls += ' warn';
+      wcEl.className = cls;
+      wcEl.innerHTML = `字数：<b>${wc}</b> / 要求 ${min}-${max}`;
+    }
+
+    async function submitEssay() {
+      const it = activeItem();
+      if (!it) return;
+      const wc = state.essay.trim() ? state.essay.trim().split(/\s+/).length : 0;
+      if (wc < 20) { alert('作文太短'); return; }
+      state.scoring = true;
+      render();
+      const user = celpipGetUser();
+      try {
+        const data = await celpipApi('/celpip/writing/score', {
+          method: 'POST',
+          body: {
+            user_id: user.userId,
+            paper_id: Number(state.paperId),
+            item_id: it.id,
+            essay: state.essay,
+          },
+        });
+        state.score = data.result;
+        state.submitted = true;
+        // 更新 attempts 本地缓存
+        const existed = attemptOf(it.id);
+        const scoreStr = JSON.stringify(state.score);
+        if (existed) { existed.essay = state.essay; existed.score_json = scoreStr; }
+        else state.attempts.push({ item_id: it.id, essay: state.essay, score_json: scoreStr, status: 'graded' });
+      } catch (e) {
+        alert('评分失败：' + e.message);
+      } finally {
+        state.scoring = false;
+        render();
+      }
+    }
+
+    function render() {
+      const it = activeItem();
+      const app = document.getElementById('app');
+      if (!it) { app.innerHTML = '<div class="celpip-alert error">找不到该题</div>'; return; }
+
+      const idx = activeIndex();
+      const chartData = celpipSafeParse(it.chart_data, null);
+
+      const navChips = state.items.map((x, i) => `
+        <div class="celpip-nav-chip ${x.id === state.activeId ? 'active' : ''} ${attemptOf(x.id) ? 'done' : ''}"
+             onclick="switchItem(${x.id})">${i + 1}</div>`).join('');
+
+      // 左侧：题干
+      const chartSvg = it.task === 2 && chartData && Array.isArray(chartData.options)
+        ? renderPieChart(chartData) : '';
+      const chartQuestion = chartData?.question ? `<div style="font-weight:700;margin-bottom:6px">${escapeHtml(chartData.question)}</div>` : '';
+
+      const leftHtml = `
+        <div class="prompt-box">
+          <h3>Writing · Task ${it.task}</h3>
+          <div class="prompt-text">${escapeHtml(it.prompt || '')}</div>
+          ${it.background ? `<div class="bg-text">${escapeHtml(it.background)}</div>` : ''}
+          ${chartQuestion}${chartSvg}
+          <div style="font-size:12px;color:var(--celpip-subtle);margin-top:8px">
+            字数要求：${it.min_words || 150}-${it.max_words || 200} · 无拼写纠错
+          </div>
+        </div>`;
+
+      // 右侧：编辑器 + 评分结果
+      const scoreBlock = state.score ? renderScore(state.score) : '';
+
+      const rightHtml = `
+        <div class="editor-box">
+          <textarea class="essay-textarea"
+                    id="essayInput"
+                    spellcheck="false"
+                    ${state.submitted ? 'disabled' : ''}
+                    placeholder="请在此处输入你的作文..."
+                    oninput="updateEssay(this.value)">${escapeHtml(state.essay)}</textarea>
+          <div id="wordCount" class="word-count">字数：0 / 要求 ${it.min_words || 150}-${it.max_words || 200}</div>
+          ${state.submitted ? '' : `
+            <button class="celpip-btn" style="width:100%;margin-top:12px" ${state.scoring ? 'disabled' : ''}
+                    onclick="submitEssay()">
+              ${state.scoring ? '⏳ 官方 Examiner 正在打分…（约 20-40 秒）' : '📝 提交给 AI Examiner 打分'}
+            </button>`}
+          ${scoreBlock}
+        </div>`;
+
+      const prev = idx > 0 ? state.items[idx - 1].id : null;
+      const next = idx < state.items.length - 1 ? state.items[idx + 1].id : null;
+
+      app.innerHTML = `
+        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:16px">
+          <h2 style="color:var(--celpip-primary);font-size:20px">Writing Task ${it.task}</h2>
+          <div class="celpip-nav-chips">${navChips}</div>
+        </div>
+        <div class="writing-layout">${leftHtml}${rightHtml}</div>
+        <div style="display:flex;justify-content:space-between;gap:12px;margin-top:24px">
+          ${prev ? `<button class="celpip-btn secondary" onclick="switchItem(${prev})">← 上一题</button>` : '<span></span>'}
+          ${next ? `<button class="celpip-btn" onclick="switchItem(${next})">下一题 →</button>` :
+                   (state.submitted ? `<a class="celpip-btn" href="celpip-paper.html?id=${state.paperId}">返回试卷</a>` : '<span></span>')}
+        </div>`;
+
+      updateWordCount(it);
+    }
+
+    function renderScore(s) {
+      const dims = [
+        { key: 'content_coherence', label: 'Content/Coherence' },
+        { key: 'vocabulary',        label: 'Vocabulary' },
+        { key: 'readability',       label: 'Readability' },
+        { key: 'task_fulfillment',  label: 'Task Fulfillment' },
+      ];
+      const scoreCards = dims.map(d => `
+        <div class="score-card">
+          <div class="score-value">${s[d.key] ?? '—'}</div>
+          <div class="score-label">${d.label}</div>
+        </div>`).join('');
+
+      const fb = s.feedback || {};
+      const fbHtml = ['strengths', 'weaknesses', 'suggestions'].map(k => {
+        const label = { strengths: '优势', weaknesses: '不足', suggestions: '建议' }[k];
+        const arr = Array.isArray(fb[k]) ? fb[k] : (fb[k] ? [fb[k]] : []);
+        if (!arr.length) return '';
+        return `<div style="margin-top:8px"><b style="color:var(--celpip-primary)">${label}：</b>
+          <ul style="margin:4px 0 0 20px;font-size:13px;line-height:1.6">
+            ${arr.map(x => `<li>${escapeHtml(x)}</li>`).join('')}
+          </ul></div>`;
+      }).join('');
+
+      return `
+        <div style="margin-top:20px">
+          <h3 style="color:var(--celpip-primary);margin-bottom:12px">📊 AI Examiner 评分结果</h3>
+          <div style="text-align:center;padding:16px;background:#EEF4FB;border-radius:8px;margin-bottom:12px">
+            <div style="font-size:14px;color:var(--celpip-muted)">综合 CLB 等级</div>
+            <div style="font-size:38px;font-weight:700;color:var(--celpip-primary)">${s.overall_clb ?? '—'}</div>
+          </div>
+          <div class="score-grid">${scoreCards}</div>
+          ${fbHtml}
+          ${s.rewritten_sample ? `
+            <h4 style="margin-top:16px;color:var(--celpip-primary)">CLB 9+ 范文重写</h4>
+            <div class="rewritten-box">${escapeHtml(s.rewritten_sample)}</div>` : ''}
+        </div>`;
+    }
+
+    // 简易 SVG 饼图
+    function renderPieChart(chart) {
+      const opts = chart.options || [];
+      const total = opts.reduce((a, o) => a + (Number(o.percent) || 0), 0) || 100;
+      const cx = 100, cy = 100, r = 80;
+      const colors = ['#0055A4', '#F5A623', '#2E9F5B', '#A55BD6', '#D64545', '#3F84C7'];
+      let acc = 0;
+      const slices = opts.map((o, i) => {
+        const start = acc / total * 2 * Math.PI;
+        acc += Number(o.percent) || 0;
+        const end = acc / total * 2 * Math.PI;
+        const x1 = cx + r * Math.sin(start), y1 = cy - r * Math.cos(start);
+        const x2 = cx + r * Math.sin(end),   y2 = cy - r * Math.cos(end);
+        const large = end - start > Math.PI ? 1 : 0;
+        const d = `M ${cx} ${cy} L ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} Z`;
+        return `<path d="${d}" fill="${colors[i % colors.length]}" stroke="#FFF" stroke-width="1.5" />`;
+      }).join('');
+      const legend = opts.map((o, i) => `
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px;margin-bottom:4px">
+          <span style="width:12px;height:12px;background:${colors[i % colors.length]};border-radius:2px;display:inline-block"></span>
+          <span>${escapeHtml(o.label)} — ${o.percent}%</span>
+        </div>`).join('');
+      return `
+        <svg class="chart-svg" width="200" height="200" viewBox="0 0 200 200">${slices}</svg>
+        <div style="margin-bottom:12px">${legend}</div>`;
+    }
+
+    function escapeHtml(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+      }[c]));
+    }
+
+    window.switchItem = switchItem;
+    window.updateEssay = updateEssay;
+    window.submitEssay = submitEssay;
+  </script>
 </body>
 </html>
