@@ -198,19 +198,108 @@
         document.querySelectorAll(`input.gen-sec[data-paper="${paperId}"]:checked`)
       ).map(inp => inp.value);
       if (sections.length === 0) { alert('请至少勾选一个板块'); return; }
+
+      // 打开进度对话框
+      openProgressModal(paperId, sections);
+
+      // 计算每个 section 的题目数（可以后续做成可配置）
+      const plan = [];
+      for (const s of sections) {
+        if (s === 'listening')      for (let p = 1; p <= 6; p++) plan.push({ section: s, part_or_task: p });
+        else if (s === 'reading')   for (let p = 1; p <= 4; p++) plan.push({ section: s, part_or_task: p });
+        else if (s === 'writing')   for (let t = 1; t <= 2; t++) plan.push({ section: s, part_or_task: t });
+        else if (s === 'speaking')  for (let t = 1; t <= 8; t++) plan.push({ section: s, part_or_task: t });
+      }
+      progressState.total = plan.length;
+      progressState.done = 0;
+      progressState.errors = [];
+      updateProgress();
+
       btn.disabled = true; btn.textContent = '生成中…';
-      try {
-        const data = await celpipApi('/admin/generate', {
-          method: 'POST',
-          body: { user_id: user.userId, paper_id: paperId, sections },
-        });
-        const brief = Object.entries(data.summary || {})
-          .map(([k, v]) => `${k}: ${v.generated || 0}${v.error ? ' (err)' : ''}`).join(' · ');
-        alert('生成完成\n' + brief);
-        loadPapers();
-      } catch (e) { alert('生成失败：' + e.message); }
-      finally { btn.disabled = false; btn.textContent = '一键生成'; }
+
+      for (const step of plan) {
+        appendLog(`▶ 开始生成 ${step.section} · ${step.part_or_task}`, 'muted');
+        try {
+          const data = await celpipApi('/admin/generate_one', {
+            method: 'POST',
+            body: {
+              user_id: user.userId,
+              paper_id: paperId,
+              section: step.section,
+              part_or_task: step.part_or_task,
+            },
+          });
+          if (data.ok) {
+            progressState.done += 1;
+            let extra = '';
+            if (data.asset?.audio_key) extra += ` [TTS✓]`;
+            if (data.asset?.image_key) extra += ` [Image✓]`;
+            if (data.asset?.tts_error) extra += ` [TTS✗ ${data.asset.tts_error.slice(0,40)}]`;
+            if (data.asset?.image_error) extra += ` [Image✗ ${data.asset.image_error.slice(0,40)}]`;
+            appendLog(`✓ ${step.section}·${step.part_or_task} → item #${data.item_id}${extra}`, 'success');
+          } else {
+            progressState.errors.push({ step, error: data.error, stage: data.stage });
+            appendLog(`✗ ${step.section}·${step.part_or_task} 失败 @${data.stage}: ${data.error}`, 'error');
+          }
+        } catch (e) {
+          progressState.errors.push({ step, error: e.message });
+          appendLog(`✗ ${step.section}·${step.part_or_task} 网络错误: ${e.message}`, 'error');
+        }
+        updateProgress();
+      }
+      appendLog(`—— 全部完成，共 ${progressState.done}/${progressState.total} 成功 ——`,
+                progressState.errors.length ? 'error' : 'success');
+      btn.disabled = false; btn.textContent = '一键生成';
+      loadPapers();
     }
+
+    // ============== 进度对话框 ==============
+    const progressState = { total: 0, done: 0, errors: [] };
+    function openProgressModal(paperId, sections) {
+      let modal = document.getElementById('progressModal');
+      if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'progressModal';
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;display:flex;align-items:center;justify-content:center';
+        modal.innerHTML = `
+          <div style="background:#FFF;border-radius:12px;padding:24px;max-width:720px;width:92%;max-height:80vh;display:flex;flex-direction:column">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+              <h3 style="color:var(--celpip-primary)">📝 试卷生成进度</h3>
+              <button class="celpip-btn secondary small" onclick="closeProgressModal()">关闭</button>
+            </div>
+            <div style="margin-bottom:12px">
+              <div class="celpip-progress-bar" style="height:10px">
+                <div id="progressFill" class="celpip-progress-fill" style="background:var(--celpip-primary);width:0%"></div>
+              </div>
+              <div id="progressText" style="margin-top:6px;font-size:12px;color:var(--celpip-muted)">准备中…</div>
+            </div>
+            <div id="progressLog" style="flex:1;overflow-y:auto;background:#0F1419;color:#E1E6ED;padding:12px;border-radius:8px;font-family:Menlo,Consolas,monospace;font-size:12px;line-height:1.5;max-height:400px"></div>
+          </div>`;
+        document.body.appendChild(modal);
+      }
+      document.getElementById('progressLog').innerHTML = '';
+      appendLog(`试卷 #${paperId} · 板块：${sections.join(' / ')}`, 'muted');
+    }
+    function closeProgressModal() {
+      const modal = document.getElementById('progressModal');
+      if (modal) modal.remove();
+    }
+    function updateProgress() {
+      const pct = progressState.total > 0 ? Math.round(progressState.done / progressState.total * 100) : 0;
+      const fill = document.getElementById('progressFill');
+      const txt = document.getElementById('progressText');
+      if (fill) fill.style.width = pct + '%';
+      if (txt) txt.textContent = `已完成 ${progressState.done} / ${progressState.total} · 失败 ${progressState.errors.length}`;
+    }
+    function appendLog(msg, level = 'info') {
+      const box = document.getElementById('progressLog');
+      if (!box) return;
+      const color = { success: '#6EE7B7', error: '#FCA5A5', muted: '#94A3B8', info: '#E1E6ED' }[level];
+      const t = new Date().toLocaleTimeString();
+      box.innerHTML += `<div><span style="color:#64748B">[${t}]</span> <span style="color:${color}">${escapeHtml(msg)}</span></div>`;
+      box.scrollTop = box.scrollHeight;
+    }
+    window.closeProgressModal = closeProgressModal;
 
     async function setStatus(paperId, status) {
       try {

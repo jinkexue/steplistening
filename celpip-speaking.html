@@ -1,16 +1,382 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>口语练习 - CELPIP</title>
   <link rel="stylesheet" href="celpip.css">
+  <style>
+    .speaking-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+    @media (max-width: 960px) { .speaking-layout { grid-template-columns: 1fr; } }
+    .task-box, .record-box {
+      background: #FFF; border: 1px solid var(--celpip-border);
+      border-radius: 12px; padding: 20px;
+    }
+    .phase-badge {
+      display: inline-block; padding: 4px 12px; border-radius: 12px;
+      font-weight: 700; font-size: 12px; margin-bottom: 12px;
+    }
+    .phase-badge.prep { background: #FFF3CD; color: #92700E; }
+    .phase-badge.record { background: #FBEEEE; color: var(--celpip-danger); }
+    .phase-badge.done { background: #E7F5EC; color: #145931; }
+    .big-timer {
+      font-size: 60px; font-weight: 700; text-align: center;
+      color: var(--celpip-primary); margin: 12px 0;
+    }
+    .big-timer.record { color: var(--celpip-danger); }
+    .record-dot {
+      display: inline-block; width: 12px; height: 12px;
+      background: var(--celpip-danger); border-radius: 50%;
+      animation: blink 1s infinite;
+    }
+    @keyframes blink { 50% { opacity: 0.3; } }
+    .task-image { max-width: 100%; border-radius: 12px; margin: 12px 0; }
+    .waveform-canvas {
+      width: 100%; height: 60px; background: var(--celpip-surface);
+      border-radius: 8px; margin-top: 12px;
+    }
+    .score-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 16px 0; }
+    .score-card {
+      padding: 12px; border: 1px solid var(--celpip-border); border-radius: 8px;
+      background: var(--celpip-surface); text-align: center;
+    }
+    .score-value { font-size: 24px; font-weight: 700; color: var(--celpip-primary); }
+    .score-label { font-size: 12px; color: var(--celpip-muted); margin-top: 4px; }
+    .hint-list { font-size: 13px; color: var(--celpip-muted); line-height: 1.6; }
+    .hint-list li { margin-bottom: 4px; }
+  </style>
 </head>
 <body>
-  <div class="celpip-container">
-    <div class="celpip-hero"><div style="flex:1"><h1>Speaking 板块</h1><p>M6 阶段完整实现文生图 + 录音 + Whisper + LLM 反馈。当前为占位页。</p></div></div>
-    <a class="celpip-btn secondary" href="javascript:history.back()">← 返回</a>
+  <div class="celpip-container" style="max-width:1200px">
+    <div id="msg"></div>
+    <div id="app"><div class="celpip-loading"></div></div>
   </div>
+
   <script src="celpip.js"></script>
-  <script>celpipRequireLogin() && celpipRenderNav('home');</script>
+  <script>
+    let state = {
+      items: [], attempts: [], activeId: null, paperId: null,
+      phase: 'idle',       // idle | prep | recording | uploading | done
+      timeLeft: 0,
+      timerId: null,
+      mediaRecorder: null,
+      audioBlob: null,
+      audioUrl: null,
+      result: null,        // 后端返回的 { audio_key, transcript, feedback }
+      uploading: false,
+    };
+
+    (async function main() {
+      const user = celpipRequireLogin();
+      if (!user) return;
+      celpipRenderNav('home');
+      const params = new URLSearchParams(location.search);
+      state.paperId = params.get('paper_id');
+      state.activeId = Number(params.get('item_id'));
+      if (!state.paperId || !state.activeId) {
+        document.getElementById('msg').innerHTML = '<div class="celpip-alert error">缺少参数</div>';
+        document.getElementById('app').innerHTML = ''; return;
+      }
+      try {
+        const data = await celpipApi('/celpip/section', {
+          query: { paper_id: state.paperId, section: 'speaking', user_id: user.userId },
+        });
+        state.items = data.items || [];
+        state.attempts = data.attempts || [];
+        loadItem();
+      } catch (e) {
+        document.getElementById('msg').innerHTML = `<div class="celpip-alert error">加载失败：${escapeHtml(e.message)}</div>`;
+        document.getElementById('app').innerHTML = '';
+      }
+    })();
+
+    function activeItem() { return state.items.find(i => i.id === state.activeId); }
+    function activeIndex() { return state.items.findIndex(i => i.id === state.activeId); }
+    function attemptOf(id) { return state.attempts.find(a => a.item_id === id); }
+
+    function loadItem() {
+      cleanup();
+      state.phase = 'idle';
+      state.timeLeft = 0;
+      state.audioBlob = null;
+      state.audioUrl = null;
+      state.result = null;
+      const at = attemptOf(state.activeId);
+      if (at && at.score_json) {
+        state.result = {
+          audio_key: at.audio_key,
+          transcript: at.transcript,
+          feedback: celpipSafeParse(at.score_json, null),
+        };
+        state.phase = 'done';
+      }
+      render();
+    }
+
+    function switchItem(id) {
+      cleanup();
+      const url = new URL(location.href);
+      url.searchParams.set('item_id', String(id));
+      history.replaceState(null, '', url.toString());
+      state.activeId = id;
+      loadItem();
+    }
+
+    function cleanup() {
+      if (state.timerId) { clearInterval(state.timerId); state.timerId = null; }
+      if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') {
+        try { state.mediaRecorder.stop(); } catch {}
+      }
+      if (state.mediaRecorder?.stream) {
+        state.mediaRecorder.stream.getTracks().forEach(t => t.stop());
+      }
+      state.mediaRecorder = null;
+      if (state.audioUrl) { URL.revokeObjectURL(state.audioUrl); state.audioUrl = null; }
+    }
+
+    async function startPrep() {
+      const it = activeItem();
+      if (!it) return;
+      state.phase = 'prep';
+      state.timeLeft = it.prep_seconds || 30;
+      render();
+      state.timerId = setInterval(() => {
+        state.timeLeft -= 1;
+        updateTimer();
+        if (state.timeLeft <= 0) {
+          clearInterval(state.timerId); state.timerId = null;
+          startRecording();
+        }
+      }, 1000);
+    }
+
+    async function startRecording() {
+      const it = activeItem();
+      if (!it) return;
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus'
+                   : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm'
+                   : 'audio/mp4';
+        const rec = new MediaRecorder(stream, { mimeType: mime });
+        const chunks = [];
+        rec.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+        rec.onstop = () => {
+          state.audioBlob = new Blob(chunks, { type: mime });
+          state.audioUrl = URL.createObjectURL(state.audioBlob);
+          stream.getTracks().forEach(t => t.stop());
+          if (state.phase === 'recording') {
+            state.phase = 'ready_upload';
+            render();
+          }
+        };
+        rec.start();
+        state.mediaRecorder = rec;
+        state.phase = 'recording';
+        state.timeLeft = it.record_seconds || 60;
+        render();
+        state.timerId = setInterval(() => {
+          state.timeLeft -= 1;
+          updateTimer();
+          if (state.timeLeft <= 0) {
+            clearInterval(state.timerId); state.timerId = null;
+            stopRecording();
+          }
+        }, 1000);
+      } catch (e) {
+        alert('无法访问麦克风：' + e.message);
+        state.phase = 'idle';
+        render();
+      }
+    }
+
+    function stopRecording() {
+      if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') {
+        state.mediaRecorder.stop();
+      }
+      if (state.timerId) { clearInterval(state.timerId); state.timerId = null; }
+    }
+
+    async function uploadRecording() {
+      if (!state.audioBlob) return;
+      state.uploading = true;
+      state.phase = 'uploading';
+      render();
+      const user = celpipGetUser();
+      const form = new FormData();
+      form.append('file', state.audioBlob, 'recording.webm');
+      form.append('user_id', String(user.userId));
+      form.append('paper_id', String(state.paperId));
+      form.append('item_id', String(state.activeId));
+      try {
+        const res = await fetch('/api/celpip/speaking/submit', { method: 'POST', body: form });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        state.result = data;
+        state.phase = 'done';
+        // 缓存到 attempts
+        const existed = attemptOf(state.activeId);
+        const scoreStr = data.feedback ? JSON.stringify(data.feedback) : null;
+        if (existed) { existed.audio_key = data.audio_key; existed.transcript = data.transcript; existed.score_json = scoreStr; }
+        else state.attempts.push({ item_id: state.activeId, audio_key: data.audio_key, transcript: data.transcript, score_json: scoreStr, status: 'graded' });
+      } catch (e) {
+        alert('上传失败：' + e.message);
+        state.phase = 'ready_upload';
+      } finally {
+        state.uploading = false;
+        render();
+      }
+    }
+
+    function updateTimer() {
+      const el = document.getElementById('bigTimer');
+      if (el) el.textContent = state.timeLeft + 's';
+    }
+
+    function render() {
+      const it = activeItem();
+      const app = document.getElementById('app');
+      if (!it) { app.innerHTML = '<div class="celpip-alert error">找不到该题</div>'; return; }
+
+      const idx = activeIndex();
+      const navChips = state.items.map((x, i) => `
+        <div class="celpip-nav-chip ${x.id === state.activeId ? 'active' : ''} ${attemptOf(x.id) ? 'done' : ''}"
+             onclick="switchItem(${x.id})">${i + 1}</div>`).join('');
+
+      // 左侧：任务说明 + 图片
+      const visionHints = celpipSafeParse(it.vision_hints, null);
+      const hintsHtml = visionHints ? renderHints(visionHints) : '';
+      const leftHtml = `
+        <div class="task-box">
+          <h3 style="color:var(--celpip-primary);margin-bottom:12px">Speaking · Task ${it.task}</h3>
+          <div style="line-height:1.7;font-size:14px;margin-bottom:12px">${escapeHtml(it.prompt || '')}</div>
+          ${it.image_key ? `<img class="task-image" src="${celpipAssetUrl(it.image_key)}">` : ''}
+          <div style="font-size:12px;color:var(--celpip-subtle);margin-top:8px">
+            Prep：${it.prep_seconds || 30}s · Recording：${it.record_seconds || 60}s
+          </div>
+          ${state.phase === 'done' && hintsHtml ? `
+            <details style="margin-top:12px">
+              <summary style="cursor:pointer;color:var(--celpip-primary);font-weight:600">💡 高分要点参考</summary>
+              ${hintsHtml}
+            </details>` : ''}
+        </div>`;
+
+      // 右侧：录音区
+      let rightBody = '';
+      if (state.phase === 'idle') {
+        rightBody = `
+          <button class="celpip-btn" style="width:100%;padding:16px;font-size:16px" onclick="startPrep()">
+            ▶ 开始（Prep ${it.prep_seconds || 30}s + Recording ${it.record_seconds || 60}s）
+          </button>
+          <p style="text-align:center;margin-top:12px;color:var(--celpip-muted);font-size:13px">
+            准备时间结束后会自动开始录音。点击后请允许浏览器访问麦克风。
+          </p>`;
+      } else if (state.phase === 'prep') {
+        rightBody = `
+          <div class="phase-badge prep">⏳ Prep 准备中</div>
+          <div class="big-timer" id="bigTimer">${state.timeLeft}s</div>
+          <p style="text-align:center;color:var(--celpip-muted);font-size:13px">利用这段时间构思。录音将自动开始。</p>
+          <button class="celpip-btn secondary" style="width:100%;margin-top:12px" onclick="cleanup(); state.phase='idle'; render()">取消</button>`;
+      } else if (state.phase === 'recording') {
+        rightBody = `
+          <div class="phase-badge record"><span class="record-dot"></span> 正在录音</div>
+          <div class="big-timer record" id="bigTimer">${state.timeLeft}s</div>
+          <button class="celpip-btn danger" style="width:100%" onclick="stopRecording()">⏹ 停止录音</button>`;
+      } else if (state.phase === 'ready_upload') {
+        rightBody = `
+          <div class="phase-badge done">✓ 录音完成</div>
+          ${state.audioUrl ? `<audio controls src="${state.audioUrl}" style="width:100%;margin-bottom:12px"></audio>` : ''}
+          <button class="celpip-btn" style="width:100%" onclick="uploadRecording()">📤 提交 AI 评分</button>
+          <button class="celpip-btn secondary" style="width:100%;margin-top:8px" onclick="cleanup(); state.phase='idle'; state.audioBlob=null; render()">🔄 重录</button>`;
+      } else if (state.phase === 'uploading') {
+        rightBody = `
+          <div class="phase-badge prep">⏳ 上传并转写中…</div>
+          <div style="text-align:center;margin-top:20px"><div class="celpip-loading"></div></div>
+          <p style="text-align:center;margin-top:12px;color:var(--celpip-muted);font-size:13px">STT 转写 + AI 打分约需 20-40 秒</p>`;
+      } else if (state.phase === 'done' && state.result) {
+        rightBody = renderResult(state.result);
+      }
+
+      const rightHtml = `<div class="record-box">${rightBody}</div>`;
+
+      const prev = idx > 0 ? state.items[idx - 1].id : null;
+      const next = idx < state.items.length - 1 ? state.items[idx + 1].id : null;
+
+      app.innerHTML = `
+        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:16px">
+          <h2 style="color:var(--celpip-primary);font-size:20px">Speaking Task ${it.task}</h2>
+          <div class="celpip-nav-chips">${navChips}</div>
+        </div>
+        <div class="speaking-layout">${leftHtml}${rightHtml}</div>
+        <div style="display:flex;justify-content:space-between;gap:12px;margin-top:24px">
+          ${prev ? `<button class="celpip-btn secondary" onclick="switchItem(${prev})">← 上一题</button>` : '<span></span>'}
+          ${next ? `<button class="celpip-btn" onclick="switchItem(${next})">下一题 →</button>` :
+                   (state.phase === 'done' ? `<a class="celpip-btn" href="celpip-paper.html?id=${state.paperId}">返回试卷</a>` : '<span></span>')}
+        </div>`;
+    }
+
+    function renderHints(hints) {
+      if (Array.isArray(hints)) {
+        return `<ul class="hint-list">${hints.map(x => `<li>${escapeHtml(String(x))}</li>`).join('')}</ul>`;
+      }
+      if (typeof hints === 'object') {
+        return `<ul class="hint-list">${Object.entries(hints).map(([k, v]) => `<li><b>${escapeHtml(k)}:</b> ${escapeHtml(String(v))}</li>`).join('')}</ul>`;
+      }
+      return `<div class="hint-list">${escapeHtml(String(hints))}</div>`;
+    }
+
+    function renderResult(r) {
+      const audioUrl = r.audio_key ? celpipAssetUrl(r.audio_key) : (state.audioUrl || '');
+      const fb = r.feedback || {};
+      const dims = [
+        { key: 'fluency',    label: '流畅度 Fluency' },
+        { key: 'grammar',    label: '语法 Grammar' },
+        { key: 'vocabulary', label: '词汇 Vocabulary' },
+      ];
+      const scoreCards = dims.map(d => `
+        <div class="score-card">
+          <div class="score-value">${fb[d.key] ?? '—'}</div>
+          <div class="score-label">${d.label}</div>
+        </div>`).join('');
+      const suggestions = Array.isArray(fb.suggestions) ? fb.suggestions : [];
+      return `
+        <div class="phase-badge done">✓ 已评分</div>
+        ${audioUrl ? `<audio controls src="${audioUrl}" style="width:100%;margin-bottom:12px"></audio>` : ''}
+        ${r.transcript ? `
+          <details style="margin-bottom:12px" open>
+            <summary style="cursor:pointer;font-weight:600">📝 转写文本</summary>
+            <div class="celpip-transcript">${escapeHtml(r.transcript)}</div>
+          </details>` : ''}
+        <div style="text-align:center;padding:12px;background:#EEF4FB;border-radius:8px;margin-bottom:12px">
+          <div style="font-size:14px;color:var(--celpip-muted)">综合 CLB 等级</div>
+          <div style="font-size:34px;font-weight:700;color:var(--celpip-primary)">${fb.overall_clb ?? '—'}</div>
+        </div>
+        <div class="score-grid">${scoreCards}</div>
+        ${suggestions.length ? `
+          <div style="margin-top:8px">
+            <b style="color:var(--celpip-primary)">改进建议：</b>
+            <ul style="margin-top:6px;padding-left:20px;font-size:13px;line-height:1.6">
+              ${suggestions.map(s => `<li>${escapeHtml(typeof s === 'string' ? s : JSON.stringify(s))}</li>`).join('')}
+            </ul>
+          </div>` : ''}
+        ${r.stt_error ? `<div class="celpip-alert error">STT: ${escapeHtml(r.stt_error)}</div>` : ''}
+        ${r.feedback_error ? `<div class="celpip-alert error">Feedback: ${escapeHtml(r.feedback_error)}</div>` : ''}
+        <button class="celpip-btn secondary" style="width:100%;margin-top:12px" onclick="cleanup(); state.phase='idle'; state.result=null; state.audioBlob=null; render()">🔄 重录本题</button>`;
+    }
+
+    function escapeHtml(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+      }[c]));
+    }
+
+    window.switchItem = switchItem;
+    window.startPrep = startPrep;
+    window.stopRecording = stopRecording;
+    window.uploadRecording = uploadRecording;
+    window.cleanup = cleanup;
+    window.render = render;
+    window.state = state;
+  </script>
 </body>
 </html>
