@@ -364,10 +364,121 @@
     @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(233, 69, 96, 0.7); } 70% { box-shadow: 0 0 0 15px rgba(233, 69, 96, 0); } 100% { box-shadow: 0 0 0 0 rgba(233, 69, 96, 0); } }
 
     @media (max-width: 1200px) {
-      .content-grid { grid-template-columns: 1fr; overflow-y: auto; height: auto; }
+      .content-grid { grid-template-columns: 1fr; overflow-y: auto; height: auto; gap: 12px; padding: 12px; }
       body { overflow-y: auto; height: auto; }
       .main-layout { height: auto; }
       .transcript-pane, .record-pane { height: 500px; }
+    }
+
+    /* 移动端优化 - 768px以下 */
+    @media (max-width: 768px) {
+      :root { --primary: #e94560; --bg: #12121a; --card: #1a1a2e; --text: #f0f0f0; --accent: #0f3460; --success: #4ecca3; --danger: #ff4d4d; }
+      
+      body { padding-bottom: 140px; height: 100vh; overflow-x: hidden; }
+      
+      /* 顶部栏优化 */
+      .top-bar { padding: 8px 12px; height: auto; flex-wrap: wrap; gap: 8px; }
+      .top-bar .user-info { font-size: 0.85rem; }
+      .top-bar button { padding: 8px 12px; font-size: 0.75rem; border-radius: 20px; }
+      
+      /* 语言切换按钮 */
+      .lang-switch { margin-right: 0; }
+      .lang-switch .lang-btn { padding: 6px 10px; font-size: 0.7rem; }
+      
+      /* 主布局 */
+      .main-layout { height: auto; padding-top: 8px; }
+      .content-grid { grid-template-columns: 1fr; gap: 10px; padding: 10px; }
+      
+      /* 视频区域 */
+      .video-pane { gap: 10px; }
+      .link-section { flex-direction: column; gap: 10px; }
+      .link-section input { padding: 14px; border-radius: 12px; font-size: 0.9rem; }
+      .link-section .btn-main { width: 100%; padding: 14px; font-size: 0.95rem; }
+      .video-wrapper { border-radius: 16px; }
+      
+      /* 转写区域 */
+      .transcript-pane { border-radius: 16px; height: 400px; }
+      .transcript-header { padding: 12px; flex-direction: column; gap: 6px; align-items: flex-start; }
+      .transcript-content { padding: 10px; font-size: 0.95rem; line-height: 1.6; }
+      .transcript-segment { grid-template-columns: 55px 1fr; padding: 10px 12px; border-radius: 10px; }
+      .transcript-time { font-size: 0.8rem; font-weight: 600; }
+      
+      /* 记录区域 */
+      .record-pane { border-radius: 16px; height: 450px; }
+      .results-header { padding: 12px; flex-wrap: wrap; gap: 10px; }
+      .results-header > div:first-child { flex-wrap: wrap; gap: 10px; }
+      .results-header > div:last-child { width: 100%; justify-content: space-between; }
+      .results-display { padding: 10px; gap: 10px; }
+      .record-item { padding: 12px; border-radius: 12px; flex-direction: column; gap: 8px; }
+      .record-actions-col { flex-direction: row; gap: 12px; }
+      .record-info { width: 100%; }
+      .manual-text { font-size: 0.95rem; min-height: 40px; }
+      .action-btn { font-size: 1.1rem; padding: 8px; }
+      
+      /* 底部控制栏 */
+      .controls-footer { padding: 12px 10px; height: auto; }
+      .input-area { flex-direction: column; gap: 12px; align-items: stretch; }
+      .input-area > div:first-child { flex-direction: row; justify-content: center; gap: 15px; }
+      .text-box { width: 100%; }
+      #manualInput { height: 60px; font-size: 0.95rem; border-radius: 12px; padding: 12px; }
+      .btn-main { height: 56px; font-size: 1rem; border-radius: 12px; }
+      .mic-btn { width: 64px; height: 64px; }
+      .mic-icon { font-size: 28px; }
+      
+      /* 面板样式优化 */
+      #taskPanel, #vocabPanel, #adminPanel, #interviewPanel { padding: 12px; padding-top: 70px; }
+      .panel-container { max-width: 100%; }
+      .panel-section { border-radius: 16px; padding: 16px; }
+      .panel-section h2 { font-size: 1.1rem; margin-bottom: 12px; }
+      
+      /* 表格优化 */
+      .task-table { font-size: 0.8rem; }
+      .task-table th, .task-table td { padding: 10px 6px; }
+      
+      /* 生词卡片优化 */
+      .flashcard { height: 500px; max-height: 65vh; border-radius: 20px; }
+      .flashcard-front, .flashcard-back { padding: 24px; border-radius: 20px; }
+      .card-content-split { grid-template-columns: 1fr; gap: 16px; }
+      .vocab-word { font-size: 2rem; }
+      .vocab-context { font-size: 0.95rem; }
+      .spelling-input { font-size: 1.2rem; padding: 14px; }
+      .review-actions { flex-direction: column; gap: 10px; }
+      .review-actions .btn-main { width: 100%; padding: 14px; }
+      
+      /* 登录页面 */
+      .login-box { width: 92%; max-width: 360px; padding: 32px 24px; border-radius: 24px; }
+      .login-box h2 { font-size: 1.6rem; margin-bottom: 24px; }
+      .login-box input { padding: 14px; border-radius: 12px; font-size: 1rem; }
+      
+      /* 面试练习页面优化 */
+      .interview-grid { grid-template-columns: 1fr; height: auto; gap: 12px; }
+      .resize-handle { display: none; }
+      #leftCol, #rightCol { height: auto; }
+      .interview-item { padding: 14px; border-radius: 12px; }
+      .question-card { padding: 12px; border-radius: 12px; }
+      #interviewTextArea { min-height: 300px; }
+      #segmentInput { min-height: 80px; font-size: 0.95rem; }
+      
+      /* 按钮间距优化 */
+      .btn-secondary { padding: 10px 16px; font-size: 0.85rem; border-radius: 12px; }
+      
+      /* 弹窗优化 */
+      #editUserModal > div { width: 92%; max-width: 340px; padding: 24px; border-radius: 20px; }
+    }
+
+    /* 小屏幕优化 - 480px以下 */
+    @media (max-width: 480px) {
+      body { padding-bottom: 150px; }
+      
+      .top-bar { padding: 6px 8px; }
+      .top-bar button { padding: 6px 10px; font-size: 0.7rem; }
+      
+      .flashcard { height: 450px; }
+      .vocab-word { font-size: 1.7rem; }
+      .vocab-context { font-size: 0.85rem; }
+      
+      .login-box { padding: 24px 20px; }
+      .login-box h2 { font-size: 1.4rem; }
     }
   </style>
 </head>
@@ -929,7 +1040,46 @@
     updateLanguageUI();
     updatePageTexts(); // 初始化页面文本
     initInterviewResize(); // 初始化Interview Practice拖动调整宽度
+    initMobileOptimizations(); // 初始化移动端优化
   });
+
+  // 移动端优化初始化
+  function initMobileOptimizations() {
+    // 防止移动端双击缩放
+    let lastTouchEnd = 0;
+    document.addEventListener('touchend', function(event) {
+      const now = Date.now();
+      if (now - lastTouchEnd <= 300) {
+        event.preventDefault();
+      }
+      lastTouchEnd = now;
+    }, false);
+
+    // 触摸反馈效果
+    document.querySelectorAll('.btn-main, .btn-secondary, .action-btn, .transcript-segment, .record-item, .interview-item, .question-card').forEach(el => {
+      el.addEventListener('touchstart', function() {
+        this.style.transform = 'scale(0.98)';
+        this.style.transition = 'transform 0.1s';
+      });
+      el.addEventListener('touchend', function() {
+        this.style.transform = 'scale(1)';
+      });
+      el.addEventListener('touchcancel', function() {
+        this.style.transform = 'scale(1)';
+      });
+    });
+
+    // 检测是否为移动设备
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    if (isMobile) {
+      document.body.classList.add('mobile-device');
+      
+      // 优化移动端滚动性能
+      document.querySelectorAll('.results-display, .transcript-content, #interviewTextArea').forEach(el => {
+        el.style.webkitOverflowScrolling = 'touch';
+      });
+    }
+  }
 
   // Interview Practice 两栏拖动调整宽度
   function initInterviewResize() {
