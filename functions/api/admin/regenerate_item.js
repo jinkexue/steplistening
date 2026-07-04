@@ -83,8 +83,8 @@ async function genImage(env, settings, prompt) {
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   } else throw new Error("image response empty");
   const hash = await sha256Hex(prompt + Date.now());
-  const key = `celpip/speaking/${hash}.png`;
-  await env.BUCKET.put(key, bytes, { httpMetadata: { contentType: "image/png" } });
+  const key = `celpip/speaking/${hash}.jpg`;
+  await env.BUCKET.put(key, bytes, { httpMetadata: { contentType: "image/jpeg" } });
   return key;
 }
 

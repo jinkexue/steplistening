@@ -193,16 +193,19 @@ export async function volcVision({
 }
 
 /**
- * 火山方舟文生图（OpenAI 兼容 images/generations）
+ * 火山方舟文生图（doubao-seedream 系列，走 /api/plan/v3/images/generations）
+ * 关键差异：size 使用 "1K/2K/4K" 字符串（不是 1024x1024）；
+ *          必须带 watermark:false；output_format 建议 jpeg。
  * 返回 { url?: string, b64_json?: string }
- * 支持 extraBody 透传（部分火山模型需要 watermark:false 等私有参数）
  */
 export async function volcImage({
   apiKey,
   endpoint,
   model,
   prompt,
-  size = "1024x1024",
+  size = "2K",
+  outputFormat = "jpeg",
+  watermark = false,
   n,
   extraBody,
 }) {
@@ -214,8 +217,15 @@ export async function volcImage({
     ? (endpoint || "").replace(/\/+$/, "")
     : joinUrl(endpoint, "/images/generations");
 
-  // 组装 body：只在明确需要时才带 n（部分豆包模型不接受 n）
-  const body = { model, prompt, size, ...(extraBody || {}) };
+  // 组装 body：seedream 系列要求 size 为 "1K"/"2K"/"4K"，加上 watermark 与 output_format
+  const body = {
+    model,
+    prompt,
+    size,
+    output_format: outputFormat,
+    watermark,
+    ...(extraBody || {}),
+  };
   if (n && n !== 1) body.n = n;
 
   const resp = await fetch(url, {
