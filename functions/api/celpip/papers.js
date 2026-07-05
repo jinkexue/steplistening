@@ -25,6 +25,7 @@ export async function onRequestGet(context) {
       ).bind(id).all();
 
       const counts = {};
+      const totals = {};
       for (const s of sections.results || []) {
         const tableMap = {
           listening: "celpip_listening_items",
@@ -32,15 +33,30 @@ export async function onRequestGet(context) {
           writing: "celpip_writing_items",
           speaking: "celpip_speaking_items",
         };
+        // 各 section 判断"是否已生成真实内容"的字段：
+        //   listening: transcript / questions_json 非空
+        //   reading:   passage / questions 非空
+        //   writing:   prompt 非空
+        //   speaking:  prompt 非空
+        const genFilter = {
+          listening: "(COALESCE(TRIM(transcript), '') != '' OR (questions_json IS NOT NULL AND TRIM(questions_json) NOT IN ('','[]')))",
+          reading:   "(COALESCE(TRIM(passage), '') != '' OR (questions IS NOT NULL AND TRIM(questions) NOT IN ('','[]')))",
+          writing:   "COALESCE(TRIM(prompt), '') != ''",
+          speaking:  "COALESCE(TRIM(prompt), '') != ''",
+        };
         const table = tableMap[s.section];
         if (!table) continue;
-        const c = await env.DB.prepare(
+        const totalRow = await env.DB.prepare(
           `SELECT COUNT(*) AS n FROM ${table} WHERE section_id = ?`
         ).bind(s.id).first();
-        counts[s.section] = c?.n || 0;
+        totals[s.section] = totalRow?.n || 0;
+        const genRow = await env.DB.prepare(
+          `SELECT COUNT(*) AS n FROM ${table} WHERE section_id = ? AND ${genFilter[s.section]}`
+        ).bind(s.id).first();
+        counts[s.section] = genRow?.n || 0;
       }
 
-      return json({ paper, sections: sections.results, counts });
+      return json({ paper, sections: sections.results, counts, totals });
     }
 
     // 列表：可选筛选 status

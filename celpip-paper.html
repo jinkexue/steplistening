@@ -51,11 +51,23 @@
             const r = await celpipApi('/celpip/section', {
               query: { paper_id: paperId, section: s.key, user_id: user.userId },
             });
+            // 真实已生成的题目（骨架 transcript/passage/prompt 均为空）
+            const generated = (r.items || []).filter(it => {
+              if (s.key === 'listening') {
+                const qs = it.questions_json ? (JSON.parse(it.questions_json) || []) : [];
+                return (it.transcript && it.transcript.trim()) || qs.length > 0;
+              }
+              if (s.key === 'reading') {
+                const qs = it.questions ? (JSON.parse(it.questions) || []) : [];
+                return (it.passage && it.passage.trim()) || qs.length > 0;
+              }
+              return it.prompt && String(it.prompt).trim().length > 0;
+            });
             return {
               key: s.key,
-              firstId: r.items && r.items[0] ? r.items[0].id : null,
+              firstId: generated[0] ? generated[0].id : null,
               done: (r.attempts || []).length,
-              total: (r.items || []).length,
+              total: generated.length,
             };
           } catch { return { key: s.key, firstId: null, done: 0, total: counts[s.key] || 0 }; }
         }));

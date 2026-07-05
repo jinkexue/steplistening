@@ -158,17 +158,25 @@
         const withCounts = await Promise.all(papers.map(async p => {
           try {
             const r = await celpipApi('/celpip/papers', { query: { id: p.id } });
-            return { ...p, counts: r.counts || {} };
-          } catch { return { ...p, counts: {} }; }
+            return { ...p, counts: r.counts || {}, totals: r.totals || {} };
+          } catch { return { ...p, counts: {}, totals: {} }; }
         }));
 
         box.innerHTML = withCounts.map(p => {
           const c = p.counts || {};
+          const t = p.totals || {};
           const has = (k) => (c[k] || 0) > 0;
+          const isComplete = (k) => t[k] > 0 && c[k] >= t[k]; // 全部生成完
           const chk = (k, label) => {
-            const done = has(k);
+            const done = isComplete(k);
             const checked = done ? '' : 'checked';
-            const badge = done ? `<span style="color:var(--celpip-success);font-weight:700;margin-left:4px">✓ 已生成 ${c[k]}</span>` : '';
+            let badge = '';
+            if (c[k] > 0 && t[k] > 0) {
+              const color = done ? 'var(--celpip-success)' : '#F5A623';
+              badge = `<span style="color:${color};font-weight:700;margin-left:4px">${done ? '✓' : '⚡'} ${c[k]}/${t[k]}</span>`;
+            } else if (t[k] > 0) {
+              badge = `<span style="color:#8A94A6;font-weight:400;margin-left:4px">0/${t[k]}</span>`;
+            }
             return `<label style="${done ? 'color:var(--celpip-subtle)' : ''}">
               <input type="checkbox" class="gen-sec" data-paper="${p.id}" value="${k}" ${checked}> ${label}${badge}
             </label>`;
