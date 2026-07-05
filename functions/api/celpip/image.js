@@ -20,7 +20,7 @@ export async function onRequestPost(context) {
   if (!guard.ok) return guard.response;
 
   try {
-    const { prompt, size = "1024x1024", key_prefix = "celpip/speaking" } = await request.json();
+    const { prompt, size = "2K", key_prefix = "celpip/speaking" } = await request.json();
     if (!prompt) return json({ error: "prompt required" }, 400);
     if (!env.VOLC_API_KEY) return json({ error: "VOLC_API_KEY missing" }, 500);
 

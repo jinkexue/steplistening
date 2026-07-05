@@ -290,22 +290,33 @@
         });
         if (data.ok) {
           const details = [];
-          if (data.asset?.audio_key) details.push('TTS ✓');
-          if (data.asset?.image_key) details.push('Image ✓');
+          if (data.asset?.audio_key) details.push('TTS ✓ ' + data.asset.audio_key);
+          if (data.asset?.image_key) details.push('Image ✓ ' + data.asset.image_key);
           if (data.asset?.tts_error) details.push('TTS ✗\n' + data.asset.tts_error);
           if (data.asset?.image_error) details.push('Image ✗\n' + data.asset.image_error);
-          // 打印完整错误到控制台方便复制
           if (data.asset?.tts_error || data.asset?.image_error) {
             console.warn('[regenerate_item] asset errors:', data.asset);
+            celpipShowMessage(
+              `⚠ 题目已重新生成 #${itemId}，但资源生成有问题`,
+              details.join('\n\n'),
+              'error'
+            );
+          } else if (details.length) {
+            celpipShowMessage(`✓ 已重新生成 #${itemId}`, details.join('\n'), 'success');
+          } else {
+            celpipShowMessage(`✓ 已重新生成 #${itemId}`, '文本内容已覆盖', 'success');
           }
-          alert('✓ 已重新生成 #' + itemId + (details.length ? '\n\n' + details.join('\n\n') : ''));
           loadAll();
         } else {
           console.error('[regenerate_item] failed:', data);
-          alert(`✗ 失败 @${data.stage}\n\n${data.error}`);
+          celpipShowMessage(
+            `✗ 失败 @ ${data.stage}`,
+            (data.error || '') + '\n\n完整响应：\n' + JSON.stringify(data, null, 2),
+            'error'
+          );
         }
       } catch (e) {
-        alert('✗ 请求失败：' + e.message);
+        celpipShowMessage('✗ 请求失败', e.message + '\n\n' + (e.stack || ''), 'error');
       } finally {
         btn.disabled = false; btn.textContent = original;
       }

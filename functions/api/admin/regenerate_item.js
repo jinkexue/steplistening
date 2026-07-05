@@ -72,7 +72,7 @@ async function genImage(env, settings, prompt) {
   const model = pickModel(settings, "image");
   const endpoint = pickEndpoint(settings, "image");
   if (!model) throw new Error("image_model not configured");
-  const item = await volcImage({ apiKey: env.VOLC_API_KEY, endpoint, model, prompt, size: "1024x1024" });
+  const item = await volcImage({ apiKey: env.VOLC_API_KEY, endpoint, model, prompt, size: "2K" });
   let bytes;
   if (item.url) {
     const r = await fetch(item.url);
