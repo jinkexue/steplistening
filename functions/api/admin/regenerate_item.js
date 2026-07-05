@@ -34,11 +34,12 @@ async function tts(env, settings, text) {
   if (provider === "volc") {
     const speechKey = env.VOLC_SPEECH_API_KEY || env.VOLC_API_KEY;
     const resourceId = pickModel(settings, "volc_tts") || "seed-tts-2.0";
-    const speaker = (settings.volc_tts_speaker || "").trim() || "en_female_amanda_uranus_bigtts";
+    const speaker = (settings.volc_tts_speaker || "").trim() || "en_female_dacey_uranus_bigtts";
+    const url = (settings.volc_tts_endpoint || "").trim() || undefined;
     const hash = await sha256Hex(`volc|${resourceId}|${speaker}|${text}`);
     const r2Key = `celpip/tts/${hash}.mp3`;
     if (await env.BUCKET.head(r2Key)) return r2Key;
-    const bytes = await volcTTSHttp({ apiKey: speechKey, text, resourceId, speaker });
+    const bytes = await volcTTSHttp({ apiKey: speechKey, text, resourceId, speaker, url });
     await env.BUCKET.put(r2Key, bytes, { httpMetadata: { contentType: "audio/mpeg" } });
     return r2Key;
   }

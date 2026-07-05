@@ -30,13 +30,14 @@ export async function volcTTSHttp({
   apiKey,
   text,
   resourceId = "seed-tts-2.0",
-  speaker = "en_female_amanda_uranus_bigtts",
+  speaker = "en_female_dacey_uranus_bigtts",
   format = "mp3",
   sampleRate = 24000,
-  url = VOLC_TTS_HTTP_URL,
+  url,
 }) {
   if (!apiKey) throw new Error("volc speech API key missing (need Agent Plan key)");
   if (!text || !text.trim()) throw new Error("tts text empty");
+  const requestUrl = url || VOLC_TTS_HTTP_URL;
 
   const body = {
     req_params: {
@@ -46,7 +47,7 @@ export async function volcTTSHttp({
     },
   };
 
-  const resp = await fetch(url, {
+  const resp = await fetch(requestUrl, {
     method: "POST",
     headers: {
       "X-Api-Key": apiKey,
@@ -59,7 +60,7 @@ export async function volcTTSHttp({
 
   if (!resp.ok) {
     const txt = await resp.text();
-    throw new Error(`volc TTS HTTP ${resp.status}: ${txt.slice(0, 300)}`);
+    throw new Error(`volc TTS HTTP ${resp.status}: ${txt.slice(0, 400)} | url=${requestUrl} speaker=${speaker} resource=${resourceId}`);
   }
   if (!resp.body) throw new Error("volc TTS: no response body");
 
@@ -67,6 +68,7 @@ export async function volcTTSHttp({
   const reader = resp.body.getReader();
   const decoder = new TextDecoder();
   const chunks = [];
+  const allLines = []; // 收集所有响应行以便调试
   let buf = "";
   let finished = false;
 
@@ -82,25 +84,29 @@ export async function volcTTSHttp({
       let data;
       try { data = JSON.parse(line); }
       catch {
-        // 有的行可能不是 JSON，跳过
+        allLines.push({ raw: line.slice(0, 100) });
         continue;
       }
       const code = data.code == null ? 0 : Number(data.code);
+      // 简要记录（不含 base64 audio）
+      const brief = { code, message: data.message, has_data: !!data.data };
+      allLines.push(brief);
       if (code === 0 && data.data) {
-        // base64 音频片段
         try { chunks.push(base64ToBytes(data.data)); }
         catch (e) { throw new Error("volc TTS base64 decode failed: " + e.message); }
       } else if (code === 20000000) {
         finished = true;
         break;
       } else if (code > 0) {
-        throw new Error(`volc TTS session error code=${code} message=${data.message || JSON.stringify(data).slice(0, 200)}`);
+        throw new Error(`volc TTS session error code=${code} message=${data.message || JSON.stringify(data).slice(0, 200)} | url=${requestUrl} speaker=${speaker}`);
       }
     }
   }
 
   const total = chunks.reduce((a, b) => a + b.length, 0);
-  if (total === 0) throw new Error("volc TTS: no audio data received");
+  if (total === 0) {
+    throw new Error(`volc TTS: no audio data received | url=${requestUrl} speaker=${speaker} resource=${resourceId} | server_lines=${JSON.stringify(allLines).slice(0, 400)}`);
+  }
   const out = new Uint8Array(total);
   let off = 0;
   for (const c of chunks) { out.set(c, off); off += c.length; }
