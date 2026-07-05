@@ -171,11 +171,12 @@ const SEED_SETTINGS = [
   // Image：文生图（口语 Task 3/4 出图用，如 doubao-seedream-5.0-lite）
   ["image_endpoint", "https://ark.cn-beijing.volces.com/api/plan/v3/images/generations"],
   ["image_model",    "doubao-seedream-5.0-lite"],
-  // TTS：默认走 Cloudflare Workers AI；火山 TTS 用 openspeech 域名 + WebSocket，需单独适配
+  // TTS：默认走 Cloudflare Workers AI；切到 volc 需 Agent Plan 专属 Key（VOLC_SPEECH_API_KEY 或 VOLC_API_KEY）
   ["tts_provider",       "cloudflare"],
   ["cf_tts_model",       "@cf/deepgram/aura-2-en"],
   ["volc_tts_endpoint",  "https://openspeech.bytedance.com/api/v3/plan/tts/unidirectional"],
   ["volc_tts_model",     "seed-tts-2.0"],
+  ["volc_tts_speaker",   "en_female_amanda_uranus_bigtts"],
   // STT：默认走 Cloudflare Whisper；火山 STT 是流式 WebSocket，尚未接入
   ["stt_provider",       "cloudflare"],
   ["cf_stt_model",       "@cf/openai/whisper"],

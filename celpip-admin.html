@@ -382,15 +382,15 @@
       },
       {
         title: '④ 语音合成 TTS（听力音频生成）',
-        note: '二选一 provider。Cloudflare 走 Workers AI；火山走 openspeech 域名（暂未接入 WebSocket 流式）。',
+        note: '二选一 provider。Cloudflare 走 Workers AI（免费额度小易耗完）；火山方舟走 <b>Agent Plan HTTP TTS</b>（<code>openspeech.bytedance.com</code>），需要 <b>Agent Plan 专属 API Key</b>；若与 LLM Key 不同，可在 Cloudflare Pages 环境变量新增 <code>VOLC_SPEECH_API_KEY</code>；未设则回退到 <code>VOLC_API_KEY</code>。',
         provider: { key: 'tts_provider', options: [
-          { value: 'cloudflare', label: 'Cloudflare Workers AI（推荐）' },
-          { value: 'volc',       label: '火山方舟 TTS（seed-tts-2.0）' },
+          { value: 'cloudflare', label: 'Cloudflare Workers AI（免费但额度小）' },
+          { value: 'volc',       label: '火山方舟 Agent Plan TTS（推荐 · seed-tts-2.0）' },
         ]},
         fields: [
-          { key: 'cf_tts_model',       label: 'Cloudflare TTS 模型',   showIf: 'cloudflare' },
-          { key: 'volc_tts_endpoint',  label: '火山 TTS Base URL',      showIf: 'volc' },
-          { key: 'volc_tts_model',     label: '火山 TTS Resource-Id',   showIf: 'volc' },
+          { key: 'cf_tts_model',       label: 'Cloudflare TTS 模型', showIf: 'cloudflare' },
+          { key: 'volc_tts_model',     label: '火山 Resource-Id（默认 seed-tts-2.0）', showIf: 'volc' },
+          { key: 'volc_tts_speaker',   label: 'Speaker 声音（英文推荐 en_female_amanda_uranus_bigtts；中文可用 zh_female_vv_uranus_bigtts）', showIf: 'volc' },
         ],
       },
       {

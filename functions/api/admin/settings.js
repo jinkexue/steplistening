@@ -25,6 +25,7 @@ const ALLOWED_KEYS = new Set([
   "cf_tts_model",
   "volc_tts_endpoint",
   "volc_tts_model",
+  "volc_tts_speaker",
   // STT
   "stt_provider",           // 'cloudflare' | 'volc'
   "cf_stt_model",

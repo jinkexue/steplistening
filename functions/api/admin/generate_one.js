@@ -10,6 +10,7 @@
 
 import { requireAdmin, json } from "../../lib/auth.js";
 import { loadSettings, volcChatJSON, pickEndpoint, pickModel, volcImage } from "../../lib/volc.js";
+import { volcTTSHttp } from "../../lib/volcSpeech.js";
 
 const SECTIONS = ["listening", "reading", "writing", "speaking"];
 
@@ -40,20 +41,20 @@ async function getSystemPrompt(env, section, name) {
 async function tts(env, settings, text) {
   const provider = (settings.tts_provider || "cloudflare").toLowerCase();
   if (provider === "volc") {
-    const model = pickModel(settings, "volc_tts");
-    const endpoint = pickEndpoint(settings, "volc_tts");
-    if (!model) throw new Error("volc_tts_model not configured");
-    const hash = await sha256Hex(`volc|${model}|${text}`);
+    // 火山 Agent Plan HTTP TTS
+    // API Key 优先 VOLC_SPEECH_API_KEY（Agent Plan 专属），否则 fallback 到 VOLC_API_KEY
+    const speechKey = env.VOLC_SPEECH_API_KEY || env.VOLC_API_KEY;
+    const resourceId = pickModel(settings, "volc_tts") || "seed-tts-2.0";
+    const speaker = (settings.volc_tts_speaker || "").trim() || "en_female_amanda_uranus_bigtts";
+    const hash = await sha256Hex(`volc|${resourceId}|${speaker}|${text}`);
     const r2Key = `celpip/tts/${hash}.mp3`;
     if (await env.BUCKET.head(r2Key)) return r2Key;
-    const base = endpoint.replace(/\/+$/, "");
-    const resp = await fetch(`${base}/audio/speech`, {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${env.VOLC_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model, input: text, voice: "alloy", response_format: "mp3" }),
+    const bytes = await volcTTSHttp({
+      apiKey: speechKey,
+      text,
+      resourceId,
+      speaker,
     });
-    if (!resp.ok) throw new Error(`volc TTS ${resp.status}: ${await resp.text()}`);
-    const bytes = new Uint8Array(await resp.arrayBuffer());
     await env.BUCKET.put(r2Key, bytes, { httpMetadata: { contentType: "audio/mpeg" } });
     return r2Key;
   }

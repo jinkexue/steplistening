@@ -9,6 +9,7 @@
 
 import { requireUser, json } from "../../lib/auth.js";
 import { loadSettings, pickEndpoint, pickModel } from "../../lib/volc.js";
+import { volcTTSHttp } from "../../lib/volcSpeech.js";
 
 async function sha256Hex(text) {
   const enc = new TextEncoder();
@@ -25,25 +26,18 @@ async function ttsViaCloudflare(env, model, text, voice, accent) {
 }
 
 /**
- * 火山方舟 TTS（OpenAI 兼容 /audio/speech）
+ * 火山方舟 Agent Plan HTTP TTS（openspeech.bytedance.com）
+ * 使用 X-Api-Key + X-Api-Resource-Id
  */
-async function ttsViaVolc(env, endpoint, model, text, voice) {
-  if (!env.VOLC_API_KEY) throw new Error("VOLC_API_KEY missing");
-  const base = (endpoint || "").replace(/\/+$/, "");
-  const url = `${base}/audio/speech`;
-  const resp = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${env.VOLC_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ model, input: text, voice: voice || "alloy", response_format: "mp3" }),
+async function ttsViaVolc(env, resourceId, text, speaker) {
+  const speechKey = env.VOLC_SPEECH_API_KEY || env.VOLC_API_KEY;
+  if (!speechKey) throw new Error("VOLC speech API key missing (Agent Plan)");
+  return await volcTTSHttp({
+    apiKey: speechKey,
+    text,
+    resourceId: resourceId || "seed-tts-2.0",
+    speaker: speaker || "en_female_amanda_uranus_bigtts",
   });
-  if (!resp.ok) {
-    const txt = await resp.text();
-    throw new Error(`volc TTS failed: ${resp.status} ${txt}`);
-  }
-  return new Uint8Array(await resp.arrayBuffer());
 }
 
 async function normalizeAudioResponse(res) {
@@ -82,16 +76,15 @@ export async function onRequestPost(context) {
     let bytes;
     let cacheKey;
     if (provider === "volc") {
-      const model = pickModel(settings, "volc_tts");
-      const endpoint = pickEndpoint(settings, "volc_tts");
-      if (!model) return json({ error: "volc_tts_model not configured" }, 500);
-      cacheKey = await sha256Hex(`volc|${model}|${voice || ""}|${text}`);
+      const resourceId = pickModel(settings, "volc_tts") || "seed-tts-2.0";
+      const speaker = (settings.volc_tts_speaker || "").trim() || voice || "en_female_amanda_uranus_bigtts";
+      cacheKey = await sha256Hex(`volc|${resourceId}|${speaker}|${text}`);
       const r2Key = `celpip/tts/${cacheKey}.mp3`;
       if (!forceRegenerate) {
         const head = await env.BUCKET.head(r2Key);
         if (head) return json({ audio_key: r2Key, cached: true, provider });
       }
-      bytes = await ttsViaVolc(env, endpoint, model, text, voice);
+      bytes = await ttsViaVolc(env, resourceId, text, speaker);
       await env.BUCKET.put(r2Key, bytes, { httpMetadata: { contentType: "audio/mpeg" } });
       return json({ audio_key: r2Key, cached: false, provider });
     }
