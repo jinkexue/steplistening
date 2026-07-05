@@ -82,15 +82,31 @@ export async function onRequestGet(context) {
         if (!items.length) continue;
         let correct = 0, totalQ = 0;
         for (const it of items) {
-          if (secName === "listening") totalQ += 1;
-          else totalQ += (safeParse(it.questions, []).length || 0);
+          if (secName === "listening") {
+            const partQs = safeParse(it.questions_json, null);
+            if (partQs && Array.isArray(partQs)) totalQ += partQs.length;
+            else totalQ += 1;
+          } else {
+            totalQ += (safeParse(it.questions, []).length || 0);
+          }
         }
         for (const at of byS[secName] || []) {
           const item = items.find(x => x.id === at.item_id); if (!item) continue;
           const ans = safeParse(at.answer_json, {});
           if (secName === "listening") {
-            const opts = safeParse(item.options, []);
-            if (isCorrect(item.answer, opts, ans.choice)) correct += 1;
+            const partQs = safeParse(item.questions_json, null);
+            if (partQs && Array.isArray(partQs) && partQs.length > 0) {
+              const userAnswers = ans.answers || {};
+              for (let i = 0; i < partQs.length; i++) {
+                const q = partQs[i] || {};
+                const uAns = userAnswers[i];
+                if (uAns == null || uAns === "") continue;
+                if (isCorrect(q.answer, q.options || [], uAns)) correct += 1;
+              }
+            } else {
+              const opts = safeParse(item.options, []);
+              if (isCorrect(item.answer, opts, ans.choice)) correct += 1;
+            }
           } else {
             const qs = safeParse(item.questions, []);
             const userAnswers = ans.answers || {};

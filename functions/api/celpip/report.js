@@ -111,11 +111,23 @@ export async function onRequestGet(context) {
         if (!item) continue;
 
         if (secName === "listening") {
-          const opts = safeParse(item.options, []);
-          if (isListeningCorrect(item.answer, opts, ans.choice)) correct += 1;
-          else wrong += 1;
+          // 新版：questions_json 里是数组；旧版：单题 options/answer
+          const partQs = safeParse(item.questions_json, null);
+          if (partQs && Array.isArray(partQs) && partQs.length > 0) {
+            const userAnswers = ans.answers || {};
+            for (let i = 0; i < partQs.length; i++) {
+              const q = partQs[i] || {};
+              const uAns = userAnswers[i];
+              if (uAns == null || uAns === "") { wrong += 1; continue; }
+              if (isListeningCorrect(q.answer, q.options || [], uAns)) correct += 1;
+              else wrong += 1;
+            }
+          } else {
+            const opts = safeParse(item.options, []);
+            if (isListeningCorrect(item.answer, opts, ans.choice)) correct += 1;
+            else wrong += 1;
+          }
         } else {
-          // reading：多题结构，answers 是 { qIndex: choice }
           const qs = safeParse(item.questions, []);
           const userAnswers = ans.answers || {};
           for (let i = 0; i < qs.length; i++) {
@@ -129,8 +141,13 @@ export async function onRequestGet(context) {
         }
       }
 
+      // 总题数：Listening 新版按 questions_json 累加；Reading 累加 questions
       const totalQuestions = secName === "listening"
-        ? list.length
+        ? list.reduce((a, it) => {
+            const partQs = safeParse(it.questions_json, null);
+            if (partQs && Array.isArray(partQs)) return a + partQs.length;
+            return a + 1;
+          }, 0)
         : list.reduce((a, it) => a + (safeParse(it.questions, []).length || 0), 0);
 
       const accuracy = totalQuestions > 0 ? correct / totalQuestions : null;

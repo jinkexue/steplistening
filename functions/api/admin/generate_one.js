@@ -141,8 +141,10 @@ export async function onRequestPost(context) {
     // 组装 user prompt
     let userAsk;
     if (section === "listening") {
+      // Part 级：把整个 Part 作为一条 record 生成
       userAsk = JSON.stringify({
-        part: part_or_task, note: "Generate ONE authentic CELPIP Listening item. Return strict JSON: {transcript, question, options:[...], answer}. Keep transcript 40-120 words.",
+        part: part_or_task,
+        note: "Generate the FULL Part matching the specifications in system prompt. Follow the exact JSON shape for this Part number (segmented / shared_timer / multi_image_shared).",
       });
     } else if (section === "reading") {
       userAsk = JSON.stringify({
@@ -185,11 +187,31 @@ export async function onRequestPost(context) {
     trace.stage = "db_insert";
     let itemId;
     if (section === "listening") {
+      // 新版 Part 级：obj 可能是 {title, part_layout, segments, questions, ...} 或旧 {transcript, question, options, answer}
+      const partLayout = obj.part_layout || (obj.segments ? "segmented" : (obj.image_prompts ? "multi_image_shared" : "shared_timer"));
+      const questions = obj.questions || (obj.question ? [{ q: obj.question, options: obj.options || [], answer: obj.answer }] : []);
+      const segments = obj.segments || (obj.transcript ? [{ transcript: obj.transcript, question_indices: questions.map((_, i) => i) }] : []);
+      const sharedTimer = obj.shared_timer_seconds || null;
+
       const r = await env.DB.prepare(
-        `INSERT INTO celpip_listening_items (section_id, part, transcript, question, options, answer, order_index)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`
-      ).bind(sectionId, part_or_task, obj.transcript || "", obj.question || "",
-              JSON.stringify(obj.options || []), String(obj.answer ?? ""), part_or_task).run();
+        `INSERT INTO celpip_listening_items
+          (section_id, part, order_index, title, part_layout,
+           segments_json, questions_json, image_prompts_json, shared_timer_seconds,
+           transcript, question, options, answer)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).bind(
+        sectionId, part_or_task, part_or_task,
+        obj.title || "", partLayout,
+        JSON.stringify(segments),
+        JSON.stringify(questions),
+        JSON.stringify(obj.image_prompts || []),
+        sharedTimer,
+        // 兼容旧字段（把整段 transcript 拼起来存一份，方便旧代码读取）
+        segments.map(s => s.transcript || "").join("\n\n"),
+        questions[0]?.q || "",
+        JSON.stringify(questions[0]?.options || []),
+        String(questions[0]?.answer ?? "")
+      ).run();
       itemId = r.meta.last_row_id;
     } else if (section === "reading") {
       const r = await env.DB.prepare(
@@ -219,14 +241,52 @@ export async function onRequestPost(context) {
 
     // 附加资源生成（不影响主流程；失败仅记录）
     const assetResults = {};
-    if (with_asset && section === "listening" && obj.transcript) {
+    if (with_asset && section === "listening") {
       trace.stage = "listening_tts";
-      try {
-        const key = await tts(env, settings, obj.transcript);
-        await env.DB.prepare("UPDATE celpip_listening_items SET audio_key = ? WHERE id = ?").bind(key, itemId).run();
-        assetResults.audio_key = key;
-      } catch (e) {
-        assetResults.tts_error = e.message;
+      // 从 questions_json / segments_json 拿到最新结构
+      const partLayout = obj.part_layout || (obj.segments ? "segmented" : (obj.image_prompts ? "multi_image_shared" : "shared_timer"));
+      const segments = obj.segments || (obj.transcript ? [{ transcript: obj.transcript, question_indices: [] }] : []);
+      const newSegments = [];
+      const errors = [];
+      let firstAudio = null;
+      for (let i = 0; i < segments.length; i++) {
+        const seg = segments[i] || {};
+        if (!seg.transcript) { newSegments.push(seg); continue; }
+        try {
+          const key = await tts(env, settings, seg.transcript);
+          newSegments.push({ ...seg, audio_key: key });
+          if (!firstAudio) firstAudio = key;
+        } catch (e) {
+          errors.push(`seg${i}: ${e.message}`);
+          newSegments.push(seg);
+        }
+      }
+      // 持久化：更新 segments_json 与顶层 audio_key（第一段）
+      await env.DB.prepare(
+        "UPDATE celpip_listening_items SET segments_json = ?, audio_key = ? WHERE id = ?"
+      ).bind(JSON.stringify(newSegments), firstAudio, itemId).run();
+      assetResults.audio_key = firstAudio;
+      assetResults.segment_count = newSegments.length;
+      if (errors.length) assetResults.tts_error = errors.join(" | ");
+
+      // Part 5 多图
+      if (partLayout === "multi_image_shared" && Array.isArray(obj.image_prompts) && obj.image_prompts.length) {
+        trace.stage = "listening_images";
+        const imgKeys = [];
+        const imgErrs = [];
+        for (let i = 0; i < obj.image_prompts.length; i++) {
+          try {
+            const key = await genImage(env, settings, obj.image_prompts[i]);
+            imgKeys.push(key);
+          } catch (e) {
+            imgErrs.push(`img${i}: ${e.message}`);
+          }
+        }
+        await env.DB.prepare(
+          "UPDATE celpip_listening_items SET image_keys_json = ? WHERE id = ?"
+        ).bind(JSON.stringify(imgKeys), itemId).run();
+        assetResults.image_keys = imgKeys;
+        if (imgErrs.length) assetResults.image_error = imgErrs.join(" | ");
       }
     }
     if (with_asset && section === "speaking" && obj.image_prompt && (part_or_task === 3 || part_or_task === 4)) {

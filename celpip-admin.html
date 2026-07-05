@@ -47,7 +47,11 @@
         <div class="celpip-card" style="margin-bottom:16px">
           <h3 style="margin-bottom:8px">① 初始化 / 更新数据库</h3>
           <p style="color:var(--celpip-muted);font-size:13px;margin-bottom:12px">第一次部署或 schema 更新后必须点击。会创建 CELPIP 相关表并 seed 默认配置。</p>
-          <button class="celpip-btn secondary" id="migrateBtn" onclick="runMigrate()">运行迁移</button>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+            <button class="celpip-btn secondary" id="migrateBtn" onclick="runMigrate(false)">运行迁移（保留原提示词）</button>
+            <button class="celpip-btn" id="migrateForceBtn" onclick="runMigrate(true)" style="background:#F5A623">运行迁移 + 覆盖默认提示词</button>
+          </div>
+          <p style="color:var(--celpip-muted);font-size:12px">"覆盖默认提示词"会用代码里最新的 SEED_PROMPTS 生成新版本并激活（旧版本被停用）。修改过 prompt 后请慎用。</p>
           <div id="migrateResult" style="margin-top:12px;font-size:12px"></div>
         </div>
 
@@ -119,22 +123,23 @@
     }
 
     // ================= 迁移 =================
-    async function runMigrate() {
-      const btn = document.getElementById('migrateBtn');
+    async function runMigrate(force) {
+      const btn = document.getElementById(force ? 'migrateForceBtn' : 'migrateBtn');
       btn.disabled = true; btn.textContent = '迁移中…';
       try {
-        const data = await celpipApi('/admin/migrate', {
+        const data = await celpipApi('/admin/migrate' + (force ? '?force_prompts=1' : ''), {
           method: 'POST', body: { user_id: user.userId },
         });
         const errs = (data.results || []).filter(r => r.status === 'error');
         document.getElementById('migrateResult').innerHTML = errs.length
           ? `<div class="celpip-alert error">部分失败：${errs.length} 条<br>${errs.slice(0, 3).map(e => escapeHtml(e.error || '')).join('<br>')}</div>`
-          : `<div class="celpip-alert success">✓ 迁移完成，共 ${data.results?.length || 0} 条语句</div>`;
+          : `<div class="celpip-alert success">✓ 迁移完成，共 ${data.results?.length || 0} 条语句${force ? '（提示词已强制覆盖）' : ''}</div>`;
         loadPapers();
       } catch (e) {
         document.getElementById('migrateResult').innerHTML = `<div class="celpip-alert error">${escapeHtml(e.message)}</div>`;
       } finally {
-        btn.disabled = false; btn.textContent = '运行迁移';
+        btn.disabled = false;
+        btn.textContent = force ? '运行迁移 + 覆盖默认提示词' : '运行迁移（保留原提示词）';
       }
     }
 

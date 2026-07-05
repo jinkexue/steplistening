@@ -52,6 +52,10 @@ const STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS idx_celpip_paper_sections_paper_id ON celpip_paper_sections(paper_id)`,
 
   // ---------- celpip_listening_items ----------
+  // 一条记录 = 一个完整 Part（Part 1-6），根据 part_layout 决定前端布局
+  //   segmented        : Part 1 / 2，多段音频、每段播完弹 1-3 题、每题独立倒计时（默认 30s/题）
+  //   shared_timer     : Part 3 / 4 / 6，整段播完 + 单张（或无）静态图 + 一次性所有题 + 共享倒计时
+  //   multi_image_shared: Part 5，整段播完 + 多张静态图 + 一次性所有题 + 共享倒计时
   `CREATE TABLE IF NOT EXISTS celpip_listening_items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     section_id INTEGER NOT NULL,
@@ -59,14 +63,30 @@ const STATEMENTS = [
     audio_key TEXT,
     image_key TEXT,
     transcript TEXT,
-    question TEXT NOT NULL,
+    question TEXT,
     options TEXT,
     answer TEXT,
     order_index INTEGER DEFAULT 1,
+    -- 新版 Part 级字段（v2）：
+    title TEXT,
+    part_layout TEXT,
+    segments_json TEXT,            -- [{audio_key, transcript, question_indices:[..]}]
+    questions_json TEXT,           -- [{q, options:[...], answer, per_question_seconds?}]
+    image_keys_json TEXT,          -- Part 5 多图
+    image_prompts_json TEXT,       -- Part 5 多图 prompt
+    shared_timer_seconds INTEGER,  -- Part 3/4/5/6 共享倒计时
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (section_id) REFERENCES celpip_paper_sections(id) ON DELETE CASCADE
   )`,
   `CREATE INDEX IF NOT EXISTS idx_celpip_listening_section ON celpip_listening_items(section_id)`,
+  // v2 兼容：给旧库补列
+  `ALTER TABLE celpip_listening_items ADD COLUMN title TEXT`,
+  `ALTER TABLE celpip_listening_items ADD COLUMN part_layout TEXT`,
+  `ALTER TABLE celpip_listening_items ADD COLUMN segments_json TEXT`,
+  `ALTER TABLE celpip_listening_items ADD COLUMN questions_json TEXT`,
+  `ALTER TABLE celpip_listening_items ADD COLUMN image_keys_json TEXT`,
+  `ALTER TABLE celpip_listening_items ADD COLUMN image_prompts_json TEXT`,
+  `ALTER TABLE celpip_listening_items ADD COLUMN shared_timer_seconds INTEGER`,
 
   // ---------- celpip_reading_items ----------
   `CREATE TABLE IF NOT EXISTS celpip_reading_items (
@@ -168,7 +188,47 @@ const SEED_SETTINGS = [
 // 默认提示词（IGNORE：只有第一次插入）
 const SEED_PROMPTS = [
   ["listening", "generate_dialogue",
-    'You are a CELPIP Listening item writer. Generate a natural Canadian-English dialogue that exactly matches the requested Part specification. Output strict JSON: {transcript, question, options:[A,B,C,D], answer}.'],
+    [
+      'You are a CELPIP Listening item writer. Generate ONE full Part matching the official CELPIP Listening structure.',
+      '',
+      'PART SPECS (choose based on the part number in user message):',
+      '  Part 1 — Practical Listening (Identifying Information):',
+      '    A single storyline in a Canadian daily scenario (e.g. lost wallet at the mall, asking directions at a train station, clinic reception).',
+      '    Split the story into 3 sequential audio segments (each 30-40s of natural spoken text).',
+      '    After each segment: 2-3 questions with 4 options each. Total 8 questions.',
+      '    part_layout = "segmented". per_question_seconds = 30.',
+      '    Return JSON: {title, part_layout:"segmented", segments:[{transcript, question_indices:[i,...]}], questions:[{q,options:[A,B,C,D],answer}]}',
+      '',
+      '  Part 2 — Listening to a Daily-Life Conversation (Answering Questions):',
+      '    5 independent short questions. Each question is a spoken one-liner (~5-10s).',
+      '    Options are logical responses. Each question has its own 30s countdown.',
+      '    part_layout = "segmented". Every question is its own segment.',
+      '    Return JSON: {title, part_layout:"segmented", segments:[{transcript, question_indices:[i]}], questions:[{q,options,answer}]}',
+      '',
+      '  Part 3 — Listening for Information (Viewing a Conversation):',
+      '    One continuous 1.5-2 minute two-person dialogue. 6 questions total.',
+      '    part_layout = "shared_timer". shared_timer_seconds = 240.',
+      '    Return JSON: {title, part_layout:"shared_timer", transcript, questions:[{q,options,answer}], shared_timer_seconds:240}',
+      '',
+      '  Part 4 — Listening to a News Item / Interview:',
+      '    One continuous 2-2.5 minute interview or news report. 5 questions.',
+      '    part_layout = "shared_timer". shared_timer_seconds = 180.',
+      '    Return JSON: {title, part_layout:"shared_timer", transcript, questions:[{q,options,answer}], shared_timer_seconds:180}',
+      '',
+      '  Part 5 — Listening to a Discussion (Viewing a Discussion):',
+      '    One continuous ~2 minute discussion involving 3 speakers. 8 questions.',
+      '    Provide 2-3 image_prompts for text-to-image (one per speaker or scene).',
+      '    part_layout = "multi_image_shared". shared_timer_seconds = 300.',
+      '    Return JSON: {title, part_layout:"multi_image_shared", transcript, image_prompts:[...], questions:[{q,options,answer}], shared_timer_seconds:300}',
+      '',
+      '  Part 6 — Listening to Viewpoints:',
+      '    Long ~3 minute academic monologue. 6 questions on deep comprehension.',
+      '    part_layout = "shared_timer". shared_timer_seconds = 240.',
+      '    Return JSON: {title, part_layout:"shared_timer", transcript, questions:[{q,options,answer}], shared_timer_seconds:240}',
+      '',
+      'Language: Natural Canadian English. Answer field: use letter (A/B/C/D).',
+      'Output ONLY the JSON object matching the specified layout — no markdown, no commentary.',
+    ].join('\n')],
   ["reading", "generate_passage",
     'You are a CELPIP Reading item writer. Produce a passage strictly matching the requested Part (email/notice/article/opinions). Output strict JSON: {title, passage, questions:[{q, options, answer}]}.'],
   ["writing", "generate_prompt",
@@ -188,6 +248,9 @@ export async function onRequestPost(context) {
   const guard = await requireAdmin(request, env);
   if (!guard.ok) return guard.response;
 
+  const url = new URL(request.url);
+  const forcePrompts = url.searchParams.get("force_prompts") === "1";
+
   const results = [];
   try {
     for (const sql of STATEMENTS) {
@@ -195,7 +258,12 @@ export async function onRequestPost(context) {
         await env.DB.prepare(sql).run();
         results.push({ op: "ddl", status: "ok" });
       } catch (e) {
-        results.push({ op: "ddl", status: "error", error: e.message, sql: sql.slice(0, 60) });
+        // 幂等：列已存在时 ALTER 会报 "duplicate column"，视为成功
+        if (/duplicate column/i.test(e.message) || /already exists/i.test(e.message)) {
+          results.push({ op: "ddl", status: "skip", reason: "already exists" });
+        } else {
+          results.push({ op: "ddl", status: "error", error: e.message, sql: sql.slice(0, 60) });
+        }
       }
     }
     for (const [k, v] of SEED_SETTINGS) {
@@ -211,15 +279,25 @@ export async function onRequestPost(context) {
     for (const [section, name, sp] of SEED_PROMPTS) {
       try {
         const exists = await env.DB.prepare(
-          "SELECT id FROM celpip_prompts WHERE section = ? AND name = ?"
+          "SELECT id, version FROM celpip_prompts WHERE section = ? AND name = ? ORDER BY version DESC LIMIT 1"
         ).bind(section, name).first();
         if (!exists) {
           await env.DB.prepare(
             "INSERT INTO celpip_prompts (section, name, system_prompt) VALUES (?, ?, ?)"
           ).bind(section, name, sp).run();
           results.push({ op: "seed_prompt", section, name, status: "inserted" });
+        } else if (forcePrompts) {
+          // 覆盖模式：追加新版本、旧版本 active=0
+          await env.DB.prepare(
+            "UPDATE celpip_prompts SET active = 0 WHERE section = ? AND name = ?"
+          ).bind(section, name).run();
+          const newVersion = (Number(exists.version) || 1) + 1;
+          await env.DB.prepare(
+            "INSERT INTO celpip_prompts (section, name, system_prompt, version, active) VALUES (?, ?, ?, ?, 1)"
+          ).bind(section, name, sp, newVersion).run();
+          results.push({ op: "seed_prompt", section, name, status: `forced v${newVersion}` });
         } else {
-          results.push({ op: "seed_prompt", section, name, status: "exists" });
+          results.push({ op: "seed_prompt", section, name, status: "exists (add ?force_prompts=1 to overwrite)" });
         }
       } catch (e) {
         results.push({ op: "seed_prompt", section, name, status: "error", error: e.message });

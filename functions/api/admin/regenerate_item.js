@@ -174,11 +174,27 @@ export async function onRequestPost(context) {
     // 覆盖 UPDATE
     trace.stage = "db_update";
     if (section === "listening") {
+      const partLayout = obj.part_layout || (obj.segments ? "segmented" : (obj.image_prompts ? "multi_image_shared" : "shared_timer"));
+      const questions = obj.questions || (obj.question ? [{ q: obj.question, options: obj.options || [], answer: obj.answer }] : []);
+      const segments = obj.segments || (obj.transcript ? [{ transcript: obj.transcript, question_indices: questions.map((_, i) => i) }] : []);
       await env.DB.prepare(
-        `UPDATE celpip_listening_items SET transcript=?, question=?, options=?, answer=?, audio_key=NULL, image_key=NULL WHERE id=?`
+        `UPDATE celpip_listening_items SET
+          title=?, part_layout=?, segments_json=?, questions_json=?,
+          image_prompts_json=?, image_keys_json=NULL, shared_timer_seconds=?,
+          transcript=?, question=?, options=?, answer=?,
+          audio_key=NULL, image_key=NULL
+         WHERE id=?`
       ).bind(
-        obj.transcript || "", obj.question || "",
-        JSON.stringify(obj.options || []), String(obj.answer ?? ""), item_id
+        obj.title || "", partLayout,
+        JSON.stringify(segments),
+        JSON.stringify(questions),
+        JSON.stringify(obj.image_prompts || []),
+        obj.shared_timer_seconds || null,
+        segments.map(s => s.transcript || "").join("\n\n"),
+        questions[0]?.q || "",
+        JSON.stringify(questions[0]?.options || []),
+        String(questions[0]?.answer ?? ""),
+        item_id
       ).run();
     } else if (section === "reading") {
       await env.DB.prepare(
@@ -204,13 +220,45 @@ export async function onRequestPost(context) {
 
     // 附加资源（TTS/图片）
     const asset = {};
-    if (with_asset && section === "listening" && obj.transcript) {
+    if (with_asset && section === "listening") {
       trace.stage = "listening_tts";
-      try {
-        const key = await tts(env, settings, obj.transcript);
-        await env.DB.prepare("UPDATE celpip_listening_items SET audio_key=? WHERE id=?").bind(key, item_id).run();
-        asset.audio_key = key;
-      } catch (e) { asset.tts_error = e.message; }
+      const partLayout = obj.part_layout || (obj.segments ? "segmented" : (obj.image_prompts ? "multi_image_shared" : "shared_timer"));
+      const segments = obj.segments || (obj.transcript ? [{ transcript: obj.transcript, question_indices: [] }] : []);
+      const newSegments = [];
+      const errors = [];
+      let firstAudio = null;
+      for (let i = 0; i < segments.length; i++) {
+        const seg = segments[i] || {};
+        if (!seg.transcript) { newSegments.push(seg); continue; }
+        try {
+          const key = await tts(env, settings, seg.transcript);
+          newSegments.push({ ...seg, audio_key: key });
+          if (!firstAudio) firstAudio = key;
+        } catch (e) {
+          errors.push(`seg${i}: ${e.message}`);
+          newSegments.push(seg);
+        }
+      }
+      await env.DB.prepare(
+        "UPDATE celpip_listening_items SET segments_json = ?, audio_key = ? WHERE id = ?"
+      ).bind(JSON.stringify(newSegments), firstAudio, item_id).run();
+      asset.audio_key = firstAudio;
+      if (errors.length) asset.tts_error = errors.join(" | ");
+
+      if (partLayout === "multi_image_shared" && Array.isArray(obj.image_prompts) && obj.image_prompts.length) {
+        trace.stage = "listening_images";
+        const imgKeys = [];
+        const imgErrs = [];
+        for (let i = 0; i < obj.image_prompts.length; i++) {
+          try { imgKeys.push(await genImage(env, settings, obj.image_prompts[i])); }
+          catch (e) { imgErrs.push(`img${i}: ${e.message}`); }
+        }
+        await env.DB.prepare(
+          "UPDATE celpip_listening_items SET image_keys_json = ? WHERE id = ?"
+        ).bind(JSON.stringify(imgKeys), item_id).run();
+        asset.image_keys = imgKeys;
+        if (imgErrs.length) asset.image_error = imgErrs.join(" | ");
+      }
     }
     if (with_asset && section === "speaking" && obj.image_prompt && (partOrTask === 3 || partOrTask === 4)) {
       trace.stage = "speaking_image";
