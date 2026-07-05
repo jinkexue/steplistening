@@ -223,6 +223,7 @@
           }
         }
       }
+      const savedAttempt = attemptOf(state.activeId);
       const savedInfo = celpipSafeParse(savedAttempt?.answer_json, {});
       const suggested = RECORDING_TIME_BY_PART[it.part] || 60;
       const usedSec = savedInfo.used_seconds != null ? savedInfo.used_seconds : (suggested - state.timeLeft);
@@ -264,6 +265,7 @@
 
       app.innerHTML = `
         <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:16px">
+          <a href="celpip-paper.html?id=${state.paperId}" class="celpip-btn secondary small" style="text-decoration:none">← 返回试卷</a>
           <h2 style="color:#0055A4;font-size:20px">Listening · Part ${it.part}</h2>
           <div class="celpip-nav-chips">${navChips}</div>
         </div>

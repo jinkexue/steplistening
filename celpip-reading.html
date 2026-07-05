@@ -262,6 +262,7 @@
 
       app.innerHTML = `
         <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:16px">
+          <a href="celpip-paper.html?id=${state.paperId}" class="celpip-btn secondary small" style="text-decoration:none">← 返回试卷</a>
           <h2 style="color:var(--celpip-primary);font-size:20px">Reading Part ${it.part}</h2>
           <div class="celpip-nav-chips">${navChips}</div>
           ${renderTimeBadge(it)}
