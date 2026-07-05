@@ -51,17 +51,22 @@
   <script>
     let state = {
       items: [], attempts: [], activeId: null, paperId: null,
-      currentSegIdx: 0,          // 当前播放的 segment（segmented 布局）
-      segmentPlayed: false,      // 当前 segment 是否播完
-      audioPlayed: false,        // 整段播完（shared_timer / multi_image）
-      answers: {},               // { qIndex: 'A' }
+      currentSegIdx: 0,
+      segmentPlayed: false,
+      audioPlayed: false,
+      answers: {},
       submitted: false,
       timerId: null,
       timeLeft: 0,
       startedAt: null,
-      // 单题倒计时（segmented）：当前处理的 question index（同 seg 内多题按序）
       perQuestionIdx: 0,
+      mode: localStorage.getItem('celpip_listen_mode') || 'practice', // 'practice' | 'exam'
     };
+
+    function replayCurrentAudio() {
+      const audio = document.querySelector('.audio-panel audio');
+      if (audio) { audio.currentTime = 0; audio.play(); }
+    }
 
     (async function main() {
       const user = celpipRequireLogin();
@@ -131,7 +136,13 @@
     function selectAnswer(qIndex, val) {
       if (state.submitted) return;
       state.answers[qIndex] = val;
-      render();
+      // 只重渲染右侧问答面板，不动左侧音频区（避免 audio 元素被替换后重头播放）
+      renderQAOnly();
+    }
+
+    function renderQAOnly() {
+      const qaEl = document.getElementById('qaPanel');
+      if (qaEl) qaEl.innerHTML = buildQABody();
     }
 
     async function submitAll() {
@@ -260,29 +271,37 @@
           <div class="seg-chip ${i === state.currentSegIdx ? 'active' : ''} ${i < state.currentSegIdx ? 'done' : ''}">
             段 ${i + 1}
           </div>`).join('');
+        const isExam = state.mode === 'exam';
         audioBody = `
           <div class="audio-status ${state.segmentPlayed ? 'done' : 'playing'}">
             🎧 段 ${state.currentSegIdx + 1} / ${segments.length}
-            ${state.segmentPlayed ? '· 已播完，请作答' : '· 请听完整段（不可回听）'}
+            ${state.segmentPlayed
+              ? (isExam ? '· 已播完，不可回听（考试模式）' : '· 已播完，可点击下方按钮重播')
+              : '· 请听完整段'}
           </div>
           ${audioKey ? `
-            <audio ${state.segmentPlayed ? '' : 'controls'} autoplay
+            <audio ${isExam ? '' : (state.segmentPlayed ? 'controls' : '')} autoplay
                    src="${celpipAssetUrl(audioKey)}"
                    onended="onAudioEndSegmented()"
                    style="width:100%;margin-top:12px"></audio>
+            ${state.segmentPlayed && !isExam ? '<button class="celpip-btn secondary small" style="margin-top:8px" onclick="replayCurrentAudio()">🔁 重听本段</button>' : ''}
           ` : '<div class="celpip-alert error">该段音频未生成</div>'}
           <div class="seg-list">${segChips}</div>`;
       } else {
         const audioKey = it.audio_key;
+        const isExam = state.mode === 'exam';
         audioBody = `
           <div class="audio-status ${state.audioPlayed ? 'done' : 'playing'}">
-            🎧 ${state.audioPlayed ? '音频已播完，请作答' : '请听完整段（不可回听）'}
+            🎧 ${state.audioPlayed
+              ? (isExam ? '音频已播完，不可回听（考试模式）' : '音频已播完，可点击下方按钮重播')
+              : '请听完整段'}
           </div>
           ${audioKey ? `
-            <audio ${state.audioPlayed ? '' : 'controls'} autoplay
+            <audio ${isExam ? '' : (state.audioPlayed ? 'controls' : '')} autoplay
                    src="${celpipAssetUrl(audioKey)}"
                    onended="onAudioEndFull()"
                    style="width:100%;margin-top:12px"></audio>
+            ${state.audioPlayed && !isExam ? '<button class="celpip-btn secondary small" style="margin-top:8px" onclick="replayCurrentAudio()">🔁 重听整段</button>' : ''}
           ` : '<div class="celpip-alert error">音频未生成</div>'}
           ${imageKeys.length && layout === 'multi_image_shared'
             ? `<div class="part-image-grid">${imageKeys.map(k => `<img src="${celpipAssetUrl(k)}">`).join('')}</div>`
@@ -290,49 +309,7 @@
       }
 
       // 右侧：题目面板
-      let qaBody = '';
-      const showAllQs = (layout === 'segmented' && state.submitted) || layout !== 'segmented';
-      if (layout === 'segmented' && !state.submitted) {
-        const seg = segments[state.currentSegIdx] || {};
-        const qIndices = seg.question_indices || [];
-        if (state.segmentPlayed && qIndices.length) {
-          const activeQIdx = qIndices[state.perQuestionIdx];
-          qaBody = `
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-              <div style="font-weight:700">段 ${state.currentSegIdx + 1} · 第 ${state.perQuestionIdx + 1}/${qIndices.length} 题</div>
-              <span class="celpip-timer" id="perQTimer">⏱ ${state.timeLeft}s</span>
-            </div>
-            ${renderQuestion(questions[activeQIdx], activeQIdx, state.answers[activeQIdx], false)}
-            <div style="margin-top:12px;text-align:right">
-              <button class="celpip-btn" ${!state.answers[activeQIdx] ? 'disabled' : ''} onclick="nextInSegment()">
-                ${state.perQuestionIdx + 1 < qIndices.length ? '下一题 →' : (state.currentSegIdx + 1 < segments.length ? '进入下一段 →' : '提交')}
-              </button>
-            </div>`;
-        } else {
-          qaBody = '<div class="celpip-empty"><h3>等待音频播完</h3><p>播放结束后自动出题</p></div>';
-        }
-      } else {
-        // 共享倒计时布局 或 提交后展示所有题
-        if (!state.audioPlayed && !state.submitted) {
-          qaBody = '<div class="celpip-empty"><h3>请先听完整段音频</h3><p>播完后倒计时开始</p></div>';
-        } else {
-          const suggested = it.shared_timer_seconds || 240;
-          const timerBadge = state.submitted ? '' : `
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-              <div style="font-weight:700">Part ${it.part} · ${questions.length} 题</div>
-              <span class="celpip-timer" id="sharedTimer">⏱ ${fmtTime(state.timeLeft || suggested)}</span>
-            </div>`;
-          const submitBtn = state.submitted ? '' : `
-            <div style="margin-top:12px">
-              <button class="celpip-btn" style="width:100%" ${Object.keys(state.answers).length < questions.length ? 'disabled' : ''} onclick="submitAll()">
-                提交全部答案
-              </button>
-            </div>`;
-          qaBody = timerBadge + questions.map((q, i) => `
-            <div class="qa-question">${renderQuestion(q, i, state.answers[i], state.submitted)}</div>
-          `).join('') + submitBtn;
-        }
-      }
+      const qaBody = buildQABody();
 
       const resultSummary = state.submitted ? renderResult(it, questions) : '';
 
@@ -344,10 +321,11 @@
           <a href="celpip-paper.html?id=${state.paperId}" class="celpip-btn secondary small" style="text-decoration:none">← 返回试卷</a>
           <h2 style="color:#0055A4;font-size:20px">Listening · Part ${it.part}${it.title ? ' · ' + escapeHtml(it.title) : ''}</h2>
           <div class="celpip-nav-chips">${navChips}</div>
+          ${renderModeToggle()}
         </div>
         <div class="listen-layout">
           <div class="audio-panel">${audioBody}</div>
-          <div class="qa-panel">${qaBody}</div>
+          <div class="qa-panel" id="qaPanel">${qaBody}</div>
         </div>
         ${resultSummary}
         <div style="display:flex;justify-content:space-between;gap:12px;margin-top:24px">
@@ -355,6 +333,71 @@
           ${next ? `<button class="celpip-btn" onclick="switchItem(${next})">下一题 →</button>` :
                    (state.submitted ? `<a class="celpip-btn" href="celpip-paper.html?id=${state.paperId}">返回试卷</a>` : '<span></span>')}
         </div>`;
+    }
+
+    function buildQABody() {
+      const it = activeItem();
+      if (!it) return '';
+      const layout = partLayout(it);
+      const segments = parsedSegments(it);
+      const questions = parsedQuestions(it);
+      if (layout === 'segmented' && !state.submitted) {
+        const seg = segments[state.currentSegIdx] || {};
+        const qIndices = seg.question_indices || [];
+        if (state.segmentPlayed && qIndices.length) {
+          const activeQIdx = qIndices[state.perQuestionIdx];
+          return `
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+              <div style="font-weight:700">段 ${state.currentSegIdx + 1} · 第 ${state.perQuestionIdx + 1}/${qIndices.length} 题</div>
+              <span class="celpip-timer" id="perQTimer">⏱ ${state.timeLeft}s</span>
+            </div>
+            ${renderQuestion(questions[activeQIdx], activeQIdx, state.answers[activeQIdx], false)}
+            <div style="margin-top:12px;text-align:right">
+              <button class="celpip-btn" ${!state.answers[activeQIdx] ? 'disabled' : ''} onclick="nextInSegment()">
+                ${state.perQuestionIdx + 1 < qIndices.length ? '下一题 →' : (state.currentSegIdx + 1 < segments.length ? '进入下一段 →' : '提交')}
+              </button>
+            </div>`;
+        } else {
+          return '<div class="celpip-empty"><h3>等待音频播完</h3><p>播放结束后自动出题</p></div>';
+        }
+      }
+      // 共享倒计时布局 或 提交后展示所有题
+      if (!state.audioPlayed && !state.submitted) {
+        return '<div class="celpip-empty"><h3>请先听完整段音频</h3><p>播完后倒计时开始</p></div>';
+      }
+      const suggested = it.shared_timer_seconds || 240;
+      const timerBadge = state.submitted ? '' : `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <div style="font-weight:700">Part ${it.part} · ${questions.length} 题</div>
+          <span class="celpip-timer" id="sharedTimer">⏱ ${fmtTime(state.timeLeft || suggested)}</span>
+        </div>`;
+      const submitBtn = state.submitted ? '' : `
+        <div style="margin-top:12px">
+          <button class="celpip-btn" style="width:100%" ${Object.keys(state.answers).length < questions.length ? 'disabled' : ''} onclick="submitAll()">
+            提交全部答案
+          </button>
+        </div>`;
+      return timerBadge + questions.map((q, i) => `
+        <div class="qa-question">${renderQuestion(q, i, state.answers[i], state.submitted)}</div>
+      `).join('') + submitBtn;
+    }
+
+    function renderModeToggle() {
+      const cur = state.mode || 'practice';
+      const label = cur === 'exam' ? '📕 考试模式（只听一次）' : '📗 练习模式（可重听）';
+      const color = cur === 'exam' ? '#D64545' : '#2E9F5B';
+      return `
+        <button onclick="toggleMode()" title="切换考试/练习模式"
+                style="background:transparent;border:1.5px solid ${color};color:${color};padding:6px 12px;border-radius:20px;cursor:pointer;font-size:12px;font-weight:700">
+          ${label}
+        </button>`;
+    }
+
+    function toggleMode() {
+      state.mode = state.mode === 'exam' ? 'practice' : 'exam';
+      localStorage.setItem('celpip_listen_mode', state.mode);
+      // 切换模式后需要完整重绘（audio 的 controls 属性可能变化）
+      render();
     }
 
     function nextInSegment() {
@@ -463,6 +506,8 @@
     window.onAudioEndSegmented = onAudioEndSegmented;
     window.onAudioEndFull = onAudioEndFull;
     window.nextInSegment = nextInSegment;
+    window.replayCurrentAudio = replayCurrentAudio;
+    window.toggleMode = toggleMode;
   </script>
 </body>
 </html>

@@ -22,10 +22,13 @@ const ALLOWED_KEYS = new Set([
   "image_model",
   // TTS
   "tts_provider",           // 'cloudflare' | 'volc'
+  "tts_fallback_provider",  // 主失败时自动切换的备用 provider
   "cf_tts_model",
+  "cf_tts_speakers",        // Cloudflare 多角色映射
   "volc_tts_endpoint",
   "volc_tts_model",
   "volc_tts_speaker",
+  "volc_tts_speakers",      // 火山多角色映射
   // STT
   "stt_provider",           // 'cloudflare' | 'volc'
   "cf_stt_model",

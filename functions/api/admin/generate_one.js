@@ -10,7 +10,7 @@
 
 import { requireAdmin, json } from "../../lib/auth.js";
 import { loadSettings, volcChatJSON, pickEndpoint, pickModel, volcImage } from "../../lib/volc.js";
-import { volcTTSHttp } from "../../lib/volcSpeech.js";
+import { synthesizeTTS } from "../../lib/ttsUnified.js";
 
 const SECTIONS = ["listening", "reading", "writing", "speaking"];
 
@@ -39,35 +39,7 @@ async function getSystemPrompt(env, section, name) {
 }
 
 async function tts(env, settings, text) {
-  const provider = (settings.tts_provider || "cloudflare").toLowerCase();
-  if (provider === "volc") {
-    const speechKey = env.VOLC_SPEECH_API_KEY || env.VOLC_API_KEY;
-    const resourceId = pickModel(settings, "volc_tts") || "seed-tts-2.0";
-    const speaker = (settings.volc_tts_speaker || "").trim() || "en_female_dacey_uranus_bigtts";
-    const url = (settings.volc_tts_endpoint || "").trim() || undefined;
-    const hash = await sha256Hex(`volc|${resourceId}|${speaker}|${text}`);
-    const r2Key = `celpip/tts/${hash}.mp3`;
-    if (await env.BUCKET.head(r2Key)) return r2Key;
-    const bytes = await volcTTSHttp({ apiKey: speechKey, text, resourceId, speaker, url });
-    await env.BUCKET.put(r2Key, bytes, { httpMetadata: { contentType: "audio/mpeg" } });
-    return r2Key;
-  }
-  const model = pickModel(settings, "cf_tts") || "@cf/deepgram/aura-2-en";
-  const hash = await sha256Hex(`cf|${model}|${text}`);
-  const r2Key = `celpip/tts/${hash}.mp3`;
-  if (await env.BUCKET.head(r2Key)) return r2Key;
-  const res = await env.AI.run(model, { text });
-  let bytes;
-  if (res instanceof ReadableStream) {
-    const reader = res.getReader(); const chunks = [];
-    while (true) { const { done, value } = await reader.read(); if (done) break; chunks.push(value); }
-    bytes = new Blob(chunks);
-  } else if (res?.audio) {
-    const bin = atob(res.audio); const arr = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i); bytes = arr;
-  } else if (res instanceof ArrayBuffer || res instanceof Uint8Array) bytes = res;
-  else throw new Error("Unknown TTS response");
-  await env.BUCKET.put(r2Key, bytes, { httpMetadata: { contentType: "audio/mpeg" } });
+  const { r2Key } = await synthesizeTTS(env, settings, text);
   return r2Key;
 }
 
