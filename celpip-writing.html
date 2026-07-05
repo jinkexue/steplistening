@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>写作练习 - CELPIP</title>
+  <title>Writing Practice - CELPIP</title>
   <link rel="stylesheet" href="celpip.css">
   <style>
     .writing-layout {
@@ -71,7 +71,7 @@
       state.paperId = params.get('paper_id');
       state.activeId = Number(params.get('item_id'));
       if (!state.paperId || !state.activeId) {
-        document.getElementById('msg').innerHTML = '<div class="celpip-alert error">缺少参数</div>';
+        document.getElementById('msg').innerHTML = '<div class="celpip-alert error">Missing parameters</div>';
         document.getElementById('app').innerHTML = '';
         return;
       }
@@ -83,7 +83,7 @@
         state.attempts = data.attempts || [];
         loadItem();
       } catch (e) {
-        document.getElementById('msg').innerHTML = `<div class="celpip-alert error">加载失败：${escapeHtml(e.message)}</div>`;
+        document.getElementById('msg').innerHTML = `<div class="celpip-alert error">Failed to load: ${escapeHtml(e.message)}</div>`;
         document.getElementById('app').innerHTML = '';
       }
     })();
@@ -127,14 +127,14 @@
       else if (wc <= max) cls += ' ok';
       else cls += ' warn';
       wcEl.className = cls;
-      wcEl.innerHTML = `字数：<b>${wc}</b> / 要求 ${min}-${max}`;
+      wcEl.innerHTML = `Words: <b>${wc}</b> / Required ${min}-${max}`;
     }
 
     async function submitEssay() {
       const it = activeItem();
       if (!it) return;
       const wc = state.essay.trim() ? state.essay.trim().split(/\s+/).length : 0;
-      if (wc < 20) { alert('作文太短'); return; }
+      if (wc < 20) { alert('Essay is too short'); return; }
       state.scoring = true;
       render();
       const user = celpipGetUser();
@@ -156,7 +156,7 @@
         if (existed) { existed.essay = state.essay; existed.score_json = scoreStr; }
         else state.attempts.push({ item_id: it.id, essay: state.essay, score_json: scoreStr, status: 'graded' });
       } catch (e) {
-        alert('评分失败：' + e.message);
+        alert('Scoring failed: ' + e.message);
       } finally {
         state.scoring = false;
         render();
@@ -166,7 +166,7 @@
     function render() {
       const it = activeItem();
       const app = document.getElementById('app');
-      if (!it) { app.innerHTML = '<div class="celpip-alert error">找不到该题</div>'; return; }
+      if (!it) { app.innerHTML = '<div class="celpip-alert error">Item not found</div>'; return; }
 
       const idx = activeIndex();
       const chartData = celpipSafeParse(it.chart_data, null);
@@ -187,7 +187,7 @@
           ${it.background ? `<div class="bg-text">${escapeHtml(it.background)}</div>` : ''}
           ${chartQuestion}${chartSvg}
           <div style="font-size:12px;color:var(--celpip-subtle);margin-top:8px">
-            字数要求：${it.min_words || 150}-${it.max_words || 200} · 无拼写纠错
+            Word limit: ${it.min_words || 150}-${it.max_words || 200} · No spell check
           </div>
         </div>`;
 
@@ -200,13 +200,13 @@
                     id="essayInput"
                     spellcheck="false"
                     ${state.submitted ? 'disabled' : ''}
-                    placeholder="请在此处输入你的作文..."
+                    placeholder="Type your essay here..."
                     oninput="updateEssay(this.value)">${escapeHtml(state.essay)}</textarea>
-          <div id="wordCount" class="word-count">字数：0 / 要求 ${it.min_words || 150}-${it.max_words || 200}</div>
+          <div id="wordCount" class="word-count">Words: 0 / Required ${it.min_words || 150}-${it.max_words || 200}</div>
           ${state.submitted ? '' : `
             <button class="celpip-btn" style="width:100%;margin-top:12px" ${state.scoring ? 'disabled' : ''}
                     onclick="submitEssay()">
-              ${state.scoring ? '⏳ 官方 Examiner 正在打分…（约 20-40 秒）' : '📝 提交给 AI Examiner 打分'}
+              ${state.scoring ? '⏳ AI Examiner scoring… (about 20-40s)' : '📝 Submit to AI Examiner'}
             </button>`}
           ${scoreBlock}
         </div>`;
@@ -216,15 +216,15 @@
 
       app.innerHTML = `
         <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:16px">
-          <a href="celpip-paper.html?id=${state.paperId}" class="celpip-btn secondary small" style="text-decoration:none">← 返回试卷</a>
+          <a href="celpip-paper.html?id=${state.paperId}" class="celpip-btn secondary small" style="text-decoration:none">← Back to Paper</a>
           <h2 style="color:var(--celpip-primary);font-size:20px">Writing Task ${it.task}</h2>
           <div class="celpip-nav-chips">${navChips}</div>
         </div>
         <div class="writing-layout">${leftHtml}${rightHtml}</div>
         <div style="display:flex;justify-content:space-between;gap:12px;margin-top:24px">
-          ${prev ? `<button class="celpip-btn secondary" onclick="switchItem(${prev})">← 上一题</button>` : '<span></span>'}
-          ${next ? `<button class="celpip-btn" onclick="switchItem(${next})">下一题 →</button>` :
-                   (state.submitted ? `<a class="celpip-btn" href="celpip-paper.html?id=${state.paperId}">返回试卷</a>` : '<span></span>')}
+          ${prev ? `<button class="celpip-btn secondary" onclick="switchItem(${prev})">← Previous</button>` : '<span></span>'}
+          ${next ? `<button class="celpip-btn" onclick="switchItem(${next})">Next →</button>` :
+                   (state.submitted ? `<a class="celpip-btn" href="celpip-paper.html?id=${state.paperId}">Back to Paper</a>` : '<span></span>')}
         </div>`;
 
       updateWordCount(it);
@@ -245,10 +245,10 @@
 
       const fb = s.feedback || {};
       const fbHtml = ['strengths', 'weaknesses', 'suggestions'].map(k => {
-        const label = { strengths: '优势', weaknesses: '不足', suggestions: '建议' }[k];
+        const label = { strengths: 'Strengths', weaknesses: 'Weaknesses', suggestions: 'Suggestions' }[k];
         const arr = Array.isArray(fb[k]) ? fb[k] : (fb[k] ? [fb[k]] : []);
         if (!arr.length) return '';
-        return `<div style="margin-top:8px"><b style="color:var(--celpip-primary)">${label}：</b>
+        return `<div style="margin-top:8px"><b style="color:var(--celpip-primary)">${label}:</b>
           <ul style="margin:4px 0 0 20px;font-size:13px;line-height:1.6">
             ${arr.map(x => `<li>${escapeHtml(x)}</li>`).join('')}
           </ul></div>`;
@@ -256,15 +256,15 @@
 
       return `
         <div style="margin-top:20px">
-          <h3 style="color:var(--celpip-primary);margin-bottom:12px">📊 AI Examiner 评分结果</h3>
+          <h3 style="color:var(--celpip-primary);margin-bottom:12px">📊 AI Examiner Score</h3>
           <div style="text-align:center;padding:16px;background:#EEF4FB;border-radius:8px;margin-bottom:12px">
-            <div style="font-size:14px;color:var(--celpip-muted)">综合 CLB 等级</div>
+            <div style="font-size:14px;color:var(--celpip-muted)">Overall CLB Level</div>
             <div style="font-size:38px;font-weight:700;color:var(--celpip-primary)">${s.overall_clb ?? '—'}</div>
           </div>
           <div class="score-grid">${scoreCards}</div>
           ${fbHtml}
           ${s.rewritten_sample ? `
-            <h4 style="margin-top:16px;color:var(--celpip-primary)">CLB 9+ 范文重写</h4>
+            <h4 style="margin-top:16px;color:var(--celpip-primary)">CLB 9+ Sample Rewrite</h4>
             <div class="rewritten-box">${escapeHtml(s.rewritten_sample)}</div>` : ''}
         </div>`;
     }

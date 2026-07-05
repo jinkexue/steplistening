@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>试卷详情 - CELPIP</title>
+  <title>Paper Details - CELPIP</title>
   <link rel="stylesheet" href="celpip.css">
 </head>
 <body>
@@ -17,10 +17,10 @@
   <script>
     // CELPIP 官方考试顺序：Listening → Reading → Writing → Speaking
     const SECTIONS = [
-      { key: 'listening', label: '听力 Listening', desc: '6 个 Part · 加拿大口音 · 每题独立倒计时', icon: '🎧' },
-      { key: 'reading',   label: '阅读 Reading',   desc: '4 个 Part · 左右分栏 · Drop-down 题',    icon: '📖' },
-      { key: 'writing',   label: '写作 Writing',   desc: '2 个 Task · CLB 四维评分 · AI 范文对比', icon: '✍️' },
-      { key: 'speaking',  label: '口语 Speaking',  desc: '8 个 Task · 含图文 · Prep + Recording',   icon: '🗣️' },
+      { key: 'listening', label: '🎧 Listening', desc: '6 Parts · Canadian accent · Per-question countdown', icon: '🎧' },
+      { key: 'reading',   label: '📖 Reading',   desc: '4 Parts · Split layout · Drop-down questions',       icon: '📖' },
+      { key: 'writing',   label: '✍️ Writing',   desc: '2 Tasks · CLB 4-dimension scoring · AI sample',       icon: '✍️' },
+      { key: 'speaking',  label: '🗣️ Speaking',  desc: '8 Tasks · Images included · Prep + Recording',       icon: '🗣️' },
     ];
     const SECTION_COLOR = {
       listening: '#3F84C7', reading: '#2E9F5B', writing: '#F5A623', speaking: '#A55BD6',
@@ -34,7 +34,7 @@
       const params = new URLSearchParams(location.search);
       const paperId = params.get('id');
       if (!paperId) {
-        document.getElementById('msg').innerHTML = '<div class="celpip-alert error">缺少 paper id 参数</div>';
+        document.getElementById('msg').innerHTML = '<div class="celpip-alert error">Missing paper id parameter</div>';
         document.getElementById('content').innerHTML = '';
         return;
       }
@@ -67,10 +67,10 @@
               <h1>${escapeHtml(paper.title)}</h1>
               <div style="display:flex;gap:12px;align-items:center;margin-top:6px">
                 <span class="celpip-badge">${escapeHtml(paper.difficulty)}</span>
-                <span style="color:#5C6773;font-size:13px">状态：${paper.status === 'published' ? '已发布' : '草稿'}</span>
+                <span style="color:#5C6773;font-size:13px">Status: ${paper.status === 'published' ? 'Published' : 'Draft'}</span>
               </div>
             </div>
-            <a class="celpip-btn secondary" href="celpip-report.html?paper_id=${paperId}">📊 查看成绩单</a>
+            <a class="celpip-btn secondary" href="celpip-report.html?paper_id=${paperId}">📊 View Report</a>
           </div>`;
 
         document.getElementById('content').innerHTML = `
@@ -94,7 +94,7 @@
                   </div>
                   <span style="font-size:11px;font-weight:700;color:#8A94A6">${d.done}/${d.total}</span>
                 </div>
-                <div style="color:#0055A4;font-weight:600">${d.done > 0 ? '继续 →' : '开始 →'}</div>
+                <div style="color:#0055A4;font-weight:600">${d.done > 0 ? 'Continue →' : 'Start Practice →'}</div>
               </div>`;
           }).join('')}</div>`;
 
@@ -102,14 +102,14 @@
         document.querySelectorAll('.celpip-section-card[data-section]').forEach(card => {
           card.addEventListener('click', () => {
             if (card.dataset.disabled === '1') {
-              alert("该板块尚无题目，请让管理员在后台点【一键生成】补充");
+              alert("No items yet in this section. Please ask the admin to generate items from the backend.");
             } else if (card.dataset.target) {
               location.href = card.dataset.target;
             }
           });
         });
       } catch (e) {
-        document.getElementById('msg').innerHTML = `<div class="celpip-alert error">加载失败：${escapeHtml(e.message)}</div>`;
+        document.getElementById('msg').innerHTML = `<div class="celpip-alert error">Failed to load: ${escapeHtml(e.message)}</div>`;
         document.getElementById('content').innerHTML = '';
       }
     })();

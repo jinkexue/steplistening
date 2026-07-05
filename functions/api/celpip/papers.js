@@ -83,13 +83,54 @@ export async function onRequestPost(context) {
         "INSERT INTO celpip_papers (title, difficulty, status, created_by) VALUES (?, ?, ?, ?)"
       ).bind(title, difficulty || "CLB9", status || "draft", guard.user.id).run();
       const paperId = r.meta.last_row_id;
-      // 自动创建 4 个 section
+      // 自动创建 4 个 section + 骨架题目占位
+      const sectionIds = {};
       for (const s of ["listening", "reading", "writing", "speaking"]) {
-        await env.DB.prepare(
+        const sr = await env.DB.prepare(
           "INSERT INTO celpip_paper_sections (paper_id, section) VALUES (?, ?)"
         ).bind(paperId, s).run();
+        sectionIds[s] = sr.meta.last_row_id;
       }
-      return json({ id: paperId }, 201);
+      // 听力 Part 1-6 骨架（一条记录=一个 Part）
+      const listenLayouts = {
+        1: { layout: "segmented",          timer: null },
+        2: { layout: "segmented",          timer: null },
+        3: { layout: "shared_timer",       timer: 240 },
+        4: { layout: "shared_timer",       timer: 180 },
+        5: { layout: "multi_image_shared", timer: 300 },
+        6: { layout: "shared_timer",       timer: 240 },
+      };
+      for (const p of [1, 2, 3, 4, 5, 6]) {
+        const meta = listenLayouts[p];
+        await env.DB.prepare(
+          `INSERT INTO celpip_listening_items
+            (section_id, part, order_index, title, part_layout, shared_timer_seconds,
+             transcript, question, options, answer, segments_json, questions_json, image_prompts_json)
+           VALUES (?, ?, ?, '', ?, ?, '', '', '[]', '', '[]', '[]', '[]')`
+        ).bind(sectionIds.listening, p, p, meta.layout, meta.timer).run();
+      }
+      // 阅读 4 个 Part
+      for (const p of [1, 2, 3, 4]) {
+        await env.DB.prepare(
+          `INSERT INTO celpip_reading_items (section_id, part, order_index, title, passage, questions)
+           VALUES (?, ?, ?, '', '', '[]')`
+        ).bind(sectionIds.reading, p, p).run();
+      }
+      // 写作 2 个 Task
+      for (const t of [1, 2]) {
+        await env.DB.prepare(
+          `INSERT INTO celpip_writing_items (section_id, task, order_index, prompt, background, chart_data, min_words, max_words)
+           VALUES (?, ?, ?, '', '', NULL, 150, 200)`
+        ).bind(sectionIds.writing, t, t).run();
+      }
+      // 口语 4 个 Task（简化：只做 Task 1-4，避免 8 张图消耗）
+      for (const t of [1, 2, 3, 4]) {
+        await env.DB.prepare(
+          `INSERT INTO celpip_speaking_items (section_id, task, order_index, prompt, image_prompt, vision_hints, prep_seconds, record_seconds)
+           VALUES (?, ?, ?, '', NULL, NULL, 30, 60)`
+        ).bind(sectionIds.speaking, t, t).run();
+      }
+      return json({ id: paperId, seeded: true }, 201);
     }
 
     if (action === "update") {
