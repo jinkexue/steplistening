@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>成绩单 - CELPIP</title>
+  <link rel="stylesheet" href="celpip.css">
+  <style>
+    .overall-box {
+      background: linear-gradient(135deg, #0055A4, #3F84C7);
+      color: #FFF; padding: 32px; border-radius: 16px; text-align: center;
+      margin-bottom: 24px;
+    }
+    .overall-clb { font-size: 84px; font-weight: 700; line-height: 1; margin: 12px 0; }
+    .overall-label { font-size: 14px; opacity: 0.9; }
+    .section-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+    .section-card {
+      background: #FFF; border: 1px solid var(--celpip-border);
+      border-top: 4px solid var(--celpip-primary); border-radius: 12px; padding: 20px;
+    }
+    .section-title { font-size: 15px; font-weight: 700; color: var(--celpip-text); margin-bottom: 4px; }
+    .section-clb { font-size: 42px; font-weight: 700; color: var(--celpip-primary); margin: 8px 0; }
+    .section-stat { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; border-bottom: 1px dashed var(--celpip-border); }
+    .section-stat:last-child { border-bottom: none; }
+    .stat-label { color: var(--celpip-muted); }
+    .stat-value { color: var(--celpip-text); font-weight: 600; }
+    .dim-row { display: flex; align-items: center; gap: 6px; font-size: 12px; margin-top: 4px; }
+    .dim-bar { flex: 1; height: 6px; background: var(--celpip-surface); border-radius: 3px; overflow: hidden; }
+    .dim-fill { height: 100%; background: var(--celpip-primary); }
+  </style>
+</head>
+<body>
+  <div class="celpip-container">
+    <div id="msg"></div>
+    <div id="app"><div class="celpip-loading"></div></div>
+  </div>
+  <script src="celpip.js"></script>
+  <script>
+    const SEC_META = {
+      listening: { label: '🎧 听力 Listening', color: '#3F84C7' },
+      reading:   { label: '📖 阅读 Reading',   color: '#2E9F5B' },
+      writing:   { label: '✍️ 写作 Writing',   color: '#F5A623' },
+      speaking:  { label: '🗣️ 口语 Speaking',  color: '#A55BD6' },
+    };
+    (async function main() {
+      const user = celpipRequireLogin();
+      if (!user) return;
+      celpipRenderNav('home');
+      const params = new URLSearchParams(location.search);
+      const paperId = params.get('paper_id');
+      if (!paperId) {
+        document.getElementById('msg').innerHTML = '<div class="celpip-alert error">缺少 paper_id</div>';
+        document.getElementById('app').innerHTML = '';
+        return;
+      }
+      try {
+        const data = await celpipApi('/celpip/report', { query: { paper_id: paperId, user_id: user.userId } });
+        render(data);
+      } catch (e) {
+        document.getElementById('msg').innerHTML = `<div class="celpip-alert error">${escapeHtml(e.message)}</div>`;
+        document.getElementById('app').innerHTML = '';
+      }
+    })();
+
+    function render(data) {
+      const app = document.getElementById('app');
+      const p = data.paper || {};
+      const s = data.sections || {};
+      const clb = data.overall_clb;
+      app.innerHTML = `
+        <div class="celpip-hero">
+          <div style="flex:1">
+            <h1>📊 成绩单</h1>
+            <p>${escapeHtml(p.title || '')}</p>
+          </div>
+          <a class="celpip-btn secondary" href="celpip-paper.html?id=${p.id}">← 返回试卷</a>
+        </div>
+        <div class="overall-box">
+          <div class="overall-label">综合 CLB 等级 · Overall Score</div>
+          <div class="overall-clb">${clb != null ? clb : '—'}</div>
+          <div class="overall-label">
+            听 ${s.listening?.estimated_clb ?? '—'} · 读 ${s.reading?.estimated_clb ?? '—'} · 写 ${s.writing?.avg_clb ?? '—'} · 说 ${s.speaking?.avg_clb ?? '—'}
+          </div>
+        </div>
+        <div class="section-cards">
+          ${renderCard('listening', s.listening)}
+          ${renderCard('reading', s.reading)}
+          ${renderCard('writing', s.writing)}
+          ${renderCard('speaking', s.speaking)}
+        </div>
+        <div style="text-align:center;margin-top:24px">
+          <a class="celpip-btn" href="celpip.html">继续挑战新试卷 →</a>
+        </div>
+      `;
+    }
+
+    function renderCard(secName, d) {
+      const meta = SEC_META[secName];
+      if (!d) return '';
+      let body = '';
+      if (secName === 'listening' || secName === 'reading') {
+        const acc = d.accuracy != null ? Math.round(d.accuracy * 100) + '%' : '—';
+        body = `
+          <div class="section-clb">CLB ${d.estimated_clb ?? '—'}</div>
+          <div class="section-stat"><span class="stat-label">正确率</span><span class="stat-value">${acc}</span></div>
+          <div class="section-stat"><span class="stat-label">对/错</span><span class="stat-value" style="color:#2E9F5B">${d.correct}</span> / <span style="color:#D64545;font-weight:600">${d.wrong}</span></div>
+          <div class="section-stat"><span class="stat-label">总题数</span><span class="stat-value">${d.total_questions || d.total || 0}</span></div>
+          <div class="section-stat"><span class="stat-label">超时题数</span><span class="stat-value" style="color:${d.overtime > 0 ? '#D64545' : '#2E9F5B'}">${d.overtime || 0}</span></div>`;
+      } else {
+        const dims = d.dimensions || {};
+        const dimLabels = {
+          fluency: '流畅度', grammar: '语法', vocabulary: '词汇',
+          content_coherence: '内容/连贯', readability: '可读性', task_fulfillment: '任务完成度',
+        };
+        const dimHtml = Object.entries(dims).map(([k, v]) => `
+          <div class="dim-row">
+            <span style="width:80px;color:#5C6773">${dimLabels[k] || k}</span>
+            <div class="dim-bar"><div class="dim-fill" style="width:${Math.min(100, v * 8.3)}%"></div></div>
+            <span style="width:24px;text-align:right;font-weight:700;color:#0055A4">${v}</span>
+          </div>`).join('');
+        body = `
+          <div class="section-clb">CLB ${d.avg_clb ?? '—'}</div>
+          <div class="section-stat"><span class="stat-label">已完成</span><span class="stat-value">${d.done} / ${d.total}</span></div>
+          ${dimHtml || '<div style="color:var(--celpip-muted);font-size:12px;margin-top:8px">尚未获取详细维度分</div>'}`;
+      }
+      return `
+        <div class="section-card" style="border-top-color:${meta.color}">
+          <div class="section-title">${meta.label}</div>
+          ${body}
+        </div>`;
+    }
+
+    function escapeHtml(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+      }[c]));
+    }
+  </script>
+</body>
+</html>

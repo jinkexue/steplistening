@@ -103,6 +103,10 @@
       state.submitted = true;
       if (state.timerId) { clearInterval(state.timerId); state.timerId = null; }
       state.selected = choice;
+      const it = activeItem();
+      const suggested = RECORDING_TIME_BY_PART[it ? it.part : 1] || 60;
+      const used = suggested - state.timeLeft; // 已用秒数
+      const overtime = auto ? true : (used > suggested);
       const user = celpipGetUser();
       try {
         await celpipApi('/celpip/attempts', {
@@ -112,14 +116,14 @@
             paper_id: Number(state.paperId),
             section: 'listening',
             item_id: state.activeId,
-            answer_json: JSON.stringify({ choice, auto: !!auto }),
+            answer_json: JSON.stringify({ choice, auto: !!auto, used_seconds: used, suggested_seconds: suggested, overtime }),
             status: 'submitted',
           },
         });
-        // 本地 attempts 记一下
         const existed = attemptOf(state.activeId);
-        if (existed) existed.answer_json = JSON.stringify({ choice });
-        else state.attempts.push({ item_id: state.activeId, answer_json: JSON.stringify({ choice }), status: 'submitted' });
+        const payload = JSON.stringify({ choice, used_seconds: used, suggested_seconds: suggested, overtime });
+        if (existed) existed.answer_json = payload;
+        else state.attempts.push({ item_id: state.activeId, answer_json: payload, status: 'submitted' });
       } catch (e) {
         console.warn('save attempt failed:', e.message);
       }
@@ -171,12 +175,15 @@
         : '';
 
       const isCorrectAnswer = (label, i, optText) => {
-        const a = String(it.answer);
-        return a === label || a === String(i) || a === optText;
+        // 归一化各种格式：字母A/索引0/完整选项文本 都算同一个答案
+        const a = normalize(it.answer);
+        const candidates = [normalize(label), normalize(String(i)), normalize(optText)];
+        return candidates.some(c => c === a);
       };
       const isSelected = (label, i, optText) => {
-        const s = state.selected;
-        return s === label || s === String(i) || s === optText;
+        const s = normalize(state.selected);
+        const candidates = [normalize(label), normalize(String(i)), normalize(optText)];
+        return candidates.some(c => c === s);
       };
       const optionsHtml = options.map((opt, i) => {
         const label = String.fromCharCode(65 + i);
@@ -206,11 +213,33 @@
             </div>` : ''}
         </div>` : '';
 
-      const isCorrect = state.submitted && state.selected != null && String(state.selected) === String(it.answer);
+      // 判定答对：把答案和用户选择都归一化后比较，同时允许"用户选字母/选完整文本"跟"数据库存字母/存索引/存完整文本"任意组合匹配
+      let isCorrect = false;
+      if (state.submitted && state.selected != null) {
+        for (let i = 0; i < options.length; i++) {
+          const label = String.fromCharCode(65 + i);
+          if (isSelected(label, i, options[i]) && isCorrectAnswer(label, i, options[i])) {
+            isCorrect = true; break;
+          }
+        }
+      }
+      const savedInfo = celpipSafeParse(savedAttempt?.answer_json, {});
+      const suggested = RECORDING_TIME_BY_PART[it.part] || 60;
+      const usedSec = savedInfo.used_seconds != null ? savedInfo.used_seconds : (suggested - state.timeLeft);
+      const isOvertime = savedInfo.overtime != null ? savedInfo.overtime : (usedSec > suggested);
+      const timeBadge = state.submitted
+        ? (isOvertime
+          ? `<div style="display:inline-flex;align-items:center;gap:6px;background:#FBEEEE;color:#D64545;padding:4px 10px;border-radius:12px;font-size:12px;font-weight:700">⏰ 超时 用时 ${usedSec}s / 建议 ${suggested}s</div>`
+          : `<div style="display:inline-flex;align-items:center;gap:6px;background:#E7F5EC;color:#2E9F5B;padding:4px 10px;border-radius:12px;font-size:12px;font-weight:700">⏱ 用时 ${usedSec}s / 建议 ${suggested}s</div>`)
+        : `<div style="display:inline-flex;align-items:center;gap:6px;background:#EEF4FB;color:#0055A4;padding:4px 10px;border-radius:12px;font-size:12px;font-weight:700">💡 建议 ${suggested}s</div>`;
+
       const resultBlock = state.submitted ? `
         <div class="celpip-card" style="background:#F5F7FA">
-          <div style="font-size:18px;font-weight:700;color:${isCorrect ? '#2E9F5B' : '#D64545'}">
-            ${isCorrect ? '✓ 答对了' : '✗ 答错了'}
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;flex-wrap:wrap">
+            <div style="font-size:18px;font-weight:700;color:${isCorrect ? '#2E9F5B' : '#D64545'}">
+              ${isCorrect ? '✓ 答对了' : '✗ 答错了'}
+            </div>
+            ${timeBadge}
           </div>
           <div style="color:#5C6773;margin-top:4px">正确答案：${escapeHtml(String(it.answer))}</div>
           ${it.transcript ? `
@@ -277,6 +306,17 @@
       return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
         '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
       }[c]));
+    }
+    // 归一化答案值：去空白、去引号、去点、大写；把"A."/"a"/"A"/" A "都变成 "A"
+    function normalize(v) {
+      if (v == null) return '';
+      let s = String(v).trim().replace(/^[\s"'\[\]\(\)]+|[\s"'\[\]\(\)]+$/g, '');
+      s = s.replace(/^[A-Da-d]\s*[\.\)、:：]\s*/, m => m.trim()[0]); // "A. xxx" → "A"（若开头是选项前缀，只保留字母）
+      // 单字母答案统一大写
+      if (/^[A-Da-d]$/.test(s)) return s.toUpperCase();
+      // 纯数字（索引）保持
+      if (/^\d+$/.test(s)) return s;
+      return s.toLowerCase();
     }
 
     // 暴露到全局给 inline onclick 调

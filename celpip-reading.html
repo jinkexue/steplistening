@@ -49,6 +49,9 @@
 
   <script src="celpip.js"></script>
   <script>
+    // CELPIP 官方 Reading 每个 Part 建议时间（分钟）
+    const READING_MINUTES_BY_PART = { 1: 11, 2: 9, 3: 10, 4: 13 };
+
     let state = {
       items: [], attempts: [], activeId: null, paperId: null,
       answers: {},  // { qIndex: 'A' }  当前题的选择
@@ -91,11 +94,18 @@
       state.explain = null;
       state.explaining = false;
       state.explainQuestion = null;
+      state.startedAt = Date.now();       // 计时开始
+      state.usedSeconds = null;
+      state.overtime = false;
       const at = attemptOf(state.activeId);
       const parsed = at && at.answer_json ? celpipSafeParse(at.answer_json, {}) : null;
       if (parsed && parsed.answers) {
         state.answers = parsed.answers;
         state.submitted = true;
+        if (parsed.used_seconds != null) {
+          state.usedSeconds = parsed.used_seconds;
+          state.overtime = !!parsed.overtime;
+        }
       }
       render();
     }
@@ -118,6 +128,9 @@
       const it = activeItem();
       if (!it) return;
       state.submitted = true;
+      const suggested = (READING_MINUTES_BY_PART[it.part] || 10) * 60;
+      state.usedSeconds = Math.floor((Date.now() - (state.startedAt || Date.now())) / 1000);
+      state.overtime = state.usedSeconds > suggested;
       const user = celpipGetUser();
       try {
         await celpipApi('/celpip/attempts', {
@@ -127,13 +140,24 @@
             paper_id: Number(state.paperId),
             section: 'reading',
             item_id: state.activeId,
-            answer_json: JSON.stringify({ answers: state.answers }),
+            answer_json: JSON.stringify({
+              answers: state.answers,
+              used_seconds: state.usedSeconds,
+              suggested_seconds: suggested,
+              overtime: state.overtime,
+            }),
             status: 'submitted',
           },
         });
         const existed = attemptOf(state.activeId);
-        if (existed) existed.answer_json = JSON.stringify({ answers: state.answers });
-        else state.attempts.push({ item_id: state.activeId, answer_json: JSON.stringify({ answers: state.answers }), status: 'submitted' });
+        const payload = JSON.stringify({
+          answers: state.answers,
+          used_seconds: state.usedSeconds,
+          suggested_seconds: suggested,
+          overtime: state.overtime,
+        });
+        if (existed) existed.answer_json = payload;
+        else state.attempts.push({ item_id: state.activeId, answer_json: payload, status: 'submitted' });
       } catch (e) { console.warn(e.message); }
       render();
     }
@@ -193,11 +217,11 @@
         const userAns = state.answers[i];
         let resultBlock = '';
         if (state.submitted) {
-          const correct = String(q.answer);
-          const isCorrect = String(userAns) === correct;
+          const correct = normalize(q.answer);
+          const isCorrect = normalize(userAns) === correct;
           resultBlock = isCorrect
             ? `<div class="qa-result-correct">✓ 正确</div>`
-            : `<div class="qa-result-wrong">✗ 错误，正确答案：${escapeHtml(correct)}</div>`;
+            : `<div class="qa-result-wrong">✗ 错误，正确答案：${escapeHtml(String(q.answer))}</div>`;
         }
         return `
           <div class="qa-item">
@@ -240,6 +264,7 @@
         <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:16px">
           <h2 style="color:var(--celpip-primary);font-size:20px">Reading Part ${it.part}</h2>
           <div class="celpip-nav-chips">${navChips}</div>
+          ${renderTimeBadge(it)}
         </div>
         <div class="reading-layout">${leftHtml}${rightHtml}</div>
         <div style="display:flex;justify-content:space-between;gap:12px;margin-top:24px">
@@ -247,6 +272,20 @@
           ${next ? `<button class="celpip-btn" onclick="switchItem(${next})">下一题 →</button>` :
                    (state.submitted ? `<a class="celpip-btn" href="celpip-paper.html?id=${state.paperId}">返回试卷</a>` : '<span></span>')}
         </div>`;
+    }
+
+    function renderTimeBadge(it) {
+      const suggested = (READING_MINUTES_BY_PART[it.part] || 10) * 60;
+      const suggestedMin = Math.round(suggested / 60);
+      if (state.submitted && state.usedSeconds != null) {
+        const used = state.usedSeconds;
+        const usedTxt = used >= 60 ? `${Math.floor(used / 60)}m${used % 60}s` : `${used}s`;
+        if (state.overtime) {
+          return `<div style="display:inline-flex;align-items:center;gap:6px;background:#FBEEEE;color:#D64545;padding:4px 10px;border-radius:12px;font-size:12px;font-weight:700">⏰ 超时 · 用时 ${usedTxt} / 建议 ${suggestedMin}m</div>`;
+        }
+        return `<div style="display:inline-flex;align-items:center;gap:6px;background:#E7F5EC;color:#2E9F5B;padding:4px 10px;border-radius:12px;font-size:12px;font-weight:700">⏱ 用时 ${usedTxt} / 建议 ${suggestedMin}m</div>`;
+      }
+      return `<div style="display:inline-flex;align-items:center;gap:6px;background:#EEF4FB;color:#0055A4;padding:4px 10px;border-radius:12px;font-size:12px;font-weight:700">💡 建议 ${suggestedMin} 分钟</div>`;
     }
 
     function renderParaGist(passage, gists, locator) {
@@ -286,6 +325,14 @@
       }[c]));
     }
     function escapeAttr(s) { return escapeHtml(s); }
+    function normalize(v) {
+      if (v == null) return '';
+      let s = String(v).trim().replace(/^[\s"'\[\]\(\)]+|[\s"'\[\]\(\)]+$/g, '');
+      s = s.replace(/^[A-Da-d]\s*[\.\)、:：]\s*/, m => m.trim()[0]);
+      if (/^[A-Da-d]$/.test(s)) return s.toUpperCase();
+      if (/^\d+$/.test(s)) return s;
+      return s.toLowerCase();
+    }
 
     window.switchItem = switchItem;
     window.selectAnswer = selectAnswer;

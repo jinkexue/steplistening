@@ -17,6 +17,7 @@
     </div>
 
     <div id="msg"></div>
+    <div id="chartBox" style="margin-bottom:16px"></div>
     <div id="content"><div class="celpip-loading"></div></div>
   </div>
 
@@ -29,12 +30,18 @@
 
       const msgEl = document.getElementById('msg');
       const contentEl = document.getElementById('content');
+      const chartEl = document.getElementById('chartBox');
 
       // 管理员入口按钮
       if (user.isAdmin) {
         document.getElementById('adminBtnBox').innerHTML =
           '<a class="celpip-admin-btn" href="celpip-admin.html">⚙️ 管理员后台</a>';
       }
+
+      // 并发加载历史曲线（失败不阻塞主流程）
+      celpipApi('/celpip/history', { query: { user_id: user.userId } })
+        .then(h => renderHistoryChart(chartEl, h.history || []))
+        .catch(err => console.warn('history load failed:', err.message));
 
       try {
         const data = await celpipApi('/celpip/papers', {
@@ -68,6 +75,57 @@
       return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
         '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
       }[c]));
+    }
+
+    // 渲染 CLB 历史曲线（SVG 折线）
+    function renderHistoryChart(el, history) {
+      const points = history.filter(h => h.overall_clb != null);
+      if (points.length === 0) { el.innerHTML = ''; return; }
+
+      const W = 800, H = 180, padL = 40, padR = 20, padT = 20, padB = 30;
+      const chartW = W - padL - padR, chartH = H - padT - padB;
+      const maxClb = 12, minClb = 4;
+      const yFor = (clb) => padT + (1 - (clb - minClb) / (maxClb - minClb)) * chartH;
+      const xFor = (i) => padL + (points.length === 1 ? chartW / 2 : (i / (points.length - 1)) * chartW);
+
+      const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${xFor(i)} ${yFor(p.overall_clb)}`).join(' ');
+      const dots = points.map((p, i) => `
+        <circle cx="${xFor(i)}" cy="${yFor(p.overall_clb)}" r="5" fill="#FFF" stroke="#0055A4" stroke-width="2">
+          <title>${escapeHtml(p.paper_title)} — CLB ${p.overall_clb}</title>
+        </circle>
+        <text x="${xFor(i)}" y="${yFor(p.overall_clb) - 12}" text-anchor="middle" font-size="12" font-weight="700" fill="#0055A4">${p.overall_clb}</text>
+      `).join('');
+      const yLabels = [4, 6, 8, 10, 12].map(v => `
+        <text x="${padL - 8}" y="${yFor(v) + 4}" text-anchor="end" font-size="10" fill="#8A94A6">${v}</text>
+        <line x1="${padL}" x2="${W - padR}" y1="${yFor(v)}" y2="${yFor(v)}" stroke="#E1E6ED" stroke-dasharray="2,3"/>
+      `).join('');
+      const xLabels = points.map((p, i) => `
+        <text x="${xFor(i)}" y="${H - padB + 18}" text-anchor="middle" font-size="10" fill="#5C6773">${(p.paper_title || '#'+p.paper_id).slice(0, 10)}</text>
+      `).join('');
+
+      const latestClb = points[points.length - 1].overall_clb;
+      const trend = points.length > 1
+        ? (latestClb - points[0].overall_clb)
+        : 0;
+      const trendTxt = trend > 0 ? `↑ +${trend}` : trend < 0 ? `↓ ${trend}` : '→ 持平';
+      const trendColor = trend > 0 ? '#2E9F5B' : trend < 0 ? '#D64545' : '#5C6773';
+
+      el.innerHTML = `
+        <div class="celpip-card" style="padding:16px 20px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <div>
+              <h3 style="color:var(--celpip-primary);margin:0">📈 我的 CLB 进步曲线</h3>
+              <div style="font-size:12px;color:var(--celpip-muted);margin-top:2px">当前 CLB <b style="color:var(--celpip-primary)">${latestClb}</b> · 相对首次 <b style="color:${trendColor}">${trendTxt}</b></div>
+            </div>
+            <div style="font-size:12px;color:var(--celpip-subtle)">共 ${points.length} 份完成试卷</div>
+          </div>
+          <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">
+            ${yLabels}
+            <path d="${linePath}" fill="none" stroke="#0055A4" stroke-width="2.5"/>
+            ${dots}
+            ${xLabels}
+          </svg>
+        </div>`;
     }
   </script>
 </body>
