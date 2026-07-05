@@ -61,11 +61,38 @@
       startedAt: null,
       perQuestionIdx: 0,
       mode: localStorage.getItem('celpip_listen_mode') || 'practice', // 'practice' | 'exam'
+      playRequested: false,   // 用户/系统已请求开始播放
+      bufferSeconds: 0,       // 考试模式倒计时
+      bufferTimerId: null,    // 缓冲期定时器
     };
 
     function replayCurrentAudio() {
       const audio = document.querySelector('.audio-panel audio');
       if (audio) { audio.currentTime = 0; audio.play(); }
+    }
+
+    function requestStartPlaying() {
+      if (state.playRequested) return;
+      state.playRequested = true;
+      state.segmentPlayed = false;
+      state.audioPlayed = false;
+      render();
+      // 由 audio 的 autoplay 触发；若浏览器 autoplay policy 阻止，用户下方仍可手动点击 controls
+    }
+
+    function startExamBuffer(seconds) {
+      if (state.bufferTimerId) return;
+      state.bufferSeconds = seconds;
+      state.bufferTimerId = setInterval(() => {
+        state.bufferSeconds -= 1;
+        const el = document.getElementById('bufferCountdown');
+        if (el) el.textContent = state.bufferSeconds;
+        if (state.bufferSeconds <= 0) {
+          clearInterval(state.bufferTimerId);
+          state.bufferTimerId = null;
+          requestStartPlaying();
+        }
+      }, 1000);
     }
 
     (async function main() {
@@ -104,6 +131,7 @@
 
     function loadItem() {
       if (state.timerId) { clearInterval(state.timerId); state.timerId = null; }
+      if (state.bufferTimerId) { clearInterval(state.bufferTimerId); state.bufferTimerId = null; }
       state.currentSegIdx = 0;
       state.segmentPlayed = false;
       state.audioPlayed = false;
@@ -112,6 +140,8 @@
       state.timeLeft = 0;
       state.perQuestionIdx = 0;
       state.startedAt = Date.now();
+      state.playRequested = false;
+      state.bufferSeconds = 0;
       const at = attemptOf(state.activeId);
       if (at && at.answer_json) {
         const p = celpipSafeParse(at.answer_json, {});
@@ -120,7 +150,12 @@
           state.submitted = true;
           state.audioPlayed = true;
           state.segmentPlayed = true;
+          state.playRequested = true;
         }
+      }
+      // 考试模式自动 3 秒缓冲后开播
+      if (!state.submitted && state.mode === 'exam') {
+        startExamBuffer(3);
       }
       render();
     }
@@ -264,7 +299,24 @@
 
       // 左侧：音频面板
       let audioBody = '';
-      if (layout === 'segmented') {
+      if (!state.playRequested) {
+        // 未开播：考试模式显示缓冲倒计时；练习模式显示大按钮
+        if (state.mode === 'exam') {
+          audioBody = `
+            <div class="audio-status playing">🎧 准备开始 · 请戴好耳机</div>
+            <div style="text-align:center;padding:40px 20px;background:#F5F7FA;border-radius:12px;margin-top:12px">
+              <div style="font-size:60px;font-weight:700;color:#D64545;line-height:1"><span id="bufferCountdown">${state.bufferSeconds}</span></div>
+              <div style="color:#5C6773;margin-top:8px;font-size:13px">秒后开始播放（不可暂停/回听）</div>
+            </div>`;
+        } else {
+          audioBody = `
+            <div class="audio-status idle">🎧 准备完毕，随时开始</div>
+            <button class="celpip-btn" style="width:100%;margin-top:12px;font-size:16px;padding:14px" onclick="requestStartPlaying()">
+              ▶️ 开始播放
+            </button>
+            <div style="color:#5C6773;font-size:12px;margin-top:8px;text-align:center">练习模式：可随时重听</div>`;
+        }
+      } else if (layout === 'segmented') {
         const seg = segments[state.currentSegIdx] || {};
         const audioKey = seg.audio_key || it.audio_key;
         const segChips = segments.map((_, i) => `
@@ -396,7 +448,12 @@
     function toggleMode() {
       state.mode = state.mode === 'exam' ? 'practice' : 'exam';
       localStorage.setItem('celpip_listen_mode', state.mode);
-      // 切换模式后需要完整重绘（audio 的 controls 属性可能变化）
+      // 切换模式时若尚未开播则重置逻辑
+      if (!state.playRequested && !state.submitted) {
+        if (state.bufferTimerId) { clearInterval(state.bufferTimerId); state.bufferTimerId = null; }
+        if (state.mode === 'exam') startExamBuffer(3);
+        else state.bufferSeconds = 0;
+      }
       render();
     }
 
@@ -508,6 +565,7 @@
     window.nextInSegment = nextInSegment;
     window.replayCurrentAudio = replayCurrentAudio;
     window.toggleMode = toggleMode;
+    window.requestStartPlaying = requestStartPlaying;
   </script>
 </body>
 </html>

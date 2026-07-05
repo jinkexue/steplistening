@@ -353,7 +353,27 @@
 
     // ================= AI 配置 =================
     // 按模型类别分区展示（每类独立 endpoint + model）
-    const SETTING_GROUPS = [
+    // TTS 音色列表：Cloudflare Aura-2 & 火山方舟 seed-tts-2.0
+      const CF_SPEAKERS = [
+        { value: '@cf/deepgram/aura-2-thalia-en',    label: 'Thalia · 女 · 清晰/自信/热情（en-US）' },
+        { value: '@cf/deepgram/aura-2-andromeda-en', label: 'Andromeda · 女 · 随和/富表现力（en-US）' },
+        { value: '@cf/deepgram/aura-2-helena-en',    label: 'Helena · 女 · 亲切/自然（en-US）' },
+        { value: '@cf/deepgram/aura-2-apollo-en',    label: 'Apollo · 男 · 自信/随意（en-US）' },
+        { value: '@cf/deepgram/aura-2-arcas-en',     label: 'Arcas · 男 · 自然/顺滑（en-US）' },
+        { value: '@cf/deepgram/aura-2-aries-en',     label: 'Aries · 男 · 温暖/有活力（en-US）' },
+        { value: '@cf/deepgram/aura-2-en',           label: 'Default Aura-2 en（备用）' },
+      ];
+      const VOLC_SPEAKERS = [
+        { value: 'en_female_dacey_uranus_bigtts',    label: 'Dacey · 女 · 美式英语' },
+        { value: 'en_female_stokie_uranus_bigtts',   label: 'Stokie · 女 · 美式英语' },
+        { value: 'en_male_tim_uranus_bigtts',        label: 'Tim · 男 · 美式英语' },
+        { value: 'ICL_uranus_en_female_charlie_tob', label: 'Charlie 2.0 · 女 · 美式英语' },
+        { value: 'ICL_uranus_en_male_chucky_tob',    label: 'Chucky 2.0 · 男 · 美式英语' },
+        { value: 'ICL_uranus_en_male_noah_tob',      label: 'Noah 2.0 · 男 · 美式英语' },
+        { value: 'ICL_uranus_en_male_jigsaw_tob',    label: 'Jigsaw 2.0 · 男 · 美式英语' },
+      ];
+
+      const SETTING_GROUPS = [
       {
         title: '① 语言模型 LLM（阅读/写作/口语生成 & 评分）',
         note: '火山方舟：<code>https://ark.cn-beijing.volces.com/api/plan/v3</code>；模型如 <code>ark-code-latest</code>',
@@ -382,21 +402,27 @@
       },
       {
         title: '④ 语音合成 TTS（听力音频生成）',
-        note: 'Primary 是首选服务。若失败（如免费额度耗尽），会自动切到 Fallback 服务。<br>'
-            + '<b>Speakers 多角色映射</b>格式：<code>A|zh_female_vv_uranus_bigtts, B|en_male_tim_uranus_bigtts</code>（用 <code>,</code> 或换行分隔）。<br>'
-            + '若听力对话使用<b>多说话人格式</b>（<code>A: xxx\\nB: yyy</code>），会按角色分配不同声音后拼接。',
+        note: 'Primary 是首选服务；失败（如免费额度耗尽）自动切到 Fallback。多说话人 A/B/C 用于对话类音频（Part 3/4/5），LLM 会以 <code>A: ...\\nB: ...</code> 格式生成对话，后端按角色分别合成再拼接。',
         provider: { key: 'tts_provider', options: [
           { value: 'cloudflare', label: 'Cloudflare Workers AI（免费但额度小）' },
           { value: 'volc',       label: '火山方舟 Agent Plan TTS（推荐 · seed-tts-2.0）' },
         ]},
         fields: [
-          { key: 'tts_fallback_provider', label: 'Fallback Provider（主失败时自动切换。留空=不启用；可填 cloudflare 或 volc）' },
-          { key: 'cf_tts_model',          label: 'Cloudflare TTS 模型（默认 @cf/deepgram/aura-2-en）' },
-          { key: 'cf_tts_speakers',       label: 'Cloudflare 多角色 speaker 映射（可选，如 A|@cf/deepgram/aura-2-en, B|@cf/deepgram/aura-2-en）' },
-          { key: 'volc_tts_endpoint',     label: '火山 TTS URL（默认 /api/v3/plan/tts/unidirectional，可留空）' },
-          { key: 'volc_tts_model',        label: '火山 Resource-Id（默认 seed-tts-2.0）' },
-          { key: 'volc_tts_speaker',      label: '火山单说话人 Speaker（默认 en_female_dacey_uranus_bigtts）' },
-          { key: 'volc_tts_speakers',     label: '火山多角色 speaker 映射（如 A|en_female_dacey_uranus_bigtts, B|en_male_tim_uranus_bigtts, C|en_female_stokie_uranus_bigtts）' },
+          { key: 'tts_fallback_provider', label: 'Fallback Provider（主失败时自动切换）', type: 'select', options: [
+            { value: '',           label: '（不启用回退）' },
+            { value: 'cloudflare', label: 'Cloudflare Workers AI' },
+            { value: 'volc',       label: '火山方舟 Agent Plan TTS' },
+          ]},
+          { key: 'cf_tts_model',      label: 'Cloudflare 单说话人 · 默认音色', type: 'select', options: CF_SPEAKERS },
+          { key: 'cf_tts_speakers',   label: 'Cloudflare 多角色映射（对话类使用）', type: 'role_map', roles: ['A', 'B', 'C'], speakerOptions: CF_SPEAKERS },
+          { key: 'volc_tts_endpoint', label: '火山 TTS URL（默认 Agent Plan HTTP）' },
+          { key: 'volc_tts_model',    label: '火山 Resource-Id', type: 'select', options: [
+            { value: 'seed-tts-2.0',       label: 'seed-tts-2.0（推荐 · 支持所有 2.0 音色）' },
+            { value: 'seed-tts-1.0',       label: 'seed-tts-1.0（老版本，字符版计费）' },
+            { value: 'seed-tts-1.0-concurr', label: 'seed-tts-1.0-concurr（老版本，并发版计费）' },
+          ]},
+          { key: 'volc_tts_speaker',  label: '火山单说话人 · 默认音色', type: 'select', options: VOLC_SPEAKERS },
+          { key: 'volc_tts_speakers', label: '火山多角色映射（对话类使用）', type: 'role_map', roles: ['A', 'B', 'C'], speakerOptions: VOLC_SPEAKERS },
         ],
       },
       {
@@ -462,6 +488,39 @@
 
         const fieldsHtml = shouldHideByToggle ? '' : g.fields.map(f => {
           if (f.showIf && providerVal !== f.showIf) return '';
+          // 下拉框
+          if (f.type === 'select' && Array.isArray(f.options)) {
+            const cur = s[f.key] || (f.options[0]?.value || '');
+            return `
+              <div class="form-row">
+                <label class="celpip-label">${escapeHtml(f.label)}</label>
+                <select class="celpip-input" data-key="${f.key}">
+                  ${f.options.map(o => `<option value="${escapeAttr(o.value)}" ${cur === o.value ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
+                </select>
+              </div>`;
+          }
+          // 多角色映射：固定 3 行，每行 role 输入 + speaker 下拉
+          if (f.type === 'role_map' && Array.isArray(f.speakerOptions)) {
+            const map = parseSpeakerMapStr(s[f.key] || '');
+            const roleNames = f.roles || ['A', 'B', 'C'];
+            const rows = roleNames.map(role => {
+              const cur = map[role] || '';
+              const opts = [{ value: '', label: '（不使用此角色）' }, ...f.speakerOptions];
+              return `
+                <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+                  <span style="width:24px;font-weight:700;color:#5C6773">${escapeHtml(role)}</span>
+                  <select class="celpip-input" data-role-map="${f.key}" data-role="${escapeAttr(role)}" style="flex:1">
+                    ${opts.map(o => `<option value="${escapeAttr(o.value)}" ${cur === o.value ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
+                  </select>
+                </div>`;
+            }).join('');
+            return `
+              <div class="form-row">
+                <label class="celpip-label">${escapeHtml(f.label)}</label>
+                ${rows}
+                <input type="hidden" data-key="${f.key}" value="${escapeAttr(s[f.key] || '')}">
+              </div>`;
+          }
           return `
             <div class="form-row">
               <label class="celpip-label">${escapeHtml(f.label)}</label>
@@ -496,14 +555,39 @@
         cb.addEventListener('change', syncAndRerender);
       });
     }
+    // 解析 "A|speaker1, B|speaker2" 为 {A:'speaker1', B:'speaker2'}
+    function parseSpeakerMapStr(str) {
+      const map = {};
+      if (!str) return map;
+      for (const part of String(str).split(/[,\n]/)) {
+        const seg = part.trim();
+        if (!seg) continue;
+        const [role, sp] = seg.split('|').map(x => (x || '').trim());
+        if (role && sp) map[role] = sp;
+      }
+      return map;
+    }
+    // 序列化回字符串
+    function stringifySpeakerMap(map) {
+      return Object.entries(map).filter(([r, sp]) => r && sp).map(([r, sp]) => `${r}|${sp}`).join(', ');
+    }
+
     async function saveSettings() {
       const updates = {};
-      document.querySelectorAll('#settingsForm input[data-key]').forEach(inp => {
+      // 先处理 role_map（把 3 个下拉的选择序列化成 A|xx, B|yy）
+      const roleMaps = {};
+      document.querySelectorAll('#settingsForm select[data-role-map]').forEach(sel => {
+        const key = sel.dataset.roleMap;
+        const role = sel.dataset.role;
+        if (!roleMaps[key]) roleMaps[key] = {};
+        if (sel.value) roleMaps[key][role] = sel.value;
+      });
+      for (const key of Object.keys(roleMaps)) updates[key] = stringifySpeakerMap(roleMaps[key]);
+      // 普通字段
+      document.querySelectorAll('#settingsForm input[data-key], #settingsForm select[data-key]').forEach(inp => {
+        if (updates[inp.dataset.key] != null) return; // 已被 role_map 处理
         if (inp.type === 'checkbox') updates[inp.dataset.key] = inp.checked ? '1' : '0';
         else updates[inp.dataset.key] = inp.value;
-      });
-      document.querySelectorAll('#settingsForm select[data-key]').forEach(sel => {
-        updates[sel.dataset.key] = sel.value;
       });
       try {
         await celpipApi('/admin/settings', {
