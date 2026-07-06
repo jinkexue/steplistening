@@ -250,7 +250,15 @@
 
     function renderQAOnly() {
       const qaEl = document.getElementById('qaPanel');
-      if (qaEl) qaEl.innerHTML = buildQABody();
+      console.log('[renderQAOnly] qaEl=', qaEl, 'segmentPlayed=', state.segmentPlayed, 'playRequested=', state.playRequested);
+      if (qaEl) {
+        const html = buildQABody();
+        console.log('[renderQAOnly] body length=', html.length, 'preview=', html.slice(0, 120));
+        qaEl.innerHTML = html;
+      } else {
+        console.warn('[renderQAOnly] #qaPanel not found, doing full render()');
+        render();
+      }
     }
 
     async function submitAll() {
@@ -528,6 +536,7 @@
       const questions = parsedQuestions(it);
       const qType = questionType(it);
       const isExam = state.mode === 'exam';
+      console.log('[buildQABody] layout=', layout, 'segmentPlayed=', state.segmentPlayed, 'submitted=', state.submitted, 'currentSegIdx=', state.currentSegIdx, 'perQIdx=', state.perQuestionIdx);
 
       // 未开播 -> 空白等待
       if (!state.playRequested) {
