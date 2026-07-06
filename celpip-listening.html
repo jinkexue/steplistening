@@ -453,7 +453,7 @@
             ${!isExam ? `
               <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
                 <button class="celpip-btn secondary small" onclick="replayCurrentAudio()">🔁 Replay Segment</button>
-                ${!state.segmentPlayed ? '<button class="celpip-btn small" onclick="manualFinishAudio()">✓ I\\'ve Finished Listening</button>' : ''}
+                ${!state.segmentPlayed ? '<button class="celpip-btn small" onclick="manualFinishAudio()">✓ I have Finished Listening</button>' : ''}
               </div>` : ''}
           ` : '<div class="celpip-alert error">Segment audio missing.</div>'}
           <div class="seg-list">${segChips}</div>`;
@@ -473,7 +473,7 @@
             ${!isExam ? `
               <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
                 <button class="celpip-btn secondary small" onclick="replayCurrentAudio()">🔁 Replay Audio</button>
-                ${!state.audioPlayed ? '<button class="celpip-btn small" onclick="manualFinishAudio()">✓ I\\'ve Finished Listening</button>' : ''}
+                ${!state.audioPlayed ? '<button class="celpip-btn small" onclick="manualFinishAudio()">✓ I have Finished Listening</button>' : ''}
               </div>` : ''}
           ` : '<div class="celpip-alert error">Audio missing.</div>'}
           ${imageKeys.length && layout === 'multi_image_shared'
