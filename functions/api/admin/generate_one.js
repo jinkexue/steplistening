@@ -159,13 +159,15 @@ export async function onRequestPost(context) {
       const questions = obj.questions || (obj.question ? [{ q: obj.question, options: obj.options || [], answer: obj.answer }] : []);
       const segments = obj.segments || (obj.transcript ? [{ transcript: obj.transcript, question_indices: questions.map((_, i) => i) }] : []);
       const sharedTimer = obj.shared_timer_seconds || null;
+      // 默认题型：segmented 默认 radio；其他默认 radio（Part 3/6 由 prompt 生成时 obj.question_type=dropdown 覆盖）
+      const questionType = obj.question_type || "radio";
 
       const r = await env.DB.prepare(
         `INSERT INTO celpip_listening_items
           (section_id, part, order_index, title, part_layout,
            segments_json, questions_json, image_prompts_json, shared_timer_seconds,
-           transcript, question, options, answer)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+           question_type, transcript, question, options, answer)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).bind(
         sectionId, part_or_task, part_or_task,
         obj.title || "", partLayout,
@@ -173,6 +175,7 @@ export async function onRequestPost(context) {
         JSON.stringify(questions),
         JSON.stringify(obj.image_prompts || []),
         sharedTimer,
+        questionType,
         // 兼容旧字段（把整段 transcript 拼起来存一份，方便旧代码读取）
         segments.map(s => s.transcript || "").join("\n\n"),
         questions[0]?.q || "",

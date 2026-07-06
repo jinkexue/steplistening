@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>听力练习 - CELPIP</title>
+  <title>Listening Practice - CELPIP</title>
   <link rel="stylesheet" href="celpip.css">
   <style>
     .listen-layout {
@@ -39,6 +39,40 @@
       gap: 8px; margin-top: 12px;
     }
     .part-image-grid img { width: 100%; height: auto; border-radius: 8px; }
+
+    /* 模式选择弹窗 */
+    .mode-overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.55); display: flex; align-items: center; justify-content: center;
+      z-index: 999; padding: 20px;
+    }
+    .mode-modal {
+      background: #FFF; border-radius: 16px; max-width: 640px; width: 100%;
+      padding: 32px; box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+    }
+    .mode-modal h2 { color: #0055A4; margin-bottom: 8px; }
+    .mode-modal p.sub { color: #5C6773; margin-bottom: 24px; font-size: 14px; }
+    .mode-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .mode-card {
+      border: 2px solid var(--celpip-border); border-radius: 12px; padding: 20px;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .mode-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.08); }
+    .mode-card.practice { border-color: #2E9F5B; }
+    .mode-card.exam { border-color: #D64545; }
+    .mode-card h3 { margin-bottom: 8px; }
+    .mode-card ul { padding-left: 20px; color: #5C6773; font-size: 13px; }
+    .mode-card ul li { padding: 2px 0; }
+    .listening-placeholder {
+      background: #F5F7FA; border-radius: 12px; padding: 60px 20px;
+      text-align: center; color: #5C6773;
+    }
+    .listening-placeholder .icon { font-size: 60px; margin-bottom: 12px; }
+    .dropdown-select {
+      display: inline-block; padding: 6px 10px; border: 1.5px solid var(--celpip-border);
+      border-radius: 8px; font-size: 14px; background: #FFF; min-width: 200px;
+      margin: 0 4px;
+    }
   </style>
 </head>
 <body>
@@ -46,6 +80,7 @@
     <div id="msg"></div>
     <div id="app"><div class="celpip-loading"></div></div>
   </div>
+  <div id="modeOverlay"></div>
 
   <script src="celpip.js"></script>
   <script>
@@ -60,10 +95,8 @@
       timeLeft: 0,
       startedAt: null,
       perQuestionIdx: 0,
-      mode: localStorage.getItem('celpip_listen_mode') || 'practice', // 'practice' | 'exam'
-      playRequested: false,   // 用户/系统已请求开始播放
-      bufferSeconds: 0,       // 考试模式倒计时
-      bufferTimerId: null,    // 缓冲期定时器
+      mode: null,               // 必选：'practice' | 'exam'（每次进入板块重新选）
+      playRequested: false,
     };
 
     function replayCurrentAudio() {
@@ -77,22 +110,6 @@
       state.segmentPlayed = false;
       state.audioPlayed = false;
       render();
-      // 由 audio 的 autoplay 触发；若浏览器 autoplay policy 阻止，用户下方仍可手动点击 controls
-    }
-
-    function startExamBuffer(seconds) {
-      if (state.bufferTimerId) return;
-      state.bufferSeconds = seconds;
-      state.bufferTimerId = setInterval(() => {
-        state.bufferSeconds -= 1;
-        const el = document.getElementById('bufferCountdown');
-        if (el) el.textContent = state.bufferSeconds;
-        if (state.bufferSeconds <= 0) {
-          clearInterval(state.bufferTimerId);
-          state.bufferTimerId = null;
-          requestStartPlaying();
-        }
-      }, 1000);
     }
 
     (async function main() {
@@ -103,7 +120,7 @@
       state.paperId = params.get('paper_id');
       state.activeId = Number(params.get('item_id'));
       if (!state.paperId || !state.activeId) {
-        document.getElementById('msg').innerHTML = '<div class="celpip-alert error">缺少参数</div>';
+        document.getElementById('msg').innerHTML = '<div class="celpip-alert error">Missing parameters</div>';
         document.getElementById('app').innerHTML = '';
         return;
       }
@@ -113,12 +130,53 @@
         });
         state.items = data.items || [];
         state.attempts = data.attempts || [];
-        loadItem();
+        // 弹出模式选择
+        showModeModal();
       } catch (e) {
         document.getElementById('msg').innerHTML = `<div class="celpip-alert error">Failed to load: ${escapeHtml(e.message)}</div>`;
         document.getElementById('app').innerHTML = '';
       }
     })();
+
+    function showModeModal() {
+      const el = document.getElementById('modeOverlay');
+      el.innerHTML = `
+        <div class="mode-overlay">
+          <div class="mode-modal">
+            <h2>🎧 Choose Your Mode</h2>
+            <p class="sub">Please pick one before starting. This choice locks in for the entire listening session.</p>
+            <div class="mode-cards">
+              <div class="mode-card practice" onclick="pickMode('practice')">
+                <h3 style="color:#2E9F5B">📗 Practice Mode</h3>
+                <ul>
+                  <li>Manual "Start" button for each audio</li>
+                  <li>Full player controls (pause / seek / replay)</li>
+                  <li>No per-question timer</li>
+                  <li>Free navigation between questions</li>
+                  <li>Answers revealed after ALL parts finished</li>
+                </ul>
+              </div>
+              <div class="mode-card exam" onclick="pickMode('exam')">
+                <h3 style="color:#D64545">📕 Exam Mode</h3>
+                <ul>
+                  <li>Audio plays ONCE, no pause / no replay</li>
+                  <li>Individual 30s timer (Part 1/2) or shared timer (Part 3-6)</li>
+                  <li>No going back to previous questions</li>
+                  <li>Real-time submission on timeout / Next</li>
+                  <li>Answers revealed only in final Report</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function pickMode(m) {
+      state.mode = m;
+      localStorage.setItem('celpip_listen_mode', m);
+      document.getElementById('modeOverlay').innerHTML = '';
+      loadItem();
+    }
 
     function activeItem() { return state.items.find(i => i.id === state.activeId); }
     function activeIndex() { return state.items.findIndex(i => i.id === state.activeId); }
@@ -128,10 +186,10 @@
     function parsedSegments(it)  { return celpipSafeParse(it.segments_json || it.segments, []); }
     function parsedImageKeys(it) { return celpipSafeParse(it.image_keys_json || it.image_keys, []); }
     function partLayout(it)      { return it.part_layout || 'shared_timer'; }
+    function questionType(it)    { return it.question_type || 'radio'; }
 
     function loadItem() {
       if (state.timerId) { clearInterval(state.timerId); state.timerId = null; }
-      if (state.bufferTimerId) { clearInterval(state.bufferTimerId); state.bufferTimerId = null; }
       state.currentSegIdx = 0;
       state.segmentPlayed = false;
       state.audioPlayed = false;
@@ -141,7 +199,6 @@
       state.perQuestionIdx = 0;
       state.startedAt = Date.now();
       state.playRequested = false;
-      state.bufferSeconds = 0;
       const at = attemptOf(state.activeId);
       if (at && at.answer_json) {
         const p = celpipSafeParse(at.answer_json, {});
@@ -167,7 +224,6 @@
     function selectAnswer(qIndex, val) {
       if (state.submitted) return;
       state.answers[qIndex] = val;
-      // 只重渲染右侧问答面板，不动左侧音频区（避免 audio 元素被替换后重头播放）
       renderQAOnly();
     }
 
@@ -193,15 +249,26 @@
             paper_id: Number(state.paperId),
             section: 'listening',
             item_id: state.activeId,
-            answer_json: JSON.stringify({ answers: state.answers, used_seconds: used, suggested_seconds: suggested, overtime }),
+            answer_json: JSON.stringify({ answers: state.answers, used_seconds: used, suggested_seconds: suggested, overtime, mode: state.mode }),
             status: 'submitted',
           },
         });
         const existed = attemptOf(state.activeId);
-        const payload = JSON.stringify({ answers: state.answers, used_seconds: used, suggested_seconds: suggested, overtime });
+        const payload = JSON.stringify({ answers: state.answers, used_seconds: used, suggested_seconds: suggested, overtime, mode: state.mode });
         if (existed) existed.answer_json = payload;
         else state.attempts.push({ item_id: state.activeId, answer_json: payload, status: 'submitted' });
       } catch (e) { console.warn(e.message); }
+      // 考试模式：自动跳下一 Part 或跳成绩单
+      if (state.mode === 'exam') {
+        const idx = activeIndex();
+        if (idx < state.items.length - 1) {
+          setTimeout(() => switchItem(state.items[idx + 1].id), 300);
+          return;
+        } else {
+          setTimeout(() => location.href = `celpip-report.html?paper_id=${state.paperId}`, 500);
+          return;
+        }
+      }
       render();
     }
 
@@ -224,7 +291,6 @@
       }, 1000);
     }
 
-    // segmented 布局：当前段播完后启动"单题倒计时"（每题 30s）
     function startPerQuestionTimer(perQSeconds, questionIndices) {
       state.perQuestionIdx = 0;
       state.timeLeft = perQSeconds;
@@ -233,12 +299,12 @@
         if (state.timeLeft <= 0) {
           state.perQuestionIdx += 1;
           if (state.perQuestionIdx >= questionIndices.length) {
-            // 本段所有题超时，进入下一段
             clearInterval(state.timerId); state.timerId = null;
             advanceSegment();
             return;
           }
           state.timeLeft = perQSeconds;
+          renderQAOnly();
         }
         const el = document.getElementById('perQTimer');
         if (el) {
@@ -255,7 +321,6 @@
       state.segmentPlayed = false;
       state.currentSegIdx += 1;
       if (state.currentSegIdx >= segments.length) {
-        // 所有段完成，提交
         submitAll();
         return;
       }
@@ -268,21 +333,15 @@
       const segments = parsedSegments(it);
       const seg = segments[state.currentSegIdx] || {};
       const qIndices = seg.question_indices || [];
-      // 只在考试模式启动每题 30s 倒计时；练习模式手动点击进入下一步
-      if (state.mode === 'exam') {
-        startPerQuestionTimer(30, qIndices);
-      }
-      // 更新音频面板状态文字 + 右侧问答面板，不重挂 audio 元素（避免循环重播）
+      if (state.mode === 'exam') startPerQuestionTimer(30, qIndices);
       updateAudioStatusInline();
       renderQAOnly();
     }
     function onAudioEndFull() {
       state.audioPlayed = true;
-      const it = activeItem();
       state.startedAt = Date.now();
-      if (state.mode === 'exam') {
-        startSharedTimer(it.shared_timer_seconds || 240);
-      }
+      const it = activeItem();
+      if (state.mode === 'exam') startSharedTimer(it.shared_timer_seconds || 240);
       updateAudioStatusInline();
       renderQAOnly();
     }
@@ -306,24 +365,31 @@
     function render() {
       const it = activeItem();
       const app = document.getElementById('app');
-      if (!it) { app.innerHTML = '<div class="celpip-alert error">找不到该题</div>'; return; }
+      if (!it) { app.innerHTML = '<div class="celpip-alert error">Item not found</div>'; return; }
       const layout = partLayout(it);
       const segments = parsedSegments(it);
       const questions = parsedQuestions(it);
       const imageKeys = parsedImageKeys(it);
       const idx = activeIndex();
+      const isExam = state.mode === 'exam';
 
-      const navChips = state.items.map((x, i) => `
-        <div class="celpip-nav-chip ${x.id === state.activeId ? 'active' : ''} ${attemptOf(x.id) ? 'done' : ''}"
-             onclick="switchItem(${x.id})">${i + 1}</div>`).join('');
+      // 顶部导航 chip：考试模式禁用（不能跳前后题）
+      const navChips = state.items.map((x, i) => {
+        const active = x.id === state.activeId;
+        const done = !!attemptOf(x.id);
+        // 考试模式：只有当前题可点，其他都禁用
+        const clickable = !isExam || active;
+        const onclick = clickable ? `onclick="switchItem(${x.id})"` : '';
+        const style = clickable ? '' : 'style="opacity:0.4;cursor:not-allowed"';
+        return `<div class="celpip-nav-chip ${active ? 'active' : ''} ${done ? 'done' : ''}" ${onclick} ${style}>${i + 1}</div>`;
+      }).join('');
 
       // 左侧：音频面板
       let audioBody = '';
       if (!state.playRequested) {
-        // 未开播：两种模式统一显示手动开始
-        const modeHint = state.mode === 'exam'
-          ? '<b style="color:#D64545">Exam mode</b> · once started, no pause or replay allowed.'
-          : '<b style="color:#2E9F5B">Practice mode</b> · full player controls available.';
+        const modeHint = isExam
+          ? '<b style="color:#D64545">Exam mode</b> · once started, no pause, no replay, no going back.'
+          : '<b style="color:#2E9F5B">Practice mode</b> · full player controls, no timer.';
         audioBody = `
           <div class="audio-status idle">🎧 Are you ready?</div>
           <div style="text-align:center;padding:32px 20px;background:#F5F7FA;border-radius:12px;margin-top:12px">
@@ -339,7 +405,6 @@
           <div class="seg-chip ${i === state.currentSegIdx ? 'active' : ''} ${i < state.currentSegIdx ? 'done' : ''}">
             Seg ${i + 1}
           </div>`).join('');
-        const isExam = state.mode === 'exam';
         audioBody = `
           <div class="audio-status ${state.segmentPlayed ? 'done' : 'playing'}">
             🎧 Segment ${state.currentSegIdx + 1} / ${segments.length}
@@ -357,7 +422,6 @@
           <div class="seg-list">${segChips}</div>`;
       } else {
         const audioKey = it.audio_key;
-        const isExam = state.mode === 'exam';
         audioBody = `
           <div class="audio-status ${state.audioPlayed ? 'done' : 'playing'}">
             🎧 ${state.audioPlayed
@@ -376,108 +440,136 @@
             : (it.image_key ? `<img src="${celpipAssetUrl(it.image_key)}" style="width:100%;border-radius:8px;margin-top:12px">` : '')}`;
       }
 
-      // 右侧：题目面板
       const qaBody = buildQABody();
 
-      const resultSummary = state.submitted ? renderResult(it, questions) : '';
+      const modeBadge = state.mode === 'exam'
+        ? '<span style="background:#FBEEEE;color:#D64545;padding:4px 10px;border-radius:12px;font-size:12px;font-weight:700">📕 Exam Mode</span>'
+        : '<span style="background:#E7F5EC;color:#2E9F5B;padding:4px 10px;border-radius:12px;font-size:12px;font-weight:700">📗 Practice Mode</span>';
 
       const prev = idx > 0 ? state.items[idx - 1].id : null;
       const next = idx < state.items.length - 1 ? state.items[idx + 1].id : null;
 
+      // 底部导航：考试模式没有 Previous；练习模式两个都在
+      const navBottom = isExam
+        ? '<span></span>' + (state.submitted && next ? `<button class="celpip-btn" onclick="switchItem(${next})">Next Part →</button>` :
+           state.submitted && !next ? `<a class="celpip-btn" href="celpip-report.html?paper_id=${state.paperId}">View Report</a>` : '<span></span>')
+        : (prev ? `<button class="celpip-btn secondary" onclick="switchItem(${prev})">← Previous</button>` : '<span></span>') +
+          (next ? `<button class="celpip-btn" onclick="switchItem(${next})">Next Part →</button>` :
+                  `<a class="celpip-btn" href="celpip-report.html?paper_id=${state.paperId}">📊 View Report</a>`);
+
       app.innerHTML = `
         <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:16px">
-          <a href="celpip-paper.html?id=${state.paperId}" class="celpip-btn secondary small" style="text-decoration:none">← Back to Paper</a>
+          ${isExam ? '' : `<a href="celpip-paper.html?id=${state.paperId}" class="celpip-btn secondary small" style="text-decoration:none">← Back to Paper</a>`}
           <h2 style="color:#0055A4;font-size:20px">Listening · Part ${it.part}${it.title ? ' · ' + escapeHtml(it.title) : ''}</h2>
           <div class="celpip-nav-chips">${navChips}</div>
-          ${renderModeToggle()}
+          ${modeBadge}
         </div>
         <div class="listen-layout">
           <div class="audio-panel">${audioBody}</div>
           <div class="qa-panel" id="qaPanel">${qaBody}</div>
         </div>
-        ${resultSummary}
         <div style="display:flex;justify-content:space-between;gap:12px;margin-top:24px">
-          ${prev ? `<button class="celpip-btn secondary" onclick="switchItem(${prev})">← Previous</button>` : '<span></span>'}
-          ${next ? `<button class="celpip-btn" onclick="switchItem(${next})">Next →</button>` :
-                   (state.submitted ? `<a class="celpip-btn" href="celpip-paper.html?id=${state.paperId}">Back to Paper</a>` : '<span></span>')}
+          ${navBottom}
         </div>`;
     }
 
+    // 建构右侧问答面板 - 严格遵守"听时无题"原则
     function buildQABody() {
       const it = activeItem();
       if (!it) return '';
       const layout = partLayout(it);
       const segments = parsedSegments(it);
       const questions = parsedQuestions(it);
-      if (layout === 'segmented' && !state.submitted) {
+      const qType = questionType(it);
+      const isExam = state.mode === 'exam';
+
+      // 未开播 -> 空白等待
+      if (!state.playRequested) {
+        return `<div class="listening-placeholder">
+          <div class="icon">🎧</div>
+          <div style="font-weight:700;color:#0055A4;margin-bottom:6px">Waiting to start</div>
+          <div style="font-size:13px">Click "Start" on the left to begin.</div>
+        </div>`;
+      }
+
+      // 听时无题
+      if (layout === 'segmented') {
+        if (!state.segmentPlayed) {
+          return `<div class="listening-placeholder">
+            <div class="icon">🔊</div>
+            <div style="font-weight:700;color:#0055A4;margin-bottom:6px">Listening... please focus</div>
+            <div style="font-size:13px">Questions appear after this segment finishes.</div>
+          </div>`;
+        }
+        // 已播完 → 展示题目
+        if (state.submitted) {
+          // 已提交，不显示对错，只回显选项
+          return renderSubmittedNotice();
+        }
         const seg = segments[state.currentSegIdx] || {};
         const qIndices = seg.question_indices || [];
-        if (state.segmentPlayed && qIndices.length) {
-          const activeQIdx = qIndices[state.perQuestionIdx];
-          const isExam = state.mode === 'exam';
-          return `
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-              <div style="font-weight:700">Segment ${state.currentSegIdx + 1} · Q ${state.perQuestionIdx + 1}/${qIndices.length}</div>
-              ${isExam ? `<span class="celpip-timer" id="perQTimer">⏱ ${state.timeLeft}s</span>` : `<span style="font-size:12px;color:#5C6773">Practice · no timer</span>`}
-            </div>
-            ${renderQuestion(questions[activeQIdx], activeQIdx, state.answers[activeQIdx], false)}
-            <div style="margin-top:12px;text-align:right">
-              <button class="celpip-btn" ${!state.answers[activeQIdx] ? 'disabled' : ''} onclick="nextInSegment()">
-                ${state.perQuestionIdx + 1 < qIndices.length ? 'Next Question →' : (state.currentSegIdx + 1 < segments.length ? 'Next Segment →' : 'Submit')}
-              </button>
-            </div>`;
-        } else {
-          return '<div class="celpip-empty"><h3>Waiting for audio...</h3><p>Questions will appear once the segment finishes.</p></div>';
-        }
+        if (!qIndices.length) return '<div class="celpip-alert error">No questions bound to this segment.</div>';
+        const activeQIdx = qIndices[state.perQuestionIdx];
+        return `
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <div style="font-weight:700">Segment ${state.currentSegIdx + 1} · Q ${state.perQuestionIdx + 1}/${qIndices.length}</div>
+            ${isExam ? `<span class="celpip-timer" id="perQTimer">⏱ ${state.timeLeft}s</span>` : '<span style="font-size:12px;color:#5C6773">Practice · no timer</span>'}
+          </div>
+          ${renderQuestion(questions[activeQIdx], activeQIdx, state.answers[activeQIdx], false, qType)}
+          <div style="margin-top:12px;text-align:right">
+            <button class="celpip-btn" ${!state.answers[activeQIdx] ? 'disabled' : ''} onclick="nextInSegment()">
+              ${state.perQuestionIdx + 1 < qIndices.length ? 'Next Question →' : (state.currentSegIdx + 1 < segments.length ? 'Next Segment →' : 'Submit Part')}
+            </button>
+          </div>`;
       }
-      // 共享倒计时布局 或 提交后展示所有题
-      if (!state.audioPlayed && !state.submitted) {
-        return '<div class="celpip-empty"><h3>Please listen to the full audio first</h3><p>The shared countdown starts once playback ends.</p></div>';
+
+      // Shared timer 布局：未播完显示占位
+      if (!state.audioPlayed) {
+        return `<div class="listening-placeholder">
+          <div class="icon">🔊</div>
+          <div style="font-weight:700;color:#0055A4;margin-bottom:6px">Listening... please focus</div>
+          <div style="font-size:13px">All questions appear together after the audio finishes.</div>
+        </div>`;
       }
+      if (state.submitted) return renderSubmittedNotice();
+
       const suggested = it.shared_timer_seconds || 240;
-      const showTimer = !state.submitted && state.mode === 'exam';
-      const timerBadge = state.submitted ? '' : `
+      const timerBadge = `
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
           <div style="font-weight:700">Part ${it.part} · ${questions.length} Questions</div>
-          ${showTimer ? `<span class="celpip-timer" id="sharedTimer">⏱ ${fmtTime(state.timeLeft || suggested)}</span>` : `<span style="font-size:12px;color:#5C6773">Practice Mode · no timer</span>`}
+          ${isExam ? `<span class="celpip-timer" id="sharedTimer">⏱ ${fmtTime(state.timeLeft || suggested)}</span>` : '<span style="font-size:12px;color:#5C6773">Practice · no timer</span>'}
         </div>`;
-      const submitBtn = state.submitted ? '' : `
+      const submitBtn = `
         <div style="margin-top:12px">
           <button class="celpip-btn" style="width:100%" ${Object.keys(state.answers).length < questions.length ? 'disabled' : ''} onclick="submitAll()">
-            Submit All Answers
+            Submit Part
           </button>
         </div>`;
-      // 练习模式：默认不显示答案高亮（即使已提交），除非用户点了"Show Answer"
-      // 考试模式：提交后立即显示答案
-      const showKey = state.submitted && (state.mode === 'exam' || state.showAnswers);
-      return timerBadge + questions.map((q, i) => `
-        <div class="qa-question">${renderQuestion(q, i, state.answers[i], showKey)}</div>
-      `).join('') + submitBtn + (state.submitted && state.mode !== 'exam' && !state.showAnswers ? `
-        <div style="margin-top:12px;text-align:center">
-          <button class="celpip-btn secondary small" onclick="toggleShowAnswers()">🔍 Show Answers</button>
-        </div>` : '');
+
+      // Dropdown 题型：把每题渲成"[N] <select>" 一行一行；Radio 题型：正常选项
+      let body;
+      if (qType === 'dropdown') {
+        body = questions.map((q, i) => renderDropdownQuestion(q, i, state.answers[i])).join('');
+      } else {
+        body = questions.map((q, i) => `
+          <div class="qa-question">${renderQuestion(q, i, state.answers[i], false, qType)}</div>
+        `).join('');
+      }
+      return timerBadge + body + submitBtn;
     }
 
-    function toggleShowAnswers() {
-      state.showAnswers = !state.showAnswers;
-      renderQAOnly();
-    }
-
-    function renderModeToggle() {
-      const cur = state.mode || 'practice';
-      const label = cur === 'exam' ? '📕 Exam Mode' : '📗 Practice Mode';
-      const color = cur === 'exam' ? '#D64545' : '#2E9F5B';
-      return `
-        <button onclick="toggleMode()" title="Toggle Exam / Practice"
-                style="background:transparent;border:1.5px solid ${color};color:${color};padding:6px 12px;border-radius:20px;cursor:pointer;font-size:12px;font-weight:700">
-          ${label}
-        </button>`;
-    }
-
-    function toggleMode() {
-      state.mode = state.mode === 'exam' ? 'practice' : 'exam';
-      localStorage.setItem('celpip_listen_mode', state.mode);
-      render();
+    function renderSubmittedNotice() {
+      const idx = activeIndex();
+      const totalParts = state.items.length;
+      const doneCount = state.attempts.length;
+      return `<div class="listening-placeholder" style="background:#E7F5EC;color:#145931">
+        <div class="icon">✓</div>
+        <div style="font-weight:700;margin-bottom:6px">Answers submitted for this part.</div>
+        <div style="font-size:13px">Progress: ${doneCount}/${totalParts} parts done. Full results (correct/wrong) available on the Report page after finishing all parts.</div>
+        ${idx < totalParts - 1
+          ? `<button class="celpip-btn" style="margin-top:16px" onclick="switchItem(${state.items[idx + 1].id})">Next Part →</button>`
+          : `<a class="celpip-btn" style="margin-top:16px;display:inline-block" href="celpip-report.html?paper_id=${state.paperId}">📊 View Full Report</a>`}
+      </div>`;
     }
 
     function nextInSegment() {
@@ -487,7 +579,6 @@
       const qIndices = seg.question_indices || [];
       state.perQuestionIdx += 1;
       if (state.perQuestionIdx >= qIndices.length) {
-        // 本段结束
         if (state.timerId) { clearInterval(state.timerId); state.timerId = null; }
         if (state.currentSegIdx + 1 >= segments.length) {
           submitAll();
@@ -496,13 +587,13 @@
         }
       } else {
         state.timeLeft = 30;
-        // 同一段内切下一题：只更新右侧问答面板，保持左侧 audio 元素不变
         renderQAOnly();
       }
     }
 
-    function renderQuestion(q, i, chosen, showAnswer) {
-      if (!q) return '<div class="celpip-alert error">题目缺失</div>';
+    // Radio 题型
+    function renderQuestion(q, i, chosen, showAnswer, qType) {
+      if (!q) return '<div class="celpip-alert error">Question missing.</div>';
       const options = q.options || [];
       const optHtml = options.map((opt, j) => {
         const label = String.fromCharCode(65 + j);
@@ -518,32 +609,25 @@
       }).join('');
       return `
         <div style="font-size:14px;font-weight:600;margin-bottom:6px">${i + 1}. ${escapeHtml(q.q || q.question || '')}</div>
-        ${optHtml}
-        ${showAnswer && !isCorrectMatch(q.answer, options, chosen, -1, null) && chosen != null
-          ? `<div style="color:var(--celpip-danger);font-size:12px;margin-top:4px">Correct answer: ${escapeHtml(String(q.answer))}</div>`
-          : ''}`;
+        ${optHtml}`;
     }
 
-    function renderResult(it, questions) {
-      const savedInfo = celpipSafeParse(attemptOf(it.id)?.answer_json, {});
-      let correct = 0;
-      questions.forEach((q, i) => {
-        if (isCorrectMatch(q.answer, q.options || [], state.answers[i], -1, null)) correct += 1;
-      });
-      const total = questions.length;
-      const usedSec = savedInfo.used_seconds || 0;
-      const suggested = savedInfo.suggested_seconds || it.shared_timer_seconds || 0;
-      const timeBadge = suggested > 0
-        ? (savedInfo.overtime
-            ? `<span style="background:#FBEEEE;color:#D64545;padding:4px 10px;border-radius:12px;font-size:12px;font-weight:700">⏰ Over time · ${fmtTime(usedSec)} / suggested ${fmtTime(suggested)}</span>`
-            : `<span style="background:#E7F5EC;color:#2E9F5B;padding:4px 10px;border-radius:12px;font-size:12px;font-weight:700">⏱ Time ${fmtTime(usedSec)} / suggested ${fmtTime(suggested)}</span>`)
-        : '';
+    // Dropdown 题型
+    function renderDropdownQuestion(q, i, chosen) {
+      if (!q) return '';
+      const opts = q.options || [];
+      const options = opts.map((opt, j) => {
+        const label = String.fromCharCode(65 + j);
+        const sel = chosen && normalize(chosen) === normalize(label) ? 'selected' : '';
+        return `<option value="${label}" ${sel}>${label}. ${escapeAttr(opt).slice(0, 100)}</option>`;
+      }).join('');
       return `
-        <div class="celpip-card" style="background:#F5F7FA;margin-top:16px">
-          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px">
-            <div style="font-size:18px;font-weight:700;color:var(--celpip-primary)">📊 Result: ${correct}/${total} correct</div>
-            ${timeBadge}
-          </div>
+        <div class="qa-question">
+          <div style="font-size:14px;font-weight:600;margin-bottom:6px">${i + 1}. ${escapeHtml(q.q || q.question || '')}</div>
+          <select class="dropdown-select" onchange="selectAnswer(${i}, this.value)">
+            <option value="">-- Choose --</option>
+            ${options}
+          </select>
         </div>`;
     }
 
@@ -555,7 +639,6 @@
     function isCorrectMatch(answer, options, chosen, jIdx, optText) {
       if (chosen == null || chosen === '') return false;
       const a = normalize(answer);
-      // 让答案锁定到某个 index
       for (let i = 0; i < (options || []).length; i++) {
         const label = String.fromCharCode(65 + i);
         const candA = [normalize(label), normalize(String(i)), normalize(options[i])];
@@ -580,6 +663,11 @@
         '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
       }[c]));
     }
+    function escapeAttr(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+      }[c]));
+    }
 
     window.switchItem = switchItem;
     window.selectAnswer = selectAnswer;
@@ -588,9 +676,8 @@
     window.onAudioEndFull = onAudioEndFull;
     window.nextInSegment = nextInSegment;
     window.replayCurrentAudio = replayCurrentAudio;
-    window.toggleMode = toggleMode;
     window.requestStartPlaying = requestStartPlaying;
-    window.toggleShowAnswers = toggleShowAnswers;
+    window.pickMode = pickMode;
   </script>
 </body>
 </html>

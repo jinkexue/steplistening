@@ -143,11 +143,12 @@ export async function onRequestPost(context) {
       const partLayout = obj.part_layout || (obj.segments ? "segmented" : (obj.image_prompts ? "multi_image_shared" : "shared_timer"));
       const questions = obj.questions || (obj.question ? [{ q: obj.question, options: obj.options || [], answer: obj.answer }] : []);
       const segments = obj.segments || (obj.transcript ? [{ transcript: obj.transcript, question_indices: questions.map((_, i) => i) }] : []);
+      const questionType = obj.question_type || "radio";
       await env.DB.prepare(
         `UPDATE celpip_listening_items SET
           title=?, part_layout=?, segments_json=?, questions_json=?,
           image_prompts_json=?, image_keys_json=NULL, shared_timer_seconds=?,
-          transcript=?, question=?, options=?, answer=?,
+          question_type=?, transcript=?, question=?, options=?, answer=?,
           audio_key=NULL, image_key=NULL
          WHERE id=?`
       ).bind(
@@ -156,6 +157,7 @@ export async function onRequestPost(context) {
         JSON.stringify(questions),
         JSON.stringify(obj.image_prompts || []),
         obj.shared_timer_seconds || null,
+        questionType,
         segments.map(s => s.transcript || "").join("\n\n"),
         questions[0]?.q || "",
         JSON.stringify(questions[0]?.options || []),
