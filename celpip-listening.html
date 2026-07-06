@@ -182,6 +182,27 @@
     function activeIndex() { return state.items.findIndex(i => i.id === state.activeId); }
     function attemptOf(id) { return state.attempts.find(a => a.item_id === id); }
 
+    // 段的题目下标：优先取 question_indices；若缺失则按段长度均分兜底
+    function segmentQuestionIndices(segIdx, segments, totalQuestions) {
+      const seg = segments[segIdx] || {};
+      if (Array.isArray(seg.question_indices) && seg.question_indices.length) {
+        return seg.question_indices;
+      }
+      // 兜底：均匀切分 totalQuestions
+      const n = segments.length;
+      if (n === 0 || totalQuestions === 0) return [];
+      const base = Math.floor(totalQuestions / n);
+      const extra = totalQuestions - base * n;
+      let start = 0;
+      const perSeg = [];
+      for (let i = 0; i < n; i++) {
+        const size = base + (i < extra ? 1 : 0);
+        perSeg.push([...Array(size).keys()].map(k => start + k));
+        start += size;
+      }
+      return perSeg[segIdx] || [];
+    }
+
     function parsedQuestions(it) { return celpipSafeParse(it.questions_json || it.questions, []); }
     function parsedSegments(it)  { return celpipSafeParse(it.segments_json || it.segments, []); }
     function parsedImageKeys(it) { return celpipSafeParse(it.image_keys_json || it.image_keys, []); }
@@ -331,9 +352,9 @@
       state.segmentPlayed = true;
       const it = activeItem();
       const segments = parsedSegments(it);
-      const seg = segments[state.currentSegIdx] || {};
-      const qIndices = seg.question_indices || [];
-      if (state.mode === 'exam') startPerQuestionTimer(30, qIndices);
+      const questions = parsedQuestions(it);
+      const qIndices = segmentQuestionIndices(state.currentSegIdx, segments, questions.length);
+      if (state.mode === 'exam' && qIndices.length) startPerQuestionTimer(30, qIndices);
       updateAudioStatusInline();
       renderQAOnly();
     }
@@ -449,13 +470,20 @@
       const prev = idx > 0 ? state.items[idx - 1].id : null;
       const next = idx < state.items.length - 1 ? state.items[idx + 1].id : null;
 
-      // 底部导航：考试模式没有 Previous；练习模式两个都在
-      const navBottom = isExam
-        ? '<span></span>' + (state.submitted && next ? `<button class="celpip-btn" onclick="switchItem(${next})">Next Part →</button>` :
-           state.submitted && !next ? `<a class="celpip-btn" href="celpip-report.html?paper_id=${state.paperId}">View Report</a>` : '<span></span>')
-        : (prev ? `<button class="celpip-btn secondary" onclick="switchItem(${prev})">← Previous</button>` : '<span></span>') +
+      // 底部导航：
+      //   考试模式：不显示（右侧绿卡自带 Next Part / View Report）
+      //   练习模式未提交：Previous / Next Part（用于切题浏览）
+      //   练习模式已提交：不显示（右侧绿卡自带 Next Part / View Report）
+      let navBottom = '';
+      if (isExam) {
+        navBottom = '';
+      } else if (state.submitted) {
+        navBottom = '';
+      } else {
+        navBottom = (prev ? `<button class="celpip-btn secondary" onclick="switchItem(${prev})">← Previous</button>` : '<span></span>') +
           (next ? `<button class="celpip-btn" onclick="switchItem(${next})">Next Part →</button>` :
                   `<a class="celpip-btn" href="celpip-report.html?paper_id=${state.paperId}">📊 View Report</a>`);
+      }
 
       app.innerHTML = `
         <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:16px">
@@ -468,9 +496,7 @@
           <div class="audio-panel">${audioBody}</div>
           <div class="qa-panel" id="qaPanel">${qaBody}</div>
         </div>
-        <div style="display:flex;justify-content:space-between;gap:12px;margin-top:24px">
-          ${navBottom}
-        </div>`;
+        ${navBottom ? `<div style="display:flex;justify-content:space-between;gap:12px;margin-top:24px">${navBottom}</div>` : ''}`;
     }
 
     // 建构右侧问答面板 - 严格遵守"听时无题"原则
@@ -507,8 +533,13 @@
           return renderSubmittedNotice();
         }
         const seg = segments[state.currentSegIdx] || {};
-        const qIndices = seg.question_indices || [];
-        if (!qIndices.length) return '<div class="celpip-alert error">No questions bound to this segment.</div>';
+        const qIndices = segmentQuestionIndices(state.currentSegIdx, segments, questions.length);
+        if (!qIndices.length) {
+          return `<div class="celpip-alert error">
+            No questions bound to this segment.<br>
+            <span style="font-size:12px">Debug: segments=${segments.length}, questions=${questions.length}</span>
+          </div>`;
+        }
         const activeQIdx = qIndices[state.perQuestionIdx];
         return `
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
@@ -575,8 +606,8 @@
     function nextInSegment() {
       const it = activeItem();
       const segments = parsedSegments(it);
-      const seg = segments[state.currentSegIdx] || {};
-      const qIndices = seg.question_indices || [];
+      const questions = parsedQuestions(it);
+      const qIndices = segmentQuestionIndices(state.currentSegIdx, segments, questions.length);
       state.perQuestionIdx += 1;
       if (state.perQuestionIdx >= qIndices.length) {
         if (state.timerId) { clearInterval(state.timerId); state.timerId = null; }
