@@ -220,16 +220,13 @@
       state.perQuestionIdx = 0;
       state.startedAt = Date.now();
       state.playRequested = false;
+      // 注意：不再自动把之前的 attempt 恢复成 submitted 状态。
+      // 用户希望每次进入板块都能重新答题（改答案/重听），因此我们只把上次的答案预填到 answers 里，
+      // 但 submitted 始终从 false 开始，让用户可以重新走完整个"听->答->提交"流程。
       const at = attemptOf(state.activeId);
       if (at && at.answer_json) {
         const p = celpipSafeParse(at.answer_json, {});
-        if (p.answers) {
-          state.answers = p.answers;
-          state.submitted = true;
-          state.audioPlayed = true;
-          state.segmentPlayed = true;
-          state.playRequested = true;
-        }
+        if (p.answers) state.answers = { ...p.answers };
       }
       render();
     }
