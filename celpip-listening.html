@@ -349,22 +349,34 @@
     }
 
     function onAudioEndSegmented() {
+      console.log('[onAudioEndSegmented] fired. segIdx=', state.currentSegIdx);
       state.segmentPlayed = true;
       const it = activeItem();
       const segments = parsedSegments(it);
       const questions = parsedQuestions(it);
+      console.log('[onAudioEndSegmented] segments=', segments.length, 'questions=', questions.length);
       const qIndices = segmentQuestionIndices(state.currentSegIdx, segments, questions.length);
+      console.log('[onAudioEndSegmented] qIndices=', qIndices);
       if (state.mode === 'exam' && qIndices.length) startPerQuestionTimer(30, qIndices);
       updateAudioStatusInline();
       renderQAOnly();
     }
     function onAudioEndFull() {
+      console.log('[onAudioEndFull] fired.');
       state.audioPlayed = true;
       state.startedAt = Date.now();
       const it = activeItem();
       if (state.mode === 'exam') startSharedTimer(it.shared_timer_seconds || 240);
       updateAudioStatusInline();
       renderQAOnly();
+    }
+
+    // 手动"我听完了"按钮，兜底 onended 不触发的情况
+    function manualFinishAudio() {
+      const it = activeItem();
+      if (!it) return;
+      if (partLayout(it) === 'segmented') onAudioEndSegmented();
+      else onAudioEndFull();
     }
 
     function updateAudioStatusInline() {
@@ -438,7 +450,11 @@
                    src="${celpipAssetUrl(audioKey)}"
                    onended="onAudioEndSegmented()"
                    style="width:100%;margin-top:12px"></audio>
-            ${!isExam ? '<button class="celpip-btn secondary small" style="margin-top:8px" onclick="replayCurrentAudio()">🔁 Replay Segment</button>' : ''}
+            ${!isExam ? `
+              <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+                <button class="celpip-btn secondary small" onclick="replayCurrentAudio()">🔁 Replay Segment</button>
+                ${!state.segmentPlayed ? '<button class="celpip-btn small" onclick="manualFinishAudio()">✓ I\\'ve Finished Listening</button>' : ''}
+              </div>` : ''}
           ` : '<div class="celpip-alert error">Segment audio missing.</div>'}
           <div class="seg-list">${segChips}</div>`;
       } else {
@@ -454,7 +470,11 @@
                    src="${celpipAssetUrl(audioKey)}"
                    onended="onAudioEndFull()"
                    style="width:100%;margin-top:12px"></audio>
-            ${!isExam ? '<button class="celpip-btn secondary small" style="margin-top:8px" onclick="replayCurrentAudio()">🔁 Replay Audio</button>' : ''}
+            ${!isExam ? `
+              <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+                <button class="celpip-btn secondary small" onclick="replayCurrentAudio()">🔁 Replay Audio</button>
+                ${!state.audioPlayed ? '<button class="celpip-btn small" onclick="manualFinishAudio()">✓ I\\'ve Finished Listening</button>' : ''}
+              </div>` : ''}
           ` : '<div class="celpip-alert error">Audio missing.</div>'}
           ${imageKeys.length && layout === 'multi_image_shared'
             ? `<div class="part-image-grid">${imageKeys.map(k => `<img src="${celpipAssetUrl(k)}">`).join('')}</div>`
@@ -535,9 +555,15 @@
         const seg = segments[state.currentSegIdx] || {};
         const qIndices = segmentQuestionIndices(state.currentSegIdx, segments, questions.length);
         if (!qIndices.length) {
-          return `<div class="celpip-alert error">
-            No questions bound to this segment.<br>
-            <span style="font-size:12px">Debug: segments=${segments.length}, questions=${questions.length}</span>
+          const dbgQ = questions.length;
+          const dbgS = segments.length;
+          const noQ = dbgQ === 0;
+          return `<div class="celpip-alert error" style="text-align:left">
+            <b>${noQ ? 'No questions in this Part.' : 'Cannot map segment to questions.'}</b><br>
+            <span style="font-size:12px">Debug: segments=${dbgS}, questions=${dbgQ}, currentSeg=${state.currentSegIdx}, hasIndices=${!!seg.question_indices}</span><br>
+            <span style="font-size:12px;color:#5C6773">
+              ${noQ ? 'Please have admin re-generate this Part (transcript exists but questions_json is empty).' : 'Segment lacks question_indices AND fallback failed.'}
+            </span>
           </div>`;
         }
         const activeQIdx = qIndices[state.perQuestionIdx];
@@ -709,6 +735,7 @@
     window.replayCurrentAudio = replayCurrentAudio;
     window.requestStartPlaying = requestStartPlaying;
     window.pickMode = pickMode;
+    window.manualFinishAudio = manualFinishAudio;
   </script>
 </body>
 </html>
