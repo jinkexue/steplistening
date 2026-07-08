@@ -428,7 +428,7 @@
           ]},
           { key: 'cf_tts_speaker',    label: 'Cloudflare Aura-2 默认音色（speaker 参数）', type: 'select', options: CF_SPEAKERS },
           { key: 'cf_tts_speakers',   label: 'Cloudflare 多角色映射（对话类使用，值填 speaker 名如 thalia/apollo）', type: 'role_map', roles: ['A', 'B', 'C'], speakerOptions: CF_SPEAKERS },
-          { key: 'volc_tts_endpoint', label: '火山 TTS URL（默认 Agent Plan HTTP；若你的 key 不是 Agent Plan 请改成 /api/v3/tts/unidirectional）' },
+          { key: 'volc_tts_endpoint', label: '火山 TTS URL（Agent Plan 版：/api/v3/plan/tts/unidirectional，无需修改）' },
           { key: 'volc_tts_model',    label: '火山 Resource-Id', type: 'select', options: [
             { value: 'seed-tts-2.0',       label: 'seed-tts-2.0（推荐 · 支持所有 2.0 音色）' },
             { value: 'seed-tts-1.0',       label: 'seed-tts-1.0（老版本，字符版计费）' },
