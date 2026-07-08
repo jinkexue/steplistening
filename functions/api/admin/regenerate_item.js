@@ -192,21 +192,25 @@ export async function onRequestPost(context) {
       trace.stage = "listening_tts";
       const partLayout = obj.part_layout || (obj.segments ? "segmented" : (obj.image_prompts ? "multi_image_shared" : "shared_timer"));
       const segments = obj.segments || (obj.transcript ? [{ transcript: obj.transcript, question_indices: [] }] : []);
-      const newSegments = [];
+      const newSegments = new Array(segments.length);
       const errors = [];
       let firstAudio = null;
-      for (let i = 0; i < segments.length; i++) {
+      // 并发合成所有 segment 的 TTS（Cloudflare Pages Function 30s 硬限制）
+      const results = await Promise.allSettled(
+        segments.map(seg => (seg && seg.transcript) ? tts(env, settings, seg.transcript) : Promise.resolve(null))
+      );
+      results.forEach((r, i) => {
         const seg = segments[i] || {};
-        if (!seg.transcript) { newSegments.push(seg); continue; }
-        try {
-          const key = await tts(env, settings, seg.transcript);
-          newSegments.push({ ...seg, audio_key: key });
-          if (!firstAudio) firstAudio = key;
-        } catch (e) {
-          errors.push(`seg${i}: ${e.message}`);
-          newSegments.push(seg);
+        if (r.status === "fulfilled" && r.value) {
+          newSegments[i] = { ...seg, audio_key: r.value };
+          if (!firstAudio) firstAudio = r.value;
+        } else if (r.status === "rejected") {
+          errors.push(`seg${i}: ${r.reason?.message || r.reason}`);
+          newSegments[i] = seg;
+        } else {
+          newSegments[i] = seg;
         }
-      }
+      });
       await env.DB.prepare(
         "UPDATE celpip_listening_items SET segments_json = ?, audio_key = ? WHERE id = ?"
       ).bind(JSON.stringify(newSegments), firstAudio, item_id).run();
@@ -215,12 +219,17 @@ export async function onRequestPost(context) {
 
       if (partLayout === "multi_image_shared" && Array.isArray(obj.image_prompts) && obj.image_prompts.length) {
         trace.stage = "listening_images";
+        const prompts = obj.image_prompts.slice(0, 2); // Part 5 最多 2 张图，避免超时
+        // 并发生成图片（Cloudflare Pages Function 30s 硬限制，串行会超时）
+        const results = await Promise.allSettled(
+          prompts.map(p => genImage(env, settings, p))
+        );
         const imgKeys = [];
         const imgErrs = [];
-        for (let i = 0; i < obj.image_prompts.length; i++) {
-          try { imgKeys.push(await genImage(env, settings, obj.image_prompts[i])); }
-          catch (e) { imgErrs.push(`img${i}: ${e.message}`); }
-        }
+        results.forEach((r, i) => {
+          if (r.status === "fulfilled") imgKeys.push(r.value);
+          else imgErrs.push(`img${i}: ${r.reason?.message || r.reason}`);
+        });
         await env.DB.prepare(
           "UPDATE celpip_listening_items SET image_keys_json = ? WHERE id = ?"
         ).bind(JSON.stringify(imgKeys), item_id).run();

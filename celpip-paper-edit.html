@@ -316,7 +316,15 @@
           );
         }
       } catch (e) {
-        celpipShowMessage('✗ 请求失败', e.message + '\n\n' + (e.stack || ''), 'error');
+        // HTTP 503 通常是 Cloudflare Pages Function 超时（30 秒硬限制），Part 5 需并发生成 2-3 张图 + TTS 容易触发
+        const isTimeout = e.message && (e.message.includes('503') || e.message.includes('504') || e.message.toLowerCase().includes('timeout'));
+        celpipShowMessage(
+          isTimeout ? '⚠ 生成超时（>30s）' : '✗ 请求失败',
+          (isTimeout
+            ? '任务可能已部分完成。请：\n1. 刷新页面查看是否已保存文本\n2. 若音频/图片缺失，可再次点击本按钮重试（只补资源、不重新生成文本）\n3. Part 5 可能因需要 2-3 张图片而耗时较长\n\n错误详情：'
+            : '') + e.message,
+          'error'
+        );
       } finally {
         btn.disabled = false; btn.textContent = original;
       }

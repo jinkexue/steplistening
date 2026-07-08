@@ -216,21 +216,25 @@ export async function onRequestPost(context) {
       // 从 questions_json / segments_json 拿到最新结构
       const partLayout = obj.part_layout || (obj.segments ? "segmented" : (obj.image_prompts ? "multi_image_shared" : "shared_timer"));
       const segments = obj.segments || (obj.transcript ? [{ transcript: obj.transcript, question_indices: [] }] : []);
-      const newSegments = [];
+      const newSegments = new Array(segments.length);
       const errors = [];
       let firstAudio = null;
-      for (let i = 0; i < segments.length; i++) {
+      // 并发合成所有 segment 的 TTS（Cloudflare Pages Function 30s 硬限制）
+      const ttsResults = await Promise.allSettled(
+        segments.map(seg => (seg && seg.transcript) ? tts(env, settings, seg.transcript) : Promise.resolve(null))
+      );
+      ttsResults.forEach((r, i) => {
         const seg = segments[i] || {};
-        if (!seg.transcript) { newSegments.push(seg); continue; }
-        try {
-          const key = await tts(env, settings, seg.transcript);
-          newSegments.push({ ...seg, audio_key: key });
-          if (!firstAudio) firstAudio = key;
-        } catch (e) {
-          errors.push(`seg${i}: ${e.message}`);
-          newSegments.push(seg);
+        if (r.status === "fulfilled" && r.value) {
+          newSegments[i] = { ...seg, audio_key: r.value };
+          if (!firstAudio) firstAudio = r.value;
+        } else if (r.status === "rejected") {
+          errors.push(`seg${i}: ${r.reason?.message || r.reason}`);
+          newSegments[i] = seg;
+        } else {
+          newSegments[i] = seg;
         }
-      }
+      });
       // 持久化：更新 segments_json 与顶层 audio_key（第一段）
       await env.DB.prepare(
         "UPDATE celpip_listening_items SET segments_json = ?, audio_key = ? WHERE id = ?"
@@ -239,19 +243,19 @@ export async function onRequestPost(context) {
       assetResults.segment_count = newSegments.length;
       if (errors.length) assetResults.tts_error = errors.join(" | ");
 
-      // Part 5 多图
+      // Part 5 多图（并发生成）
       if (partLayout === "multi_image_shared" && Array.isArray(obj.image_prompts) && obj.image_prompts.length) {
         trace.stage = "listening_images";
+        const prompts = obj.image_prompts.slice(0, 2);
+        const imgResults = await Promise.allSettled(
+          prompts.map(p => genImage(env, settings, p))
+        );
         const imgKeys = [];
         const imgErrs = [];
-        for (let i = 0; i < obj.image_prompts.length; i++) {
-          try {
-            const key = await genImage(env, settings, obj.image_prompts[i]);
-            imgKeys.push(key);
-          } catch (e) {
-            imgErrs.push(`img${i}: ${e.message}`);
-          }
-        }
+        imgResults.forEach((r, i) => {
+          if (r.status === "fulfilled") imgKeys.push(r.value);
+          else imgErrs.push(`img${i}: ${r.reason?.message || r.reason}`);
+        });
         await env.DB.prepare(
           "UPDATE celpip_listening_items SET image_keys_json = ? WHERE id = ?"
         ).bind(JSON.stringify(imgKeys), itemId).run();
