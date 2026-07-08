@@ -67,10 +67,25 @@ async function synthVolcOnce(env, settings, text, speaker) {
 
 /**
  * 单次合成 - Cloudflare Workers AI
+ *   Aura-2 只有 1 个模型 id：@cf/deepgram/aura-2-en，具体音色通过 speaker 参数指定
+ *   兼容旧配置：如果用户把 speaker 塞在模型 id 里（如 @cf/deepgram/aura-2-thalia-en），自动拆分
  */
 async function synthCFOnce(env, settings, text, modelOverride) {
-  const model = modelOverride || pickModel(settings, "cf_tts") || "@cf/deepgram/aura-2-en";
-  const res = await env.AI.run(model, { text });
+  let modelId = modelOverride || pickModel(settings, "cf_tts") || "@cf/deepgram/aura-2-en";
+  let speaker = null;
+  // 兼容 @cf/deepgram/aura-2-<speaker>-en 这种旧格式
+  const m = modelId.match(/^@cf\/deepgram\/aura-2-([a-z]+)-en$/i);
+  if (m && m[1] !== "en") {
+    speaker = m[1].toLowerCase();
+    modelId = "@cf/deepgram/aura-2-en";
+  }
+  // 也支持 @cf/deepgram/aura-2 + settings.cf_tts_speaker
+  if (modelId === "@cf/deepgram/aura-2-en" && !speaker && settings.cf_tts_speaker) {
+    speaker = String(settings.cf_tts_speaker).trim();
+  }
+  const payload = { text };
+  if (speaker) payload.speaker = speaker;
+  const res = await env.AI.run(modelId, payload);
   if (res instanceof ReadableStream) {
     const reader = res.getReader();
     const parts = [];
@@ -120,7 +135,9 @@ async function synthWithProvider(env, settings, text, provider) {
         const speaker = sp || (settings.volc_tts_speaker || "").trim() || "en_female_dacey_uranus_bigtts";
         chunks.push(await synthVolcOnce(env, settings, turn.text, speaker));
       } else {
-        chunks.push(await synthCFOnce(env, settings, turn.text, sp || null));
+        // CF：sp 是 speaker 名（如 thalia），直接传 settings 覆盖，或作为 speaker 参数
+        const overrideSettings = sp ? { ...settings, cf_tts_speaker: sp } : settings;
+        chunks.push(await synthCFOnce(env, overrideSettings, turn.text, null));
       }
     }
     // 拼接 mp3 二进制（多个 mp3 直接拼接大部分播放器可正常连续播放）

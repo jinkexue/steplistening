@@ -23,7 +23,8 @@ const ALLOWED_KEYS = new Set([
   // TTS
   "tts_provider",           // 'cloudflare' | 'volc'
   "tts_fallback_provider",  // 主失败时自动切换的备用 provider
-  "cf_tts_model",
+  "cf_tts_model",           // Cloudflare 模型 id（如 @cf/deepgram/aura-2-en）
+  "cf_tts_speaker",         // Cloudflare Aura-2 speaker 参数
   "cf_tts_speakers",        // Cloudflare 多角色映射
   "volc_tts_endpoint",
   "volc_tts_model",

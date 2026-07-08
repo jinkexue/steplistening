@@ -361,15 +361,20 @@
 
     // ================= AI 配置 =================
     // 按模型类别分区展示（每类独立 endpoint + model）
-    // TTS 音色列表：Cloudflare Aura-2 & 火山方舟 seed-tts-2.0
+    // TTS 音色列表：
+      //   Cloudflare Aura-2 —— 模型 id 固定为 @cf/deepgram/aura-2-en，音色通过 speaker 参数指定
+      //   火山方舟 seed-tts-2.0
       const CF_SPEAKERS = [
-        { value: '@cf/deepgram/aura-2-thalia-en',    label: 'Thalia · 女 · 清晰/自信/热情（en-US）' },
-        { value: '@cf/deepgram/aura-2-andromeda-en', label: 'Andromeda · 女 · 随和/富表现力（en-US）' },
-        { value: '@cf/deepgram/aura-2-helena-en',    label: 'Helena · 女 · 亲切/自然（en-US）' },
-        { value: '@cf/deepgram/aura-2-apollo-en',    label: 'Apollo · 男 · 自信/随意（en-US）' },
-        { value: '@cf/deepgram/aura-2-arcas-en',     label: 'Arcas · 男 · 自然/顺滑（en-US）' },
-        { value: '@cf/deepgram/aura-2-aries-en',     label: 'Aries · 男 · 温暖/有活力（en-US）' },
-        { value: '@cf/deepgram/aura-2-en',           label: 'Default Aura-2 en（备用）' },
+        { value: 'thalia',    label: 'Thalia · 女 · 清晰/自信/热情（en-US）' },
+        { value: 'andromeda', label: 'Andromeda · 女 · 随和/富表现力（en-US）' },
+        { value: 'helena',    label: 'Helena · 女 · 亲切/自然（en-US）' },
+        { value: 'apollo',    label: 'Apollo · 男 · 自信/随意（en-US）' },
+        { value: 'arcas',     label: 'Arcas · 男 · 自然/顺滑（en-US）' },
+        { value: 'aries',     label: 'Aries · 男 · 温暖/有活力（en-US）' },
+        { value: 'luna',      label: 'Luna · 女 · 默认（en-US）' },
+        { value: 'orion',     label: 'Orion · 男 · 默认（en-US）' },
+        { value: 'athena',    label: 'Athena · 女 · 通用（en-US）' },
+        { value: 'zeus',      label: 'Zeus · 男 · 权威感（en-US）' },
       ];
       const VOLC_SPEAKERS = [
         { value: 'en_female_dacey_uranus_bigtts',    label: 'Dacey · 女 · 美式英语' },
@@ -421,9 +426,9 @@
             { value: 'cloudflare', label: 'Cloudflare Workers AI' },
             { value: 'volc',       label: '火山方舟 Agent Plan TTS' },
           ]},
-          { key: 'cf_tts_model',      label: 'Cloudflare 单说话人 · 默认音色', type: 'select', options: CF_SPEAKERS },
-          { key: 'cf_tts_speakers',   label: 'Cloudflare 多角色映射（对话类使用）', type: 'role_map', roles: ['A', 'B', 'C'], speakerOptions: CF_SPEAKERS },
-          { key: 'volc_tts_endpoint', label: '火山 TTS URL（默认 Agent Plan HTTP）' },
+          { key: 'cf_tts_speaker',    label: 'Cloudflare Aura-2 默认音色（speaker 参数）', type: 'select', options: CF_SPEAKERS },
+          { key: 'cf_tts_speakers',   label: 'Cloudflare 多角色映射（对话类使用，值填 speaker 名如 thalia/apollo）', type: 'role_map', roles: ['A', 'B', 'C'], speakerOptions: CF_SPEAKERS },
+          { key: 'volc_tts_endpoint', label: '火山 TTS URL（默认 Agent Plan HTTP；若你的 key 不是 Agent Plan 请改成 /api/v3/tts/unidirectional）' },
           { key: 'volc_tts_model',    label: '火山 Resource-Id', type: 'select', options: [
             { value: 'seed-tts-2.0',       label: 'seed-tts-2.0（推荐 · 支持所有 2.0 音色）' },
             { value: 'seed-tts-1.0',       label: 'seed-tts-1.0（老版本，字符版计费）' },

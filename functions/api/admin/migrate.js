@@ -175,8 +175,9 @@ const SEED_SETTINGS = [
   // TTS：默认走 Cloudflare Workers AI；切到 volc 需 Agent Plan 专属 Key（VOLC_SPEECH_API_KEY 或 VOLC_API_KEY）
   ["tts_provider",          "cloudflare"],
   ["tts_fallback_provider", ""],
-  ["cf_tts_model",          "@cf/deepgram/aura-2-thalia-en"],
-  ["cf_tts_speakers",       "A|@cf/deepgram/aura-2-thalia-en, B|@cf/deepgram/aura-2-apollo-en, C|@cf/deepgram/aura-2-helena-en"],
+  ["cf_tts_model",          "@cf/deepgram/aura-2-en"],
+  ["cf_tts_speaker",        "thalia"],
+  ["cf_tts_speakers",       "A|thalia, B|apollo, C|helena"],
   ["volc_tts_endpoint",     "https://openspeech.bytedance.com/api/v3/plan/tts/unidirectional"],
   ["volc_tts_model",        "seed-tts-2.0"],
   ["volc_tts_speaker",      "en_female_dacey_uranus_bigtts"],
