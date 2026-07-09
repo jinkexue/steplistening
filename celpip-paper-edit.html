@@ -82,8 +82,11 @@
         { key: 'options',     label: '选项 options (JSON 数组，如 ["A","B","C","D"])', type: 'textarea' },
         { key: 'answer',      label: '正确答案 answer（如 A 或 0）', type: 'text' },
         { key: 'transcript',  label: '听力原文 transcript', type: 'textarea' },
-        { key: 'audio_key',   label: '音频 R2 key（不填不动）', type: 'text' },
-        { key: 'image_key',   label: '图片 R2 key（可选）', type: 'text' },
+        { key: 'segments_json', label: '分段结构 segments_json（[{transcript, audio_key, question_indices}]）', type: 'textarea', big: true },
+        { key: 'audio_key',   label: '音频 R2 key（不填不动）', type: 'r2_asset', assetKind: 'audio' },
+        { key: 'image_prompts_json', label: 'Part 5 多图 prompts (JSON 数组，每个 < 40 字)', type: 'textarea' },
+        { key: 'image_keys_json',    label: 'Part 5 多图 R2 keys (JSON 数组)', type: 'r2_asset', assetKind: 'image_keys' },
+        { key: 'image_key',   label: '单张图 R2 key（可选）', type: 'r2_asset', assetKind: 'image' },
       ],
       reading: [
         { key: 'part',        label: 'Part (1-4)', type: 'number' },
@@ -105,8 +108,8 @@
         { key: 'task',           label: 'Task (1-8)', type: 'number' },
         { key: 'order_index',    label: '排序 order_index', type: 'number' },
         { key: 'prompt',         label: '题目要求 prompt', type: 'textarea' },
-        { key: 'image_key',      label: '图片 R2 key（Task3/4）', type: 'text' },
         { key: 'image_prompt',   label: '生图 prompt', type: 'textarea' },
+        { key: 'image_key',      label: '图片 R2 key（Task3/4）', type: 'r2_asset', assetKind: 'image' },
         { key: 'vision_hints',   label: '结构化要点 vision_hints (JSON)', type: 'textarea' },
         { key: 'prep_seconds',   label: 'Prep 秒数', type: 'number' },
         { key: 'record_seconds', label: 'Record 秒数', type: 'number' },
@@ -165,7 +168,7 @@
               <button class="celpip-btn danger small" onclick="deleteItem('${section}', ${it.id})">删除</button>
             </div>
           </div>
-          ${defs.map(f => renderField(f, it[f.key])).join('')}
+          ${defs.map(f => renderField(f, it[f.key], '', { section, itemId: it.id })).join('')}
         </div>`).join('');
 
       const addForm = `
@@ -182,7 +185,7 @@
         : cards) + addForm;
     }
 
-    function renderField(f, value, prefix = '') {
+    function renderField(f, value, prefix = '', ctx = {}) {
       const val = value == null ? '' : (typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value));
       const attr = `data-key="${f.key}" data-type="${f.type}"`;
       if (f.type === 'textarea') {
@@ -191,9 +194,45 @@
           <textarea ${attr} style="${f.big ? 'min-height:180px;' : ''}">${escapeHtml(val)}</textarea>
         </div>`;
       }
+      // R2 asset 字段：input 后面挂"重新生成"按钮 + 预览
+      if (f.type === 'r2_asset' && !prefix) {
+        const kind = f.assetKind || 'audio';
+        const emoji = kind === 'audio' ? '🔊' : '🖼';
+        const iconLabel = kind === 'audio' ? '重生成音频' : '重生成图片';
+        const section = ctx.section;
+        const itemId = ctx.itemId;
+        // 预览
+        let preview = '';
+        if (val && kind === 'audio') {
+          preview = `<audio controls preload="none" src="${celpipAssetUrl(val)}" style="max-width:100%;margin-top:4px;height:32px"></audio>`;
+        } else if (val && kind === 'image') {
+          preview = `<img src="${celpipAssetUrl(val)}" style="max-width:120px;max-height:80px;margin-top:4px;border-radius:6px;display:block">`;
+        } else if (val && kind === 'image_keys') {
+          try {
+            const keys = JSON.parse(val);
+            if (Array.isArray(keys)) {
+              preview = '<div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap">' + keys.map((k, i) => k ? `
+                <div style="text-align:center">
+                  <img src="${celpipAssetUrl(k)}" style="max-width:100px;max-height:70px;border-radius:6px;display:block">
+                  <button type="button" class="celpip-btn small" style="background:#F5A623;font-size:10px;padding:2px 6px;margin-top:2px" onclick="regenSingleAsset('${section}', ${itemId}, 'image_keys', ${i}, this)">🔄 img${i}</button>
+                </div>` : `<span style="color:#D64545">img${i} missing</span>`).join('') + '</div>';
+            }
+          } catch {}
+        }
+        // 主按钮（可能是整体重生 or 单张不适用）
+        const btnAttr = `onclick="regenSingleAsset('${section}', ${itemId}, '${kind}', -1, this)"`;
+        return `<div class="field-row">
+          <label>${escapeHtml(f.label)}</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="text" ${attr} value="${escapeAttr(val)}" style="flex:1">
+            <button type="button" class="celpip-btn small" style="background:#F5A623;white-space:nowrap" ${btnAttr}>${emoji} ${iconLabel}</button>
+          </div>
+          ${preview}
+        </div>`;
+      }
       return `<div class="field-row">
         <label>${escapeHtml(f.label)}</label>
-        <input type="${f.type}" ${attr} value="${escapeAttr(val)}">
+        <input type="${f.type === 'r2_asset' ? 'text' : f.type}" ${attr} value="${escapeAttr(val)}">
       </div>`;
     }
 
@@ -278,6 +317,40 @@
     window.deleteItem = deleteItem;
     window.addItem = addItem;
     window.regenItem = regenItem;
+    window.regenSingleAsset = regenSingleAsset;
+
+    async function regenSingleAsset(section, itemId, kind, index, btn) {
+      const original = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = '⏳';
+      try {
+        const body = { user_id: user.userId, section, item_id: itemId, kind };
+        if (kind === 'seg_audio') body.seg_index = index;
+        if (kind === 'image_keys' && index >= 0) body.img_index = index;
+        const data = await celpipApi('/admin/regenerate_asset', { method: 'POST', body });
+        if (data.ok) {
+          const parts = [];
+          if (data.audio_key) parts.push('audio_key: ' + data.audio_key);
+          if (data.image_key) parts.push('image_key: ' + data.image_key);
+          if (data.image_keys) parts.push('image_keys: ' + JSON.stringify(data.image_keys));
+          if (data.errors) parts.push('部分失败: ' + data.errors);
+          celpipShowMessage(`✓ 资源已重新生成`, parts.join('\n') || '完成', 'success');
+          loadAll();
+        } else {
+          celpipShowMessage('✗ 生成失败', data.error || JSON.stringify(data), 'error');
+        }
+      } catch (e) {
+        const isTimeout = e.message && (e.message.includes('503') || e.message.includes('504'));
+        celpipShowMessage(
+          isTimeout ? '⚠ 生成超时' : '✗ 请求失败',
+          (isTimeout ? '可能已部分完成，刷新查看；或再试一次。\n\n' : '') + e.message,
+          'error'
+        );
+      } finally {
+        btn.disabled = false;
+        btn.textContent = original;
+      }
+    }
 
     async function regenItem(section, itemId, btn) {
       if (!confirm(`确认用 AI 重新生成本题？\n\n将覆盖 ${SECTION_LABEL[section]} #${itemId} 的当前内容（题干/选项/答案/原文等），无法撤销。`)) return;
