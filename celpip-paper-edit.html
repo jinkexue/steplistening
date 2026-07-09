@@ -82,11 +82,21 @@
         { key: 'options',     label: '选项 options (JSON 数组，如 ["A","B","C","D"])', type: 'textarea' },
         { key: 'answer',      label: '正确答案 answer（如 A 或 0）', type: 'text' },
         { key: 'transcript',  label: '听力原文 transcript', type: 'textarea' },
-        { key: 'segments_json', label: '分段结构 segments_json（[{transcript, audio_key, question_indices}]）', type: 'textarea', big: true },
-        { key: 'audio_key',   label: '音频 R2 key（不填不动）', type: 'r2_asset', assetKind: 'audio' },
-        { key: 'image_prompts_json', label: 'Part 5 多图 prompts (JSON 数组，每个 < 40 字)', type: 'textarea' },
-        { key: 'image_keys_json',    label: 'Part 5 多图 R2 keys (JSON 数组)', type: 'r2_asset', assetKind: 'image_keys' },
-        { key: 'image_key',   label: '单张图 R2 key（可选）', type: 'r2_asset', assetKind: 'image' },
+        // 分段音频（Part 1/2）
+        { key: 'segments_json', label: '分段结构 segments_json（[{transcript, audio_key, question_indices}]）',
+          type: 'textarea', big: true, showIfPart: [1, 2] },
+        // 主音频（所有 Listening Part 都需要，但对 Part 1/2 是"整体合并音频"，实际听力用 segments 里的 audio_key）
+        { key: 'audio_key', label: '音频 R2 key', type: 'r2_asset', assetKind: 'audio', showIfPart: [3, 4, 5, 6] },
+        // Part 5 多图
+        { key: 'image_prompts_json', label: 'Part 5 多图 prompts (JSON 数组，可留空系统自动推断)',
+          type: 'textarea', showIfPart: [5] },
+        { key: 'image_keys_json',    label: 'Part 5 多图 R2 keys',
+          type: 'r2_asset', assetKind: 'image_keys', showIfPart: [5] },
+        // Part 3/4 单张图（可选）
+        { key: 'image_prompt', label: '图片 prompt（可留空系统自动从 transcript 推断）',
+          type: 'textarea', showIfPart: [3, 4] },
+        { key: 'image_key',    label: '图片 R2 key',
+          type: 'r2_asset', assetKind: 'image', showIfPart: [3, 4] },
       ],
       reading: [
         { key: 'part',        label: 'Part (1-4)', type: 'number' },
@@ -108,9 +118,10 @@
         { key: 'task',           label: 'Task (1-8)', type: 'number' },
         { key: 'order_index',    label: '排序 order_index', type: 'number' },
         { key: 'prompt',         label: '题目要求 prompt', type: 'textarea' },
-        { key: 'image_prompt',   label: '生图 prompt', type: 'textarea' },
-        { key: 'image_key',      label: '图片 R2 key（Task3/4）', type: 'r2_asset', assetKind: 'image' },
-        { key: 'vision_hints',   label: '结构化要点 vision_hints (JSON)', type: 'textarea' },
+        // 只有 Task 3/4/5 需要图片
+        { key: 'image_prompt',   label: '生图 prompt（可留空自动推断）', type: 'textarea', showIfTask: [3, 4, 5] },
+        { key: 'image_key',      label: '图片 R2 key', type: 'r2_asset', assetKind: 'image', showIfTask: [3, 4, 5] },
+        { key: 'vision_hints',   label: '结构化要点 vision_hints (JSON)', type: 'textarea', showIfTask: [3, 4, 5] },
         { key: 'prep_seconds',   label: 'Prep 秒数', type: 'number' },
         { key: 'record_seconds', label: 'Record 秒数', type: 'number' },
       ],
@@ -158,18 +169,30 @@
       const sectionId = sectionIdMap[section];
       const defs = FIELD_DEFS[section];
 
-      const cards = items.map(it => `
+      const cards = items.map(it => {
+        const partOrTask = section === 'writing' || section === 'speaking' ? it.task : it.part;
+        // 动态过滤字段：showIfPart / showIfTask
+        const activeDefs = defs.filter(f => {
+          if (f.showIfPart && section === 'listening') return f.showIfPart.includes(Number(it.part));
+          if (f.showIfTask && section === 'speaking') return f.showIfTask.includes(Number(it.task));
+          return true;
+        });
+        // 判断是否可能需要 auto-fix（只有 listening/speaking 支持）
+        const canAutofix = section === 'listening' || section === 'speaking';
+        return `
         <div class="item-card" data-item-id="${it.id}">
           <div class="item-header">
-            <div class="item-title">${SECTION_LABEL[section]} · ${section === 'writing' || section === 'speaking' ? 'Task' : 'Part'} ${it[section === 'writing' || section === 'speaking' ? 'task' : 'part']} · #${it.id}</div>
+            <div class="item-title">${SECTION_LABEL[section]} · ${section === 'writing' || section === 'speaking' ? 'Task' : 'Part'} ${partOrTask} · #${it.id}</div>
             <div style="display:flex;gap:6px;flex-wrap:wrap">
-              <button class="celpip-btn small" style="background:#F5A623" onclick="regenItem('${section}', ${it.id}, this)" title="用 AI 重新生成本题（会覆盖当前内容）">🔄 重新生成</button>
+              ${canAutofix ? `<button class="celpip-btn small" style="background:#2E9F5B" onclick="autofixAssets('${section}', ${it.id}, this)" title="扫描并补齐所有缺失的音频/图片">🔧 Auto-fix</button>` : ''}
+              <button class="celpip-btn small" style="background:#F5A623" onclick="regenItem('${section}', ${it.id}, this)" title="用 AI 重新生成本题（会覆盖当前内容）">🔄 全部重生</button>
               <button class="celpip-btn success small" onclick="saveItem('${section}', ${it.id}, this)">💾 保存</button>
               <button class="celpip-btn danger small" onclick="deleteItem('${section}', ${it.id})">删除</button>
             </div>
           </div>
-          ${defs.map(f => renderField(f, it[f.key], '', { section, itemId: it.id })).join('')}
-        </div>`).join('');
+          ${activeDefs.map(f => renderField(f, it[f.key], '', { section, itemId: it.id })).join('')}
+        </div>`;
+      }).join('');
 
       const addForm = `
         <div class="item-card" style="border-style:dashed">
@@ -318,6 +341,48 @@
     window.addItem = addItem;
     window.regenItem = regenItem;
     window.regenSingleAsset = regenSingleAsset;
+    window.autofixAssets = autofixAssets;
+
+    async function autofixAssets(section, itemId, btn) {
+      const original = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = '⏳ 扫描中…';
+      try {
+        const data = await celpipApi('/admin/autofix_assets', {
+          method: 'POST',
+          body: { user_id: user.userId, section, item_id: itemId },
+        });
+        if (data.message) {
+          celpipShowMessage('✓ 无需修复', data.message, 'success');
+          return;
+        }
+        const lines = [];
+        lines.push(`扫描缺失: ${data.scanned_missing.join(' | ') || '无'}`);
+        lines.push(`补生成功: ${data.ok_count}/${data.total}`);
+        if (data.fail_count > 0) {
+          lines.push('失败详情:');
+          data.results.filter(r => !r.ok).forEach(r => {
+            lines.push(`  - ${r.action.kind}${r.action.seg_index != null ? `[seg${r.action.seg_index}]` : ''}${r.action.img_index != null ? `[img${r.action.img_index}]` : ''}: ${r.detail.error || JSON.stringify(r.detail)}`);
+          });
+        }
+        celpipShowMessage(
+          data.ok ? '✓ 已补齐缺失资源' : '⚠ 部分资源补生失败',
+          lines.join('\n'),
+          data.ok ? 'success' : 'error'
+        );
+        loadAll();
+      } catch (e) {
+        const isTimeout = e.message && (e.message.includes('503') || e.message.includes('504'));
+        celpipShowMessage(
+          isTimeout ? '⚠ 生成超时' : '✗ 请求失败',
+          (isTimeout ? '可能已部分完成，再点一次可继续补齐剩余的。\n\n' : '') + e.message,
+          'error'
+        );
+      } finally {
+        btn.disabled = false;
+        btn.textContent = original;
+      }
+    }
 
     async function regenSingleAsset(section, itemId, kind, index, btn) {
       const original = btn.textContent;

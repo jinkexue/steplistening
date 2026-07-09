@@ -1,6 +1,29 @@
 import { requireAdmin, json } from "../../lib/auth.js";
-import { loadSettings, pickModel, volcImage } from "../../lib/volc.js";
+import { loadSettings, pickModel, volcImage, volcChatText, pickEndpoint } from "../../lib/volc.js";
 import { synthesizeTTS } from "../../lib/ttsUnified.js";
+
+/**
+ * 根据 transcript / 上下文，自动推断一个短小的图片 prompt（<40 字英文）
+ */
+async function autoDeriveImagePrompt(env, settings, contextText, hint) {
+  const sys = "You are a concise visual prompt writer for a CELPIP listening/speaking practice app. Given a scene description, output ONE short English text-to-image prompt (<40 words) that captures the setting, participants, and mood. Return ONLY the prompt, no quotes, no preface.";
+  const user = `Context (may be dialogue transcript or task description):\n${(contextText || "").slice(0, 1200)}\n\nHint: ${hint || "generate a realistic still image suitable as scene background"}`;
+  try {
+    const out = await volcChatText({
+      apiKey: env.VOLC_API_KEY,
+      endpoint: pickEndpoint(settings, "text"),
+      model: pickModel(settings, "text") || "doubao-pro-32k",
+      system: sys,
+      user,
+      temperature: 0.7,
+      max_tokens: 120,
+    });
+    return String(out || "").replace(/^["']|["']$/g, "").trim().slice(0, 300);
+  } catch (e) {
+    // 兜底：拿 context 前 80 字符直接当 prompt
+    return String(contextText || "").slice(0, 80) + " realistic photo, well-lit, natural framing";
+  }
+}
 
 /**
  * 单资源重新生成 — 只针对某道题的 audio 或 image（不重新生成文本）。
@@ -81,22 +104,47 @@ export async function onRequestPost({ request, env }) {
       }
 
       if (kind === "image") {
-        // 单张图（非 Part 5）
-        const prompt = imagePrompts[0] || row.image_prompt;
-        if (!prompt) return json({ error: "no image_prompt for this item" }, 400);
+        // 单张图（Part 3/4 或口语）
+        let prompt = imagePrompts[0] || row.image_prompt;
+        let autoDerived = false;
+        if (!prompt) {
+          const ctx = (row.transcript || segments.map(s => s.transcript).filter(Boolean).join("\n") || "").slice(0, 1000);
+          prompt = await autoDeriveImagePrompt(env, settings, ctx, "listening Part 3/4 background scene");
+          autoDerived = true;
+          // 顺便保存这个 prompt 到 image_prompts_json[0]（方便下次不用再推断）
+          const newPrompts = imagePrompts.slice();
+          newPrompts[0] = prompt;
+          await env.DB.prepare(
+            "UPDATE celpip_listening_items SET image_prompts_json=? WHERE id=?"
+          ).bind(JSON.stringify(newPrompts), item_id).run();
+        }
         const key = await volcImage(env, settings, prompt);
         await env.DB.prepare(
           "UPDATE celpip_listening_items SET image_key=? WHERE id=?"
         ).bind(key, item_id).run();
-        return json({ ok: true, kind, image_key: key });
+        return json({ ok: true, kind, image_key: key, auto_prompt: autoDerived, prompt_used: prompt });
       }
 
       if (kind === "image_keys") {
-        if (!imagePrompts.length) return json({ error: "no image_prompts_json to reference" }, 400);
+        // Part 5 多图
+        let prompts = imagePrompts.slice();
+        if (!prompts.length) {
+          // 完全无 prompts，自动推断 2 条
+          const ctx = (row.transcript || segments.map(s => s.transcript).filter(Boolean).join("\n") || "").slice(0, 1000);
+          const [p1, p2] = await Promise.all([
+            autoDeriveImagePrompt(env, settings, ctx, "3 speakers around a meeting table, mid-discussion"),
+            autoDeriveImagePrompt(env, settings, ctx, "closeup of the discussion scene, natural expressions"),
+          ]);
+          prompts = [p1, p2];
+          await env.DB.prepare(
+            "UPDATE celpip_listening_items SET image_prompts_json=? WHERE id=?"
+          ).bind(JSON.stringify(prompts), item_id).run();
+        }
         if (imgIndex < 0) {
           // 全部并发重生
+          const targets = prompts.slice(0, 2);
           const results = await Promise.allSettled(
-            imagePrompts.slice(0, 2).map(p => volcImage(env, settings, p))
+            targets.map(p => volcImage(env, settings, p))
           );
           const newKeys = [];
           const errs = [];
@@ -110,8 +158,8 @@ export async function onRequestPost({ request, env }) {
           return json({ ok: true, kind, image_keys: newKeys, errors: errs.length ? errs.join(" | ") : undefined });
         }
         // 只重生单张
-        if (imgIndex >= imagePrompts.length) return json({ error: "img_index out of range" }, 400);
-        const key = await volcImage(env, settings, imagePrompts[imgIndex]);
+        if (imgIndex >= prompts.length) return json({ error: "img_index out of range" }, 400);
+        const key = await volcImage(env, settings, prompts[imgIndex]);
         while (imageKeys.length <= imgIndex) imageKeys.push(null);
         imageKeys[imgIndex] = key;
         await env.DB.prepare(
@@ -129,13 +177,20 @@ export async function onRequestPost({ request, env }) {
       ).bind(item_id).first();
       if (!row) return json({ error: "item not found" }, 404);
       if (kind === "image") {
-        const prompt = row.image_prompt;
-        if (!prompt) return json({ error: "no image_prompt for this speaking item" }, 400);
+        let prompt = row.image_prompt;
+        let autoDerived = false;
+        if (!prompt) {
+          prompt = await autoDeriveImagePrompt(env, settings, row.prompt || "", `speaking task ${row.task} scene image`);
+          autoDerived = true;
+          await env.DB.prepare(
+            "UPDATE celpip_speaking_items SET image_prompt=? WHERE id=?"
+          ).bind(prompt, item_id).run();
+        }
         const key = await volcImage(env, settings, prompt);
         await env.DB.prepare(
           "UPDATE celpip_speaking_items SET image_key=? WHERE id=?"
         ).bind(key, item_id).run();
-        return json({ ok: true, kind, image_key: key });
+        return json({ ok: true, kind, image_key: key, auto_prompt: autoDerived, prompt_used: prompt });
       }
       return json({ error: "speaking only supports kind=image" }, 400);
     }

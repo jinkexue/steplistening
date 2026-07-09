@@ -156,6 +156,10 @@ export async function onRequestPost(context) {
     if (section === "listening") {
       // 新版 Part 级：obj 可能是 {title, part_layout, segments, questions, ...} 或旧 {transcript, question, options, answer}
       const partLayout = obj.part_layout || (obj.segments ? "segmented" : (obj.image_prompts ? "multi_image_shared" : "shared_timer"));
+      // 兼容单张图 prompt：若 obj.image_prompt 存在但 image_prompts 数组为空，塞到数组里方便后端统一读取
+      const imagePromptsArr = obj.image_prompts && obj.image_prompts.length
+        ? obj.image_prompts
+        : (obj.image_prompt ? [obj.image_prompt] : []);
       const questions = obj.questions || (obj.question ? [{ q: obj.question, options: obj.options || [], answer: obj.answer }] : []);
       const segments = obj.segments || (obj.transcript ? [{ transcript: obj.transcript, question_indices: questions.map((_, i) => i) }] : []);
       const sharedTimer = obj.shared_timer_seconds || null;
@@ -173,7 +177,7 @@ export async function onRequestPost(context) {
         obj.title || "", partLayout,
         JSON.stringify(segments),
         JSON.stringify(questions),
-        JSON.stringify(obj.image_prompts || []),
+        JSON.stringify(obj.image_prompts && obj.image_prompts.length ? obj.image_prompts : imagePromptsArr),
         sharedTimer,
         questionType,
         // 兼容旧字段（把整段 transcript 拼起来存一份，方便旧代码读取）
