@@ -758,7 +758,8 @@
         </div>
         <textarea id="segmentInput" 
           placeholder="输入或粘贴回答文字，录音结束后识别文字会显示在这里..."
-          style="width: 100%; min-height: 60px; padding: 8px; border-radius: 6px; background: #1a1a2e; border: 1px solid #444; color: white; font-size: 0.85rem; resize: vertical; line-height: 1.5;"></textarea>
+          oninput="autoResizeTextarea(this)"
+          style="width: 100%; min-height: 60px; max-height: 400px; padding: 8px; border-radius: 6px; background: #1a1a2e; border: 1px solid #444; color: white; font-size: 0.85rem; resize: none; line-height: 1.5; overflow-y: auto;"></textarea>
       </div>
     </div>
   </div>
@@ -2736,6 +2737,14 @@
     }
   });
 
+  // 面试练习页面 - 自动调整文本框高度
+  function autoResizeTextarea(el) {
+    if (!el) return;
+    el.style.height = 'auto';
+    const newHeight = Math.min(el.scrollHeight, 400);
+    el.style.height = newHeight + 'px';
+  }
+
   // ============ 面试练习功能 ============
   let positionList = []; // 岗位列表
   let currentPositionId = null; // 当前选中的岗位ID
@@ -3423,8 +3432,8 @@
         <div style="font-size: 0.75rem; color: var(--primary); margin-bottom: 8px;" id="pasteHintLabel">📋 Paste answers, auto-split by sentence:</div>
         <textarea id="segmentInput" 
           placeholder="Paste answer text..."
-          style="width: 100%; min-height: 60px; padding: 8px; border-radius: 6px; background: #1a1a2e; border: 1px solid #444; color: white; font-size: 0.85rem; resize: vertical; line-height: 1.5;"
-          oninput="previewSegments(this.value)"
+          style="width: 100%; min-height: 60px; max-height: 400px; padding: 8px; border-radius: 6px; background: #1a1a2e; border: 1px solid #444; color: white; font-size: 0.85rem; resize: none; line-height: 1.5; overflow-y: auto;"
+          oninput="autoResizeTextarea(this); previewSegments(this.value)"
         ></textarea>
         <div style="display: flex; gap: 10px; margin-top: 8px; align-items: center; flex-wrap: wrap;">
           <button class="btn-secondary" onclick="splitAndSaveSegments()" style="padding: 6px 12px; font-size: 0.75rem;">✂️ 分割保存</button>
@@ -3655,8 +3664,8 @@
           <span style="color: var(--primary); font-size: 0.8rem; font-weight: bold;">${audio.order_index || 1}</span>
           ${audio.audio_key ? `
             <button class="action-btn" onclick="playInterviewAudio('${audio.audio_key}', ${audio.id})" title="${isZh ? '播放' : 'Play'}" style="font-size: 0.85rem; padding: 2px;">▶</button>
-            <button class="action-btn" onclick="startReRecordInterview(${audio.id})" title="${isZh ? '重录' : 'Re-record'}" style="font-size: 0.85rem; padding: 2px;">🎤</button>
           ` : ''}
+          <button class="action-btn" onclick="startReRecordInterview(${audio.id})" title="${isZh ? (audio.audio_key ? '重录' : '录音') : (audio.audio_key ? 'Re-record' : 'Record')}" style="font-size: 0.85rem; padding: 2px; color: var(--primary);">🎤</button>
           <button class="action-btn" onclick="deleteInterviewAudio(${audio.id})" title="${isZh ? '删除' : 'Delete'}" style="font-size: 0.85rem; padding: 2px;">🗑️</button>
         </div>
         <div style="flex: 1; padding: 0 10px;">
@@ -3756,6 +3765,9 @@
             if (interviewReRecordId) {
               // 重录模式：更新已有录音
               const oldAudio = interviewAudios.find(a => a.id == interviewReRecordId);
+              // 若原记录已有文字，则保留原文字；否则使用STT识别结果
+              const preservedText = (oldAudio && oldAudio.text && oldAudio.text.trim()) ? oldAudio.text : text;
+              const preservedSource = (oldAudio && oldAudio.text && oldAudio.text.trim()) ? (oldAudio.source || 'manual') : (text ? 'auto' : 'manual');
               await fetch(`${API_BASE}/interview_audio`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -3764,14 +3776,12 @@
                   id: interviewReRecordId,
                   audio_key: upData.key,
                   duration: duration,
-                  text: text,
-                  source: text ? 'auto' : 'manual'
+                  text: preservedText,
+                  source: preservedSource
                 })
               });
-              interviewAudios = interviewAudios.map(a => a.id == interviewReRecordId ? { ...a, audio_key: upData.key, duration, text, source: text ? 'auto' : 'manual' } : a);
+              interviewAudios = interviewAudios.map(a => a.id == interviewReRecordId ? { ...a, audio_key: upData.key, duration, text: preservedText, source: preservedSource } : a);
               interviewReRecordId = null;
-              // 清空输入框
-              if (textInput) textInput.value = '';
               renderInterviewAudios();
               if (micStatus) micStatus.innerText = isZh ? 'R键录音' : 'R to record';
             } else {
@@ -3785,7 +3795,10 @@
               // 识别文字追加到文本框
               const currentText = textInput?.value.trim() || '';
               const newText = currentText ? currentText + '\n' + text : text;
-              if (textInput) textInput.value = newText;
+              if (textInput) {
+                textInput.value = newText;
+                autoResizeTextarea(textInput);
+              }
               if (micStatus) micStatus.innerText = isZh ? 'R键录音' : 'R to record';
             }
           } else {
@@ -3846,14 +3859,28 @@
       
       if (res.ok) {
         interviewPendingAudio = null;
-        if (textInput) textInput.value = '';
-        await loadInterviewAudios();
+        if (textInput) {
+          textInput.value = '';
+          // 重置输入框高度
+          textInput.style.height = 'auto';
+        }
+        // 重新加载当前问题的录音列表
+        try {
+          const audioRes = await fetch(`${API_BASE}/interview_audio?question_id=${currentQuestionId}`);
+          if (audioRes.ok) {
+            interviewAudios = await audioRes.json();
+          }
+        } catch (loadErr) {
+          console.error('reload interview audios failed', loadErr);
+        }
         renderInterviewAudios();
       } else {
-        const err = await res.json();
-        alert(isZh ? '保存失败: ' + err.error : 'Save failed: ' + err.error);
+        let errMsg = '';
+        try { const err = await res.json(); errMsg = err.error || ''; } catch (_) {}
+        alert(isZh ? '保存失败: ' + errMsg : 'Save failed: ' + errMsg);
       }
     } catch (e) {
+      console.error('saveInterviewRecording error:', e);
       alert(isZh ? '保存失败' : 'Save failed');
     }
   }
