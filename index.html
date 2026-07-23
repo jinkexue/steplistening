@@ -3682,14 +3682,52 @@
           `}
           <div style="display: flex; align-items: center; gap: 6px; margin-top: 6px; flex-wrap: wrap;">
             ${audio.duration ? `<div style="font-size: 0.7rem; color: #666;">🎧 ${audio.duration}s</div>` : ''}
-            ${audio.text && audio.text.trim() ? `
-              <button class="action-btn" onclick="playInterviewTTS(${audio.id})" title="${isZh ? '按顶部选择的模型/音色/语速朗读' : 'Speak with settings above'}" style="font-size: 0.75rem; padding: 2px 8px; background: rgba(255,159,67,0.15); border: 1px solid var(--primary); border-radius: 4px; color: var(--primary);">🔊 ${isZh ? 'TTS 朗读' : 'TTS'}</button>
-              ${audio.tts_audio_key ? `<button class="action-btn" onclick="playInterviewTTSAudio('${audio.tts_audio_key}')" title="${isZh ? '播放上次生成的 TTS（按当前语速）' : 'Play last TTS'}" style="font-size: 0.75rem; padding: 2px 6px; color: #67d;">▶ ${audio.tts_voice || ''}${audio.tts_model ? ' · ' + audio.tts_model : ''}</button>` : ''}
-            ` : ''}
+            ${audio.text && audio.text.trim() ? renderTTSControls(audio) : ''}
           </div>
         </div>
       </div>
     `).join('');
+  }
+
+  // 渲染每条回答的 TTS 控制区（状态清晰化）
+  function renderTTSControls(audio) {
+    const isZh = currentLang === 'zh';
+    const { model: curModel, voice: curVoice } = getTTSSettings();
+    const hasTTS = !!audio.tts_audio_key;
+    // 由于旧数据可能没有 tts_model（字段刚迁移），此时视为"未知"，等同当前设置以避免重复调用
+    const savedModel = audio.tts_model || null;
+    const savedVoice = audio.tts_voice || null;
+    // 若已生成且（未记录 model 或 model 与当前一致）且音色一致，视为"已就绪"
+    const matchesCurrent = hasTTS
+      && (savedVoice ? savedVoice === curVoice : true)
+      && (savedModel ? savedModel === curModel : true);
+
+    if (!hasTTS) {
+      // 状态：未生成
+      return `
+        <span title="${isZh ? '尚未生成 TTS' : 'No TTS yet'}" style="display:inline-flex; align-items:center; gap:4px; font-size:0.7rem; color:#888; background:rgba(255,255,255,0.04); padding:2px 6px; border-radius:10px;">⚪ ${isZh ? '未生成' : 'Not generated'}</span>
+        <button class="action-btn" onclick="playInterviewTTS(${audio.id})" title="${isZh ? '按顶部设置生成朗读' : 'Generate TTS'}" style="font-size:0.75rem; padding:3px 10px; background:rgba(255,159,67,0.15); border:1px solid var(--primary); border-radius:4px; color:var(--primary); font-weight:bold;">🎙️ ${isZh ? '生成朗读' : 'Generate'}</button>
+      `;
+    }
+
+    if (matchesCurrent) {
+      // 状态：已生成且和当前设置匹配 → 播放为主
+      const voiceLabel = savedVoice || curVoice;
+      const modelLabel = savedModel || curModel;
+      return `
+        <span title="${isZh ? '当前设置对应的 TTS 已生成' : 'TTS ready for current settings'}" style="display:inline-flex; align-items:center; gap:4px; font-size:0.7rem; color:#4ade80; background:rgba(74,222,128,0.1); border:1px solid rgba(74,222,128,0.3); padding:2px 6px; border-radius:10px;">✅ ${voiceLabel} · ${modelLabel}</span>
+        <button class="action-btn" onclick="playInterviewTTSAudio('${audio.tts_audio_key}')" title="${isZh ? '播放已生成 TTS（按当前语速）' : 'Play cached TTS'}" style="font-size:0.75rem; padding:3px 10px; background:rgba(74,222,128,0.15); border:1px solid #4ade80; border-radius:4px; color:#4ade80; font-weight:bold;">▶ ${isZh ? '播放' : 'Play'}</button>
+        <button class="action-btn" onclick="playInterviewTTS(${audio.id})" title="${isZh ? '按顶部当前设置重新生成' : 'Regenerate'}" style="font-size:0.7rem; padding:2px 6px; color:#888;">🔄</button>
+      `;
+    }
+
+    // 状态：已生成，但和顶部当前设置不同 → 提示可播旧版 or 用新设置重生
+    const oldTag = `${savedVoice || '?'}${savedModel ? ' · ' + savedModel : ''}`;
+    return `
+      <span title="${isZh ? '已生成的 TTS 与当前顶部设置不同' : 'Cached TTS differs from current settings'}" style="display:inline-flex; align-items:center; gap:4px; font-size:0.7rem; color:#fbbf24; background:rgba(251,191,36,0.1); border:1px solid rgba(251,191,36,0.3); padding:2px 6px; border-radius:10px;">🟡 ${isZh ? '已生成' : 'Cached'}: ${oldTag}</span>
+      <button class="action-btn" onclick="playInterviewTTSAudio('${audio.tts_audio_key}')" title="${isZh ? '播放旧版本' : 'Play cached'}" style="font-size:0.75rem; padding:3px 8px; background:rgba(251,191,36,0.15); border:1px solid #fbbf24; border-radius:4px; color:#fbbf24;">▶ ${isZh ? '播放旧版' : 'Play old'}</button>
+      <button class="action-btn" onclick="playInterviewTTS(${audio.id})" title="${isZh ? '用当前设置重新生成（${curVoice} · ${curModel}）' : 'Regenerate with current settings'}" style="font-size:0.75rem; padding:3px 8px; background:rgba(255,159,67,0.15); border:1px solid var(--primary); border-radius:4px; color:var(--primary);">🎙️ ${isZh ? '重新生成' : 'Regenerate'}</button>
+    `;
   }
 
   // ============ TTS 全局配置 ============
@@ -3741,10 +3779,15 @@
     const { model, voice, rate } = getTTSSettings();
     const isZh = currentLang === 'zh';
 
-    // 已有缓存 + 模型音色都匹配 → 直接播（省 API 调用）
-    if (audio.tts_audio_key && audio.tts_voice === voice && audio.tts_model === model) {
-      playInterviewTTSAudio(audio.tts_audio_key);
-      return;
+    // 已有缓存 → 判断是否与当前设置匹配，匹配则直接播（省 API 调用）
+    // 旧数据可能没有 tts_model 字段（迁移前生成的），视为"未知"，不强制视为不匹配
+    if (audio.tts_audio_key) {
+      const voiceMatches = audio.tts_voice ? audio.tts_voice === voice : true;
+      const modelMatches = audio.tts_model ? audio.tts_model === model : true;
+      if (voiceMatches && modelMatches) {
+        playInterviewTTSAudio(audio.tts_audio_key);
+        return;
+      }
     }
 
     try {
