@@ -719,8 +719,9 @@
 
 <!-- 面试练习页面 -->
 <div id="interviewPanel" style="display:none; position: fixed; top: 60px; left: 0; width: 100%; height: calc(100vh - 60px); background: var(--bg); z-index: 500; padding: 20px; overflow-y: auto;">
-  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-    <h1>🎤 面试练习</h1>
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 12px; flex-wrap: wrap;">
+    <h1 style="margin: 0;">🎤 面试练习</h1>
+    <div id="ttsGlobalBar" style="display: flex; align-items: center; gap: 6px; padding: 6px 10px; background: var(--card); border: 1px solid #333; border-radius: 8px;"></div>
     <button class="btn-main" onclick="closeInterview()">🔙 返回听写</button>
   </div>
   <div class="interview-grid" id="interviewGrid">
@@ -1449,6 +1450,8 @@
        document.getElementById('interviewPanel').style.display = 'block';
        loadPositions();
        updatePageTexts();
+       // 初始化顶部 TTS 全局设置栏
+       if (typeof renderTTSGlobalBar === 'function') renderTTSGlobalBar();
      }
   }
 
@@ -3680,11 +3683,8 @@
           <div style="display: flex; align-items: center; gap: 6px; margin-top: 6px; flex-wrap: wrap;">
             ${audio.duration ? `<div style="font-size: 0.7rem; color: #666;">🎧 ${audio.duration}s</div>` : ''}
             ${audio.text && audio.text.trim() ? `
-              <select id="tts-voice-${audio.id}" class="tts-voice-select" style="background: #1a1a2e; border: 1px solid #444; color: #ccc; font-size: 0.7rem; padding: 2px 4px; border-radius: 4px;">
-                ${renderVoiceOptions(audio.tts_voice)}
-              </select>
-              <button class="action-btn" onclick="playInterviewTTS(${audio.id})" title="${isZh ? 'TTS朗读' : 'TTS Speak'}" style="font-size: 0.75rem; padding: 2px 6px; background: rgba(255,159,67,0.15); border: 1px solid var(--primary); border-radius: 4px; color: var(--primary);">🔊 ${isZh ? 'TTS' : 'TTS'}</button>
-              ${audio.tts_audio_key ? `<button class="action-btn" onclick="playInterviewTTSAudio('${audio.tts_audio_key}')" title="${isZh ? '播放已生成TTS' : 'Play cached TTS'}" style="font-size: 0.75rem; padding: 2px 6px; color: #67d;">▶ TTS</button>` : ''}
+              <button class="action-btn" onclick="playInterviewTTS(${audio.id})" title="${isZh ? '按顶部选择的模型/音色/语速朗读' : 'Speak with settings above'}" style="font-size: 0.75rem; padding: 2px 8px; background: rgba(255,159,67,0.15); border: 1px solid var(--primary); border-radius: 4px; color: var(--primary);">🔊 ${isZh ? 'TTS 朗读' : 'TTS'}</button>
+              ${audio.tts_audio_key ? `<button class="action-btn" onclick="playInterviewTTSAudio('${audio.tts_audio_key}')" title="${isZh ? '播放上次生成的 TTS（按当前语速）' : 'Play last TTS'}" style="font-size: 0.75rem; padding: 2px 6px; color: #67d;">▶ ${audio.tts_voice || ''}${audio.tts_model ? ' · ' + audio.tts_model : ''}</button>` : ''}
             ` : ''}
           </div>
         </div>
@@ -3692,25 +3692,41 @@
     `).join('');
   }
 
-  // TTS 音色列表（前端展示用）
-  const TTS_VOICES = [
-    { key: 'en-us',      label: '🇺🇸 US' },
-    { key: 'en-br',      label: '🇬🇧 UK' },
-    { key: 'en-au',      label: '🇦🇺 AU' },
-    { key: 'en-india',   label: '🇮🇳 IN' },
-    { key: 'en-default', label: 'EN (Default)' },
-    { key: 'zh',         label: '🇨🇳 中文' },
-    { key: 'jp',         label: '🇯🇵 日本語' },
-    { key: 'kr',         label: '🇰🇷 한국어' },
-    { key: 'es',         label: '🇪🇸 ES' },
-    { key: 'fr',         label: '🇫🇷 FR' },
+  // ============ TTS 全局配置 ============
+  // 模型（Cloudflare Workers AI 神经元 TTS）
+  const TTS_MODELS = [
+    { key: 'aura-1', label: '💰 Aura-1 · 性价比' },
+    { key: 'aura-2', label: '💎 Aura-2 · 最自然' },
   ];
+  // 6 个北美英语音色
+  const TTS_VOICES = [
+    { key: 'luna',    label: '🌙 Luna · 女 · 友好清晰' },
+    { key: 'asteria', label: '✨ Asteria · 女 · 活力' },
+    { key: 'hera',    label: '💼 Hera · 女 · 商务专业' },
+    { key: 'arcas',   label: '🎯 Arcas · 男 · 对话感' },
+    { key: 'orion',   label: '🔥 Orion · 男 · 磁性低沉' },
+    { key: 'zeus',    label: '⚡ Zeus · 男 · 权威有力' },
+  ];
+  // 语速档位（前端 playbackRate，不占 API 额度）
+  const TTS_RATES = [
+    { key: '0.75', label: '🐢 0.75×' },
+    { key: '1.0',  label: '▶️ 1.0×' },
+    { key: '1.25', label: '⏩ 1.25×' },
+    { key: '1.5',  label: '⚡ 1.5×' },
+  ];
+  // 默认组合：Aura-1 + Luna + 1.0×（localStorage 持久化）
+  const TTS_DEFAULT = { model: 'aura-1', voice: 'luna', rate: '1.0' };
 
-  function renderVoiceOptions(selectedKey) {
-    const cur = (selectedKey || 'en-us').toLowerCase();
-    return TTS_VOICES.map(v =>
-      `<option value="${v.key}" ${v.key === cur ? 'selected' : ''}>${v.label}</option>`
-    ).join('');
+  function getTTSSettings() {
+    return {
+      model: localStorage.getItem('ttsModel') || TTS_DEFAULT.model,
+      voice: localStorage.getItem('ttsVoice') || TTS_DEFAULT.voice,
+      rate:  localStorage.getItem('ttsRate')  || TTS_DEFAULT.rate,
+    };
+  }
+  function setTTSSetting(key, value) {
+    const map = { model: 'ttsModel', voice: 'ttsVoice', rate: 'ttsRate' };
+    if (map[key]) localStorage.setItem(map[key], value);
   }
 
   // 缓存正在播放的 TTS 音频对象
@@ -3722,12 +3738,11 @@
       alert(currentLang === 'zh' ? '没有文字可朗读' : 'No text to speak');
       return;
     }
-    const voiceEl = document.getElementById('tts-voice-' + id);
-    const voice = voiceEl ? voiceEl.value : 'en-us';
+    const { model, voice, rate } = getTTSSettings();
     const isZh = currentLang === 'zh';
 
-    // 若已有缓存的 tts_audio_key 且音色匹配，直接播放
-    if (audio.tts_audio_key && audio.tts_voice === voice) {
+    // 已有缓存 + 模型音色都匹配 → 直接播（省 API 调用）
+    if (audio.tts_audio_key && audio.tts_voice === voice && audio.tts_model === model) {
       playInterviewTTSAudio(audio.tts_audio_key);
       return;
     }
@@ -3736,7 +3751,7 @@
       const res = await fetch(`${API_BASE}/interview_tts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, text: audio.text, voice })
+        body: JSON.stringify({ id, text: audio.text, model, voice })
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -3746,7 +3761,7 @@
       const data = await res.json();
       // 更新本地缓存
       interviewAudios = interviewAudios.map(a =>
-        a.id == id ? { ...a, tts_audio_key: data.audio_key, tts_voice: data.voice } : a
+        a.id == id ? { ...a, tts_audio_key: data.audio_key, tts_voice: data.voice, tts_model: data.model } : a
       );
       renderInterviewAudios();
       playInterviewTTSAudio(data.audio_key);
@@ -3763,7 +3778,26 @@
     }
     const url = `${API_BASE}/audio?key=${encodeURIComponent(key)}`;
     interviewTTSAudio = new Audio(url);
+    const rate = parseFloat(getTTSSettings().rate) || 1.0;
+    interviewTTSAudio.playbackRate = rate;
     interviewTTSAudio.play().catch(e => console.error('play tts audio failed', e));
+  }
+
+  // 顶部全局 TTS 设置栏（初始化 / 变更）
+  function renderTTSGlobalBar() {
+    const bar = document.getElementById('ttsGlobalBar');
+    if (!bar) return;
+    const s = getTTSSettings();
+    const modelOpts = TTS_MODELS.map(m => `<option value="${m.key}" ${m.key === s.model ? 'selected' : ''}>${m.label}</option>`).join('');
+    const voiceOpts = TTS_VOICES.map(v => `<option value="${v.key}" ${v.key === s.voice ? 'selected' : ''}>${v.label}</option>`).join('');
+    const rateOpts  = TTS_RATES.map(r => `<option value="${r.key}" ${r.key === s.rate ? 'selected' : ''}>${r.label}</option>`).join('');
+    const isZh = currentLang === 'zh';
+    bar.innerHTML = `
+      <span style="font-size: 0.75rem; color: #888; margin-right: 4px;">🔊 ${isZh ? 'TTS 设置' : 'TTS'}</span>
+      <select id="ttsModelSel"  onchange="setTTSSetting('model', this.value); renderInterviewAudios();" style="background:#1a1a2e; border:1px solid #444; color:#ccc; font-size:0.75rem; padding:3px 6px; border-radius:4px;">${modelOpts}</select>
+      <select id="ttsVoiceSel"  onchange="setTTSSetting('voice', this.value); renderInterviewAudios();" style="background:#1a1a2e; border:1px solid #444; color:#ccc; font-size:0.75rem; padding:3px 6px; border-radius:4px;">${voiceOpts}</select>
+      <select id="ttsRateSel"   onchange="setTTSSetting('rate',  this.value);" style="background:#1a1a2e; border:1px solid #444; color:#ccc; font-size:0.75rem; padding:3px 6px; border-radius:4px;">${rateOpts}</select>
+    `;
   }
 
   function startAudioEdit(id) {

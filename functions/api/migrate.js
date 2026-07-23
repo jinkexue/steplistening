@@ -156,6 +156,18 @@ export async function onRequestPost(context) {
         }
       }
 
+      // 检查并添加 tts_model 列到 interview_audios 表
+      try {
+        await env.DB.prepare("ALTER TABLE interview_audios ADD COLUMN tts_model TEXT").run();
+        results.push({ table: 'interview_audios', column: 'tts_model', status: 'added' });
+      } catch (e) {
+        if (e.message.includes('duplicate column') || e.message.includes('already exists')) {
+          results.push({ table: 'interview_audios', column: 'tts_model', status: 'already_exists' });
+        } else {
+          results.push({ table: 'interview_audios', column: 'tts_model', status: 'error', error: e.message });
+        }
+      }
+
       const hasErrors = results.some(r => r.status === 'error');
 
       return new Response(JSON.stringify({

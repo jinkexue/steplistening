@@ -100,6 +100,7 @@ CREATE TABLE IF NOT EXISTS interview_audios (
   order_index INTEGER DEFAULT 1,
   tts_audio_key TEXT,
   tts_voice TEXT,
+  tts_model TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (interview_id) REFERENCES interviews(id) ON DELETE CASCADE,
   FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE
