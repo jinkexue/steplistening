@@ -132,6 +132,30 @@ export async function onRequestPost(context) {
         results.push({ table: 'questions', column: 'order_index init', status: 'error', error: e.message });
       }
 
+      // 检查并添加 tts_audio_key 列到 interview_audios 表
+      try {
+        await env.DB.prepare("ALTER TABLE interview_audios ADD COLUMN tts_audio_key TEXT").run();
+        results.push({ table: 'interview_audios', column: 'tts_audio_key', status: 'added' });
+      } catch (e) {
+        if (e.message.includes('duplicate column') || e.message.includes('already exists')) {
+          results.push({ table: 'interview_audios', column: 'tts_audio_key', status: 'already_exists' });
+        } else {
+          results.push({ table: 'interview_audios', column: 'tts_audio_key', status: 'error', error: e.message });
+        }
+      }
+
+      // 检查并添加 tts_voice 列到 interview_audios 表
+      try {
+        await env.DB.prepare("ALTER TABLE interview_audios ADD COLUMN tts_voice TEXT").run();
+        results.push({ table: 'interview_audios', column: 'tts_voice', status: 'added' });
+      } catch (e) {
+        if (e.message.includes('duplicate column') || e.message.includes('already exists')) {
+          results.push({ table: 'interview_audios', column: 'tts_voice', status: 'already_exists' });
+        } else {
+          results.push({ table: 'interview_audios', column: 'tts_voice', status: 'error', error: e.message });
+        }
+      }
+
       const hasErrors = results.some(r => r.status === 'error');
 
       return new Response(JSON.stringify({

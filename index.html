@@ -3660,10 +3660,10 @@
 
     container.innerHTML = sortedAudios.map(audio => `
       <div class="record-item" style="display: flex; align-items: stretch; padding: 8px 12px; border-bottom: 1px solid #333;">
-        <div style="width: 40px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 4px; flex-shrink: 0; border-right: 1px solid #333; padding-right: 10px; padding-top: 2px;">
+        <div style="width: 44px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 4px; flex-shrink: 0; border-right: 1px solid #333; padding-right: 10px; padding-top: 2px;">
           <span style="color: var(--primary); font-size: 0.8rem; font-weight: bold;">${audio.order_index || 1}</span>
           ${audio.audio_key ? `
-            <button class="action-btn" onclick="playInterviewAudio('${audio.audio_key}', ${audio.id})" title="${isZh ? '播放' : 'Play'}" style="font-size: 0.85rem; padding: 2px;">▶</button>
+            <button class="action-btn" onclick="playInterviewAudio('${audio.audio_key}', ${audio.id})" title="${isZh ? '播放我的录音' : 'Play my recording'}" style="font-size: 0.85rem; padding: 2px;">▶</button>
           ` : ''}
           <button class="action-btn" onclick="startReRecordInterview(${audio.id})" title="${isZh ? (audio.audio_key ? '重录' : '录音') : (audio.audio_key ? 'Re-record' : 'Record')}" style="font-size: 0.85rem; padding: 2px; color: var(--primary);">🎤</button>
           <button class="action-btn" onclick="deleteInterviewAudio(${audio.id})" title="${isZh ? '删除' : 'Delete'}" style="font-size: 0.85rem; padding: 2px;">🗑️</button>
@@ -3677,10 +3677,93 @@
           ` : `
             <div onclick="startAudioEdit(${audio.id})" style="font-size: 0.85rem; color: white; line-height: 1.5; min-height: 40px; cursor: text;">${audio.text || (isZh ? '(无文字)' : '(No text)')}</div>
           `}
-          ${audio.duration ? `<div style="font-size: 0.7rem; color: #666; margin-top: 4px;">🎧 ${audio.duration}s</div>` : ''}
+          <div style="display: flex; align-items: center; gap: 6px; margin-top: 6px; flex-wrap: wrap;">
+            ${audio.duration ? `<div style="font-size: 0.7rem; color: #666;">🎧 ${audio.duration}s</div>` : ''}
+            ${audio.text && audio.text.trim() ? `
+              <select id="tts-voice-${audio.id}" class="tts-voice-select" style="background: #1a1a2e; border: 1px solid #444; color: #ccc; font-size: 0.7rem; padding: 2px 4px; border-radius: 4px;">
+                ${renderVoiceOptions(audio.tts_voice)}
+              </select>
+              <button class="action-btn" onclick="playInterviewTTS(${audio.id})" title="${isZh ? 'TTS朗读' : 'TTS Speak'}" style="font-size: 0.75rem; padding: 2px 6px; background: rgba(255,159,67,0.15); border: 1px solid var(--primary); border-radius: 4px; color: var(--primary);">🔊 ${isZh ? 'TTS' : 'TTS'}</button>
+              ${audio.tts_audio_key ? `<button class="action-btn" onclick="playInterviewTTSAudio('${audio.tts_audio_key}')" title="${isZh ? '播放已生成TTS' : 'Play cached TTS'}" style="font-size: 0.75rem; padding: 2px 6px; color: #67d;">▶ TTS</button>` : ''}
+            ` : ''}
+          </div>
         </div>
       </div>
     `).join('');
+  }
+
+  // TTS 音色列表（前端展示用）
+  const TTS_VOICES = [
+    { key: 'en-us',      label: '🇺🇸 US' },
+    { key: 'en-br',      label: '🇬🇧 UK' },
+    { key: 'en-au',      label: '🇦🇺 AU' },
+    { key: 'en-india',   label: '🇮🇳 IN' },
+    { key: 'en-default', label: 'EN (Default)' },
+    { key: 'zh',         label: '🇨🇳 中文' },
+    { key: 'jp',         label: '🇯🇵 日本語' },
+    { key: 'kr',         label: '🇰🇷 한국어' },
+    { key: 'es',         label: '🇪🇸 ES' },
+    { key: 'fr',         label: '🇫🇷 FR' },
+  ];
+
+  function renderVoiceOptions(selectedKey) {
+    const cur = (selectedKey || 'en-us').toLowerCase();
+    return TTS_VOICES.map(v =>
+      `<option value="${v.key}" ${v.key === cur ? 'selected' : ''}>${v.label}</option>`
+    ).join('');
+  }
+
+  // 缓存正在播放的 TTS 音频对象
+  let interviewTTSAudio = null;
+
+  async function playInterviewTTS(id) {
+    const audio = interviewAudios.find(a => a.id == id);
+    if (!audio || !audio.text || !audio.text.trim()) {
+      alert(currentLang === 'zh' ? '没有文字可朗读' : 'No text to speak');
+      return;
+    }
+    const voiceEl = document.getElementById('tts-voice-' + id);
+    const voice = voiceEl ? voiceEl.value : 'en-us';
+    const isZh = currentLang === 'zh';
+
+    // 若已有缓存的 tts_audio_key 且音色匹配，直接播放
+    if (audio.tts_audio_key && audio.tts_voice === voice) {
+      playInterviewTTSAudio(audio.tts_audio_key);
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/interview_tts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, text: audio.text, voice })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert((isZh ? 'TTS 生成失败: ' : 'TTS failed: ') + (err.error || res.status));
+        return;
+      }
+      const data = await res.json();
+      // 更新本地缓存
+      interviewAudios = interviewAudios.map(a =>
+        a.id == id ? { ...a, tts_audio_key: data.audio_key, tts_voice: data.voice } : a
+      );
+      renderInterviewAudios();
+      playInterviewTTSAudio(data.audio_key);
+    } catch (e) {
+      console.error('playInterviewTTS error:', e);
+      alert(isZh ? 'TTS 生成失败' : 'TTS failed');
+    }
+  }
+
+  function playInterviewTTSAudio(key) {
+    if (!key) return;
+    if (interviewTTSAudio) {
+      try { interviewTTSAudio.pause(); } catch (_) {}
+    }
+    const url = `${API_BASE}/audio?key=${encodeURIComponent(key)}`;
+    interviewTTSAudio = new Audio(url);
+    interviewTTSAudio.play().catch(e => console.error('play tts audio failed', e));
   }
 
   function startAudioEdit(id) {
