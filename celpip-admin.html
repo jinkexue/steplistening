@@ -36,16 +36,13 @@
     </div>
 
     <div id="adminBody" style="display:none">
-      <!-- ================= 数据库迁移（置顶显眼位置） ================= -->
-      <div class="celpip-card" style="margin-bottom:16px;border:1px solid #F5A623;background:linear-gradient(135deg,#fff8ec,#fff)">
-        <h3 style="margin-bottom:8px">🗄️ 数据库迁移（初始化 / schema 更新）</h3>
-        <p style="color:var(--celpip-muted);font-size:13px;margin-bottom:12px">第一次部署或每次 schema 更新（含 interview TTS 等新字段）后请点击。会自动创建/补齐 CELPIP 相关表并 seed 默认配置。</p>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
-          <button class="celpip-btn secondary" id="migrateBtn" onclick="runMigrate(false)">运行迁移（保留原提示词）</button>
-          <button class="celpip-btn" id="migrateForceBtn" onclick="runMigrate(true)" style="background:#F5A623">运行迁移 + 覆盖默认提示词</button>
+      <!-- ================= 数据库迁移入口已迁移至统一后台 ================= -->
+      <div class="celpip-card" style="margin-bottom:16px;border:1px solid #4ade80;background:linear-gradient(135deg,#f0fdf4,#fff)">
+        <h3 style="margin-bottom:8px">🗄️ 数据库迁移已统一到主管理后台</h3>
+        <p style="color:var(--celpip-muted);font-size:13px;margin-bottom:12px">CELPIP 迁移入口已迁移至 <b>主站 ⚙️ 管理后台 → 🗄️ 数据库管理（统一入口） → ② CELPIP 迁移</b>，方便集中管理。此页面不再重复展示按钮。</p>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <a href="/index.html#admin" class="celpip-btn" style="text-decoration:none">→ 前往主管理后台</a>
         </div>
-        <p style="color:var(--celpip-muted);font-size:12px">"覆盖默认提示词"会用代码里最新的 SEED_PROMPTS 生成新版本并激活（旧版本被停用）。修改过 prompt 后请慎用。</p>
-        <div id="migrateResult" style="margin-top:12px;font-size:12px"></div>
       </div>
 
       <div class="admin-tabs">

@@ -507,7 +507,7 @@
     </div>
     
     <div class="panel-section" style="background: linear-gradient(135deg, #1a1a2e, #16213e);">
-      <h2>🗄️ 数据库管理</h2>
+      <h2>🗄️ 数据库管理（统一入口）</h2>
       <div style="margin-top: 15px;">
         <div id="dbStatus" style="margin-bottom: 15px; padding: 15px; background: rgba(0,0,0,0.2); border-radius: 8px;">
           <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
@@ -516,11 +516,32 @@
           </div>
           <div id="dbColumns" style="font-size: 0.85rem; color: #888;"></div>
         </div>
-        <button id="migrateBtn" class="btn-main" onclick="runDatabaseMigration()">
-          🔧 执行数据库迁移
-        </button>
-        <div style="margin-top: 10px; font-size: 0.8rem; color: #666;">
-          自动添加 SM-2 字段 (efactor / interval / repetitions)、interview_audios.segment_id、questions.order_index，以及面试 TTS 字段 (tts_audio_key / tts_voice)。
+
+        <!-- ① 主库迁移 -->
+        <div style="padding: 12px; background: rgba(0,0,0,0.15); border-radius: 8px; margin-bottom: 12px;">
+          <h3 style="margin: 0 0 8px 0; font-size: 1rem;">① 主库迁移（听写 / 生词 / 面试）</h3>
+          <button id="migrateBtn" class="btn-main" onclick="runDatabaseMigration()">
+            🔧 执行主库迁移
+          </button>
+          <div style="margin-top: 8px; font-size: 0.8rem; color: #888;">
+            自动添加：SM-2 (efactor / interval / repetitions)、interview_audios.segment_id、questions.order_index、面试 TTS (tts_audio_key / tts_voice / tts_model)。
+          </div>
+        </div>
+
+        <!-- ② CELPIP 迁移 -->
+        <div style="padding: 12px; background: rgba(0,0,0,0.15); border-radius: 8px;">
+          <h3 style="margin: 0 0 8px 0; font-size: 1rem;">② CELPIP 迁移（试卷 / 提示词 / AI 配置）</h3>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="celpipMigrateBtn" class="btn-main" onclick="runCelpipMigration(false)">
+              🧩 运行 CELPIP 迁移（保留原提示词）
+            </button>
+            <button id="celpipMigrateForceBtn" class="btn-secondary" onclick="runCelpipMigration(true)" style="background: #F5A623; color: #000;">
+              ⚠️ 迁移 + 覆盖默认提示词
+            </button>
+          </div>
+          <div id="celpipMigrateResult" style="margin-top: 8px; font-size: 0.8rem; color: #888;">
+            创建 CELPIP 相关表并 seed 默认配置。"覆盖默认提示词" 会用代码里最新的 SEED_PROMPTS 生成新版本并激活（修改过 prompt 后请慎用）。
+          </div>
         </div>
       </div>
     </div>
@@ -2028,6 +2049,49 @@
       alert('❌ 迁移失败: ' + e.message);
       migrateBtn.disabled = false;
       migrateBtn.textContent = '🔧 执行数据库迁移';
+    }
+  }
+
+  // CELPIP 数据库迁移（从 celpip-admin.html 整合过来，统一入口）
+  async function runCelpipMigration(force) {
+    const btn = document.getElementById(force ? 'celpipMigrateForceBtn' : 'celpipMigrateBtn');
+    const resultEl = document.getElementById('celpipMigrateResult');
+    if (!btn) return;
+
+    if (force && !confirm('⚠️ 确定要覆盖默认提示词吗？\n\n将用代码里最新的 SEED_PROMPTS 生成新版本并激活（旧版本被停用）。如果你手动改过 prompt，这将丢失自定义内容。')) {
+      return;
+    } else if (!force && !confirm('确定要执行 CELPIP 数据库迁移吗？\n\n将创建/补齐 CELPIP 相关表（保留现有提示词）。')) {
+      return;
+    }
+
+    const oldText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '⏳ 迁移中…';
+    if (resultEl) resultEl.innerHTML = '<span style="color:#888">正在执行 CELPIP 迁移…</span>';
+
+    try {
+      const url = `${API_BASE}/admin/migrate?user_id=${currentUser.id}${force ? '&force_prompts=1' : ''}`;
+      const res = await fetch(url, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) {
+        if (resultEl) resultEl.innerHTML = `<span style="color:#ff6b7a">❌ ${data.error || res.status}</span>`;
+        alert('❌ CELPIP 迁移失败: ' + (data.error || res.status));
+      } else {
+        const errs = (data.results || []).filter(r => r.status === 'error' || r.status === 'failed');
+        if (errs.length) {
+          if (resultEl) resultEl.innerHTML = `<span style="color:#ff9f43">⚠️ 部分失败：${errs.map(e => e.op || e.name || '').join(', ')}</span>`;
+          alert('⚠️ CELPIP 迁移部分失败，请查看 result 列表。');
+        } else {
+          if (resultEl) resultEl.innerHTML = `<span style="color:#4ade80">✅ CELPIP 迁移完成，共 ${data.results?.length || 0} 条语句${force ? '（提示词已强制覆盖）' : ''}</span>`;
+          alert(`✅ CELPIP 迁移完成，共 ${data.results?.length || 0} 条语句${force ? '（提示词已强制覆盖）' : ''}`);
+        }
+      }
+    } catch (e) {
+      if (resultEl) resultEl.innerHTML = `<span style="color:#ff6b7a">❌ ${e.message}</span>`;
+      alert('❌ CELPIP 迁移失败: ' + e.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = oldText;
     }
   }
 
@@ -3802,6 +3866,15 @@
         return;
       }
       const data = await res.json();
+      // 若数据库尚未迁移，会导致刷新后按钮消失 → 主动提示用户
+      if (data.warning) {
+        console.warn('TTS warning:', data.warning);
+        if (!data.db_saved) {
+          alert(isZh
+            ? '⚠️ TTS 音频已生成，但保存到数据库失败：\n' + data.warning + '\n\n请前往 ⚙️ 管理后台 执行数据库迁移，之后刷新即可正常。'
+            : '⚠️ TTS audio generated but not saved:\n' + data.warning);
+        }
+      }
       // 更新本地缓存
       interviewAudios = interviewAudios.map(a =>
         a.id == id ? { ...a, tts_audio_key: data.audio_key, tts_voice: data.voice, tts_model: data.model } : a

@@ -89,19 +89,27 @@ export async function onRequestPost(context) {
     }
 
     // 更新数据库（记录最近使用的 model / voice / audio_key）
+    let dbSaved = false;
+    let dbWarning = null;
     if (id) {
       try {
-        await env.DB.prepare(
+        const r = await env.DB.prepare(
           "UPDATE interview_audios SET tts_audio_key = ?, tts_voice = ?, tts_model = ? WHERE id = ?"
         ).bind(r2Key, speaker, modelKey, id).run();
+        dbSaved = true;
       } catch (dbErr) {
-        // 若 tts_model 字段还没迁移，退化到只更新前两列
+        console.error("update interview_audios (with tts_model) failed:", dbErr.message);
+        // 若 tts_model 字段还没迁移，尝试只更新前两列
         try {
           await env.DB.prepare(
             "UPDATE interview_audios SET tts_audio_key = ?, tts_voice = ? WHERE id = ?"
           ).bind(r2Key, speaker, id).run();
+          dbSaved = true;
+          dbWarning = "tts_model column missing; please run DB migration (⚙️ 管理后台 → 🔧 执行数据库迁移)";
         } catch (e2) {
-          console.error("update interview_audios tts fields failed:", e2);
+          // 连基础字段都不在 → 完全没迁移
+          console.error("update interview_audios (fallback) failed:", e2.message);
+          dbWarning = "tts_audio_key / tts_voice columns missing; please run DB migration (⚙️ 管理后台 → 🔧 执行数据库迁移). Audio was cached in R2 but the record is not saved.";
         }
       }
     }
@@ -111,6 +119,8 @@ export async function onRequestPost(context) {
       cached,
       voice: speaker,
       model: modelKey,
+      db_saved: dbSaved,
+      warning: dbWarning,
     }), {
       headers: { "Content-Type": "application/json" },
     });
