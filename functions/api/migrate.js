@@ -37,13 +37,15 @@ export async function onRequestPost(context) {
       if (!existingColumns.includes('interval')) missingColumns.push('interval');
       if (!existingColumns.includes('repetitions')) missingColumns.push('repetitions');
 
-      // 检查interview_audios表的列是否存在
+      // 检查interview_audios表的列（segment_id / tts_audio_key / tts_voice / tts_model）
       const audioColumns = await env.DB.prepare(
-        "SELECT name FROM pragma_table_info('interview_audios') WHERE name = 'segment_id'"
+        "SELECT name FROM pragma_table_info('interview_audios') WHERE name IN ('segment_id','tts_audio_key','tts_voice','tts_model')"
       ).all();
-      
-      const hasSegmentId = audioColumns.results.length > 0;
-      if (!hasSegmentId) missingColumns.push('interview_audios.segment_id');
+      const audioColSet = new Set((audioColumns.results || []).map(c => c.name));
+      ['segment_id', 'tts_audio_key', 'tts_voice', 'tts_model'].forEach(col => {
+        if (audioColSet.has(col)) existingColumns.push(`interview_audios.${col}`);
+        else missingColumns.push(`interview_audios.${col}`);
+      });
 
       // 检查questions表的order_index列
       const questionColumns = await env.DB.prepare(
@@ -51,7 +53,8 @@ export async function onRequestPost(context) {
       ).all();
       
       const hasOrderIndex = questionColumns.results.length > 0;
-      if (!hasOrderIndex) missingColumns.push('questions.order_index');
+      if (hasOrderIndex) existingColumns.push('questions.order_index');
+      else missingColumns.push('questions.order_index');
 
       return new Response(JSON.stringify({
         success: true,
